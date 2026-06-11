@@ -1,0 +1,12 @@
+# PACT-E0003: invalid escape sequence
+
+字句解析: 文字列リテラル内に未定義のエスケープシーケンスが現れた。
+有効なエスケープは `\n` `\t` `\r` `\\` `\"` のみ。
+
+```pact
+let path = "C:\Users"   // error: invalid escape sequence '\U'
+```
+
+## 修正
+
+バックスラッシュ自体を表したい場合は `\\` と書く。

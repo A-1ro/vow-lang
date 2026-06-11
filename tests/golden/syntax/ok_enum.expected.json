@@ -1,0 +1,95 @@
+{
+  "decl": null,
+  "imports": [],
+  "items": [
+    {
+      "kind": "Enum",
+      "name": {
+        "name": "TransferError",
+        "span": "1:6-1:19"
+      },
+      "span": "1:1-5:2",
+      "variants": [
+        {
+          "name": {
+            "name": "NotFound",
+            "span": "2:3-2:11"
+          },
+          "payload": {
+            "kind": "Tuple",
+            "types": [
+              {
+                "args": [],
+                "path": [
+                  {
+                    "name": "AccountId",
+                    "span": "2:12-2:21"
+                  }
+                ],
+                "span": "2:12-2:21"
+              }
+            ]
+          },
+          "span": "2:3-2:22"
+        },
+        {
+          "name": {
+            "name": "InsufficientFunds",
+            "span": "3:3-3:20"
+          },
+          "payload": {
+            "fields": [
+              {
+                "name": {
+                  "name": "needed",
+                  "span": "3:23-3:29"
+                },
+                "span": "3:23-3:36",
+                "ty": {
+                  "args": [],
+                  "path": [
+                    {
+                      "name": "Money",
+                      "span": "3:31-3:36"
+                    }
+                  ],
+                  "span": "3:31-3:36"
+                }
+              },
+              {
+                "name": {
+                  "name": "had",
+                  "span": "3:38-3:41"
+                },
+                "span": "3:38-3:48",
+                "ty": {
+                  "args": [],
+                  "path": [
+                    {
+                      "name": "Money",
+                      "span": "3:43-3:48"
+                    }
+                  ],
+                  "span": "3:43-3:48"
+                }
+              }
+            ],
+            "kind": "Record"
+          },
+          "span": "3:3-3:50"
+        },
+        {
+          "name": {
+            "name": "Timeout",
+            "span": "4:3-4:10"
+          },
+          "payload": {
+            "kind": "Unit"
+          },
+          "span": "4:3-4:10"
+        }
+      ]
+    }
+  ],
+  "span": "1:1-6:1"
+}

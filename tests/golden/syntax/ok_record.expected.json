@@ -1,0 +1,68 @@
+{
+  "decl": null,
+  "imports": [],
+  "items": [
+    {
+      "fields": [
+        {
+          "name": {
+            "name": "from",
+            "span": "2:3-2:7"
+          },
+          "span": "2:3-2:18",
+          "ty": {
+            "args": [],
+            "path": [
+              {
+                "name": "AccountId",
+                "span": "2:9-2:18"
+              }
+            ],
+            "span": "2:9-2:18"
+          }
+        },
+        {
+          "name": {
+            "name": "to",
+            "span": "3:3-3:5"
+          },
+          "span": "3:3-3:16",
+          "ty": {
+            "args": [],
+            "path": [
+              {
+                "name": "AccountId",
+                "span": "3:7-3:16"
+              }
+            ],
+            "span": "3:7-3:16"
+          }
+        },
+        {
+          "name": {
+            "name": "amount",
+            "span": "4:3-4:9"
+          },
+          "span": "4:3-4:16",
+          "ty": {
+            "args": [],
+            "path": [
+              {
+                "name": "Money",
+                "span": "4:11-4:16"
+              }
+            ],
+            "span": "4:11-4:16"
+          }
+        }
+      ],
+      "kind": "Record",
+      "name": {
+        "name": "TransferReceipt",
+        "span": "1:8-1:23"
+      },
+      "span": "1:1-5:2"
+    }
+  ],
+  "span": "1:1-6:1"
+}

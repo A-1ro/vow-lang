@@ -1,0 +1,215 @@
+{
+  "decl": null,
+  "imports": [],
+  "items": [
+    {
+      "body": {
+        "span": "1:84-3:2",
+        "stmts": [
+          {
+            "kind": "Return",
+            "span": "2:3-2:46",
+            "value": {
+              "fields": [
+                {
+                  "name": {
+                    "name": "from",
+                    "span": "2:28-2:32"
+                  },
+                  "span": "2:28-2:32",
+                  "value": null
+                },
+                {
+                  "name": {
+                    "name": "to",
+                    "span": "2:34-2:36"
+                  },
+                  "span": "2:34-2:36",
+                  "value": null
+                },
+                {
+                  "name": {
+                    "name": "amount",
+                    "span": "2:38-2:44"
+                  },
+                  "span": "2:38-2:44",
+                  "value": null
+                }
+              ],
+              "kind": "RecordLit",
+              "path": [
+                {
+                  "name": "TransferReceipt",
+                  "span": "2:10-2:25"
+                }
+              ],
+              "span": "2:10-2:46"
+            }
+          }
+        ]
+      },
+      "ensures": [],
+      "kind": "Func",
+      "name": {
+        "name": "makeReceipt",
+        "span": "1:6-1:17"
+      },
+      "params": [
+        {
+          "name": {
+            "name": "from",
+            "span": "1:18-1:22"
+          },
+          "span": "1:18-1:33",
+          "ty": {
+            "args": [],
+            "path": [
+              {
+                "name": "AccountId",
+                "span": "1:24-1:33"
+              }
+            ],
+            "span": "1:24-1:33"
+          }
+        },
+        {
+          "name": {
+            "name": "to",
+            "span": "1:35-1:37"
+          },
+          "span": "1:35-1:48",
+          "ty": {
+            "args": [],
+            "path": [
+              {
+                "name": "AccountId",
+                "span": "1:39-1:48"
+              }
+            ],
+            "span": "1:39-1:48"
+          }
+        },
+        {
+          "name": {
+            "name": "amount",
+            "span": "1:50-1:56"
+          },
+          "span": "1:50-1:63",
+          "ty": {
+            "args": [],
+            "path": [
+              {
+                "name": "Money",
+                "span": "1:58-1:63"
+              }
+            ],
+            "span": "1:58-1:63"
+          }
+        }
+      ],
+      "requires": [],
+      "ret": {
+        "args": [],
+        "path": [
+          {
+            "name": "TransferReceipt",
+            "span": "1:68-1:83"
+          }
+        ],
+        "span": "1:68-1:83"
+      },
+      "span": "1:1-3:2",
+      "uses": []
+    },
+    {
+      "body": {
+        "span": "5:46-7:2",
+        "stmts": [
+          {
+            "kind": "Return",
+            "span": "6:3-6:51",
+            "value": {
+              "fields": [
+                {
+                  "name": {
+                    "name": "since",
+                    "span": "6:27-6:32"
+                  },
+                  "span": "6:27-6:37",
+                  "value": {
+                    "kind": "Name",
+                    "name": "now",
+                    "span": "6:34-6:37"
+                  }
+                },
+                {
+                  "name": {
+                    "name": "retries",
+                    "span": "6:39-6:46"
+                  },
+                  "span": "6:39-6:49",
+                  "value": {
+                    "kind": "Int",
+                    "span": "6:48-6:49",
+                    "value": 0
+                  }
+                }
+              ],
+              "kind": "RecordLit",
+              "path": [
+                {
+                  "name": "Status",
+                  "span": "6:10-6:16"
+                },
+                {
+                  "name": "Pending",
+                  "span": "6:17-6:24"
+                }
+              ],
+              "span": "6:10-6:51"
+            }
+          }
+        ]
+      },
+      "ensures": [],
+      "kind": "Func",
+      "name": {
+        "name": "pendingStatus",
+        "span": "5:6-5:19"
+      },
+      "params": [
+        {
+          "name": {
+            "name": "now",
+            "span": "5:20-5:23"
+          },
+          "span": "5:20-5:34",
+          "ty": {
+            "args": [],
+            "path": [
+              {
+                "name": "Timestamp",
+                "span": "5:25-5:34"
+              }
+            ],
+            "span": "5:25-5:34"
+          }
+        }
+      ],
+      "requires": [],
+      "ret": {
+        "args": [],
+        "path": [
+          {
+            "name": "Status",
+            "span": "5:39-5:45"
+          }
+        ],
+        "span": "5:39-5:45"
+      },
+      "span": "5:1-7:2",
+      "uses": []
+    }
+  ],
+  "span": "1:1-8:1"
+}

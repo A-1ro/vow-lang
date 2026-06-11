@@ -1,0 +1,12 @@
+# PACT-E0002: unterminated string literal
+
+字句解析: 文字列リテラルが閉じ `"` の前に行末または EOF に達した。
+Pact の文字列リテラルは 1 行に収める。改行を含めたい場合はエスケープ `\n` を使う。
+
+```pact
+let msg = "hello   // error: unterminated string literal
+```
+
+## 修正
+
+行末までに閉じ `"` を補う。

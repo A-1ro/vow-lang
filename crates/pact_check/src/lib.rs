@@ -4,5 +4,7 @@
 //! (ARCHITECTURE.md 不変条件 1)。検査ロジック本体は M3 で実装する。
 
 pub mod diagnostic;
+pub mod syntax;
 
 pub use diagnostic::{Diagnostic, Fix, Position, Severity, Span, TextEdit};
+pub use syntax::syntax_diagnostics;

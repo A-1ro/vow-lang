@@ -1,0 +1,587 @@
+{
+  "decl": null,
+  "imports": [],
+  "items": [
+    {
+      "body": {
+        "span": "7:1-19:2",
+        "stmts": [
+          {
+            "else_fail": {
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "from",
+                  "span": "8:77-8:81"
+                }
+              ],
+              "callee": {
+                "base": {
+                  "kind": "Name",
+                  "name": "TransferError",
+                  "span": "8:54-8:67"
+                },
+                "kind": "Field",
+                "name": {
+                  "name": "NotFound",
+                  "span": "8:68-8:76"
+                },
+                "span": "8:54-8:76"
+              },
+              "kind": "Call",
+              "span": "8:54-8:82"
+            },
+            "kind": "Let",
+            "name": {
+              "name": "sender",
+              "span": "8:7-8:13"
+            },
+            "span": "8:3-8:82",
+            "ty": null,
+            "value": {
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "from",
+                  "span": "8:38-8:42"
+                }
+              ],
+              "callee": {
+                "base": {
+                  "kind": "Name",
+                  "name": "Database",
+                  "span": "8:16-8:24"
+                },
+                "kind": "Field",
+                "name": {
+                  "name": "fetchAccount",
+                  "span": "8:25-8:37"
+                },
+                "span": "8:16-8:37"
+              },
+              "kind": "Call",
+              "span": "8:16-8:43"
+            }
+          },
+          {
+            "cond": {
+              "kind": "Binary",
+              "lhs": {
+                "base": {
+                  "kind": "Name",
+                  "name": "sender",
+                  "span": "10:6-10:12"
+                },
+                "kind": "Field",
+                "name": {
+                  "name": "balance",
+                  "span": "10:13-10:20"
+                },
+                "span": "10:6-10:20"
+              },
+              "op": "Lt",
+              "rhs": {
+                "kind": "Name",
+                "name": "amount",
+                "span": "10:23-10:29"
+              },
+              "span": "10:6-10:29"
+            },
+            "else_branch": null,
+            "kind": "If",
+            "span": "10:3-12:4",
+            "then_block": {
+              "span": "10:30-12:4",
+              "stmts": [
+                {
+                  "kind": "Return",
+                  "span": "11:5-11:88",
+                  "value": {
+                    "args": [
+                      {
+                        "fields": [
+                          {
+                            "name": {
+                              "name": "needed",
+                              "span": "11:50-11:56"
+                            },
+                            "span": "11:50-11:64",
+                            "value": {
+                              "kind": "Name",
+                              "name": "amount",
+                              "span": "11:58-11:64"
+                            }
+                          },
+                          {
+                            "name": {
+                              "name": "had",
+                              "span": "11:66-11:69"
+                            },
+                            "span": "11:66-11:85",
+                            "value": {
+                              "base": {
+                                "kind": "Name",
+                                "name": "sender",
+                                "span": "11:71-11:77"
+                              },
+                              "kind": "Field",
+                              "name": {
+                                "name": "balance",
+                                "span": "11:78-11:85"
+                              },
+                              "span": "11:71-11:85"
+                            }
+                          }
+                        ],
+                        "kind": "RecordLit",
+                        "path": [
+                          {
+                            "name": "TransferError",
+                            "span": "11:16-11:29"
+                          },
+                          {
+                            "name": "InsufficientFunds",
+                            "span": "11:30-11:47"
+                          }
+                        ],
+                        "span": "11:16-11:87"
+                      }
+                    ],
+                    "callee": {
+                      "kind": "Name",
+                      "name": "Err",
+                      "span": "11:12-11:15"
+                    },
+                    "kind": "Call",
+                    "span": "11:12-11:88"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "expr": {
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "from",
+                  "span": "14:18-14:22"
+                },
+                {
+                  "kind": "Name",
+                  "name": "amount",
+                  "span": "14:24-14:30"
+                }
+              ],
+              "callee": {
+                "base": {
+                  "kind": "Name",
+                  "name": "Database",
+                  "span": "14:3-14:11"
+                },
+                "kind": "Field",
+                "name": {
+                  "name": "debit",
+                  "span": "14:12-14:17"
+                },
+                "span": "14:3-14:17"
+              },
+              "kind": "Call",
+              "span": "14:3-14:31"
+            },
+            "kind": "Expr",
+            "span": "14:3-14:31"
+          },
+          {
+            "expr": {
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "to",
+                  "span": "15:19-15:21"
+                },
+                {
+                  "kind": "Name",
+                  "name": "amount",
+                  "span": "15:23-15:29"
+                }
+              ],
+              "callee": {
+                "base": {
+                  "kind": "Name",
+                  "name": "Database",
+                  "span": "15:3-15:11"
+                },
+                "kind": "Field",
+                "name": {
+                  "name": "credit",
+                  "span": "15:12-15:18"
+                },
+                "span": "15:3-15:18"
+              },
+              "kind": "Call",
+              "span": "15:3-15:30"
+            },
+            "kind": "Expr",
+            "span": "15:3-15:30"
+          },
+          {
+            "expr": {
+              "args": [
+                {
+                  "fields": [
+                    {
+                      "name": {
+                        "name": "from",
+                        "span": "16:31-16:35"
+                      },
+                      "span": "16:31-16:35",
+                      "value": null
+                    },
+                    {
+                      "name": {
+                        "name": "to",
+                        "span": "16:37-16:39"
+                      },
+                      "span": "16:37-16:39",
+                      "value": null
+                    },
+                    {
+                      "name": {
+                        "name": "amount",
+                        "span": "16:41-16:47"
+                      },
+                      "span": "16:41-16:47",
+                      "value": null
+                    }
+                  ],
+                  "kind": "RecordLit",
+                  "path": [
+                    {
+                      "name": "Transfer",
+                      "span": "16:20-16:28"
+                    }
+                  ],
+                  "span": "16:20-16:49"
+                }
+              ],
+              "callee": {
+                "base": {
+                  "base": {
+                    "kind": "Name",
+                    "name": "Audit",
+                    "span": "16:3-16:8"
+                  },
+                  "kind": "Field",
+                  "name": {
+                    "name": "Log",
+                    "span": "16:9-16:12"
+                  },
+                  "span": "16:3-16:12"
+                },
+                "kind": "Field",
+                "name": {
+                  "name": "record",
+                  "span": "16:13-16:19"
+                },
+                "span": "16:3-16:19"
+              },
+              "kind": "Call",
+              "span": "16:3-16:50"
+            },
+            "kind": "Expr",
+            "span": "16:3-16:50"
+          },
+          {
+            "kind": "Return",
+            "span": "18:3-18:50",
+            "value": {
+              "args": [
+                {
+                  "fields": [
+                    {
+                      "name": {
+                        "name": "from",
+                        "span": "18:31-18:35"
+                      },
+                      "span": "18:31-18:35",
+                      "value": null
+                    },
+                    {
+                      "name": {
+                        "name": "to",
+                        "span": "18:37-18:39"
+                      },
+                      "span": "18:37-18:39",
+                      "value": null
+                    },
+                    {
+                      "name": {
+                        "name": "amount",
+                        "span": "18:41-18:47"
+                      },
+                      "span": "18:41-18:47",
+                      "value": null
+                    }
+                  ],
+                  "kind": "RecordLit",
+                  "path": [
+                    {
+                      "name": "TransferReceipt",
+                      "span": "18:13-18:28"
+                    }
+                  ],
+                  "span": "18:13-18:49"
+                }
+              ],
+              "callee": {
+                "kind": "Name",
+                "name": "Ok",
+                "span": "18:10-18:12"
+              },
+              "kind": "Call",
+              "span": "18:10-18:50"
+            }
+          }
+        ]
+      },
+      "ensures": [
+        {
+          "kind": "Binary",
+          "lhs": {
+            "base": {
+              "kind": "Name",
+              "name": "result",
+              "span": "6:11-6:17"
+            },
+            "kind": "Field",
+            "name": {
+              "name": "isOk",
+              "span": "6:18-6:22"
+            },
+            "span": "6:11-6:22"
+          },
+          "op": "Implies",
+          "rhs": {
+            "kind": "Binary",
+            "lhs": {
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "from",
+                  "span": "6:41-6:45"
+                }
+              ],
+              "callee": {
+                "kind": "Name",
+                "name": "balanceOf",
+                "span": "6:31-6:40"
+              },
+              "kind": "Call",
+              "span": "6:31-6:46"
+            },
+            "op": "Eq",
+            "rhs": {
+              "kind": "Binary",
+              "lhs": {
+                "args": [
+                  {
+                    "args": [
+                      {
+                        "kind": "Name",
+                        "name": "from",
+                        "span": "6:64-6:68"
+                      }
+                    ],
+                    "callee": {
+                      "kind": "Name",
+                      "name": "balanceOf",
+                      "span": "6:54-6:63"
+                    },
+                    "kind": "Call",
+                    "span": "6:54-6:69"
+                  }
+                ],
+                "callee": {
+                  "kind": "Name",
+                  "name": "old",
+                  "span": "6:50-6:53"
+                },
+                "kind": "Call",
+                "span": "6:50-6:70"
+              },
+              "op": "Sub",
+              "rhs": {
+                "kind": "Name",
+                "name": "amount",
+                "span": "6:73-6:79"
+              },
+              "span": "6:50-6:79"
+            },
+            "span": "6:31-6:79"
+          },
+          "span": "6:11-6:79"
+        }
+      ],
+      "kind": "Func",
+      "name": {
+        "name": "transferFunds",
+        "span": "1:6-1:19"
+      },
+      "params": [
+        {
+          "name": {
+            "name": "from",
+            "span": "1:20-1:24"
+          },
+          "span": "1:20-1:35",
+          "ty": {
+            "args": [],
+            "path": [
+              {
+                "name": "AccountId",
+                "span": "1:26-1:35"
+              }
+            ],
+            "span": "1:26-1:35"
+          }
+        },
+        {
+          "name": {
+            "name": "to",
+            "span": "1:37-1:39"
+          },
+          "span": "1:37-1:50",
+          "ty": {
+            "args": [],
+            "path": [
+              {
+                "name": "AccountId",
+                "span": "1:41-1:50"
+              }
+            ],
+            "span": "1:41-1:50"
+          }
+        },
+        {
+          "name": {
+            "name": "amount",
+            "span": "1:52-1:58"
+          },
+          "span": "1:52-1:65",
+          "ty": {
+            "args": [],
+            "path": [
+              {
+                "name": "Money",
+                "span": "1:60-1:65"
+              }
+            ],
+            "span": "1:60-1:65"
+          }
+        }
+      ],
+      "requires": [
+        {
+          "kind": "Binary",
+          "lhs": {
+            "kind": "Name",
+            "name": "amount",
+            "span": "4:12-4:18"
+          },
+          "op": "Gt",
+          "rhs": {
+            "base": {
+              "kind": "Name",
+              "name": "Money",
+              "span": "4:21-4:26"
+            },
+            "kind": "Field",
+            "name": {
+              "name": "zero",
+              "span": "4:27-4:31"
+            },
+            "span": "4:21-4:31"
+          },
+          "span": "4:12-4:31"
+        },
+        {
+          "kind": "Binary",
+          "lhs": {
+            "kind": "Name",
+            "name": "from",
+            "span": "5:12-5:16"
+          },
+          "op": "Ne",
+          "rhs": {
+            "kind": "Name",
+            "name": "to",
+            "span": "5:20-5:22"
+          },
+          "span": "5:12-5:22"
+        }
+      ],
+      "ret": {
+        "args": [
+          {
+            "args": [],
+            "path": [
+              {
+                "name": "TransferReceipt",
+                "span": "2:13-2:28"
+              }
+            ],
+            "span": "2:13-2:28"
+          },
+          {
+            "args": [],
+            "path": [
+              {
+                "name": "TransferError",
+                "span": "2:30-2:43"
+              }
+            ],
+            "span": "2:30-2:43"
+          }
+        ],
+        "path": [
+          {
+            "name": "Result",
+            "span": "2:6-2:12"
+          }
+        ],
+        "span": "2:6-2:44"
+      },
+      "span": "1:1-19:2",
+      "uses": [
+        {
+          "path": [
+            {
+              "name": "Database",
+              "span": "3:8-3:16"
+            },
+            {
+              "name": "Write",
+              "span": "3:17-3:22"
+            }
+          ],
+          "span": "3:8-3:22"
+        },
+        {
+          "path": [
+            {
+              "name": "Audit",
+              "span": "3:24-3:29"
+            },
+            {
+              "name": "Log",
+              "span": "3:30-3:33"
+            }
+          ],
+          "span": "3:24-3:33"
+        }
+      ]
+    }
+  ],
+  "span": "1:1-20:1"
+}

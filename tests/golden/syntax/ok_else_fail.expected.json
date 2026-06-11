@@ -1,0 +1,164 @@
+{
+  "decl": null,
+  "imports": [],
+  "items": [
+    {
+      "body": {
+        "span": "3:1-6:2",
+        "stmts": [
+          {
+            "else_fail": {
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "id",
+                  "span": "4:66-4:68"
+                }
+              ],
+              "callee": {
+                "base": {
+                  "kind": "Name",
+                  "name": "UserError",
+                  "span": "4:47-4:56"
+                },
+                "kind": "Field",
+                "name": {
+                  "name": "NotFound",
+                  "span": "4:57-4:65"
+                },
+                "span": "4:47-4:65"
+              },
+              "kind": "Call",
+              "span": "4:47-4:69"
+            },
+            "kind": "Let",
+            "name": {
+              "name": "user",
+              "span": "4:7-4:11"
+            },
+            "span": "4:3-4:69",
+            "ty": null,
+            "value": {
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "id",
+                  "span": "4:33-4:35"
+                }
+              ],
+              "callee": {
+                "base": {
+                  "kind": "Name",
+                  "name": "Database",
+                  "span": "4:14-4:22"
+                },
+                "kind": "Field",
+                "name": {
+                  "name": "fetchUser",
+                  "span": "4:23-4:32"
+                },
+                "span": "4:14-4:32"
+              },
+              "kind": "Call",
+              "span": "4:14-4:36"
+            }
+          },
+          {
+            "kind": "Return",
+            "span": "5:3-5:18",
+            "value": {
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "user",
+                  "span": "5:13-5:17"
+                }
+              ],
+              "callee": {
+                "kind": "Name",
+                "name": "Ok",
+                "span": "5:10-5:12"
+              },
+              "kind": "Call",
+              "span": "5:10-5:18"
+            }
+          }
+        ]
+      },
+      "ensures": [],
+      "kind": "Func",
+      "name": {
+        "name": "findUser",
+        "span": "1:6-1:14"
+      },
+      "params": [
+        {
+          "name": {
+            "name": "id",
+            "span": "1:15-1:17"
+          },
+          "span": "1:15-1:25",
+          "ty": {
+            "args": [],
+            "path": [
+              {
+                "name": "UserId",
+                "span": "1:19-1:25"
+              }
+            ],
+            "span": "1:19-1:25"
+          }
+        }
+      ],
+      "requires": [],
+      "ret": {
+        "args": [
+          {
+            "args": [],
+            "path": [
+              {
+                "name": "User",
+                "span": "1:37-1:41"
+              }
+            ],
+            "span": "1:37-1:41"
+          },
+          {
+            "args": [],
+            "path": [
+              {
+                "name": "UserError",
+                "span": "1:43-1:52"
+              }
+            ],
+            "span": "1:43-1:52"
+          }
+        ],
+        "path": [
+          {
+            "name": "Result",
+            "span": "1:30-1:36"
+          }
+        ],
+        "span": "1:30-1:53"
+      },
+      "span": "1:1-6:2",
+      "uses": [
+        {
+          "path": [
+            {
+              "name": "Database",
+              "span": "2:8-2:16"
+            },
+            {
+              "name": "Read",
+              "span": "2:17-2:21"
+            }
+          ],
+          "span": "2:8-2:21"
+        }
+      ]
+    }
+  ],
+  "span": "1:1-7:1"
+}

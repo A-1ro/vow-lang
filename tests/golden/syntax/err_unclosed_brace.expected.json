@@ -1,0 +1,39 @@
+[
+  {
+    "code": "PACT-E0103",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": "}",
+            "span": {
+              "end": {
+                "col": 1,
+                "line": 5
+              },
+              "file": "tests/golden/syntax/err_unclosed_brace.pact",
+              "start": {
+                "col": 1,
+                "line": 5
+              }
+            }
+          }
+        ],
+        "title": "Insert '}'"
+      }
+    ],
+    "message": "unclosed '{': missing '}' before end of file",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 28,
+        "line": 1
+      },
+      "file": "tests/golden/syntax/err_unclosed_brace.pact",
+      "start": {
+        "col": 27,
+        "line": 1
+      }
+    }
+  }
+]

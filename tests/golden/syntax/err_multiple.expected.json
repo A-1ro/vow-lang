@@ -1,0 +1,76 @@
+[
+  {
+    "code": "PACT-E0101",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": ":",
+            "span": {
+              "end": {
+                "col": 5,
+                "line": 3
+              },
+              "file": "tests/golden/syntax/err_multiple.pact",
+              "start": {
+                "col": 5,
+                "line": 3
+              }
+            }
+          }
+        ],
+        "title": "Insert ':'"
+      }
+    ],
+    "message": "expected ':', found identifier 'Int'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 8,
+        "line": 3
+      },
+      "file": "tests/golden/syntax/err_multiple.pact",
+      "start": {
+        "col": 5,
+        "line": 3
+      }
+    }
+  },
+  {
+    "code": "PACT-E0101",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": ")",
+            "span": {
+              "end": {
+                "col": 20,
+                "line": 6
+              },
+              "file": "tests/golden/syntax/err_multiple.pact",
+              "start": {
+                "col": 20,
+                "line": 6
+              }
+            }
+          }
+        ],
+        "title": "Insert ')'"
+      }
+    ],
+    "message": "expected ',' or ')' in parameter list, found '->'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 22,
+        "line": 6
+      },
+      "file": "tests/golden/syntax/err_multiple.pact",
+      "start": {
+        "col": 20,
+        "line": 6
+      }
+    }
+  }
+]

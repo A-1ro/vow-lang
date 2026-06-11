@@ -1,0 +1,150 @@
+[
+  {
+    "code": "PACT-E0102",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": "record_",
+            "span": {
+              "end": {
+                "col": 20,
+                "line": 1
+              },
+              "file": "tests/golden/syntax/err_reserved_ident.pact",
+              "start": {
+                "col": 14,
+                "line": 1
+              }
+            }
+          }
+        ],
+        "title": "Rename to 'record_'"
+      }
+    ],
+    "message": "'record' is a reserved keyword and cannot be used as a parameter name",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 20,
+        "line": 1
+      },
+      "file": "tests/golden/syntax/err_reserved_ident.pact",
+      "start": {
+        "col": 14,
+        "line": 1
+      }
+    }
+  },
+  {
+    "code": "PACT-E0102",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": "type_",
+            "span": {
+              "end": {
+                "col": 11,
+                "line": 2
+              },
+              "file": "tests/golden/syntax/err_reserved_ident.pact",
+              "start": {
+                "col": 7,
+                "line": 2
+              }
+            }
+          }
+        ],
+        "title": "Rename to 'type_'"
+      }
+    ],
+    "message": "'type' is a reserved keyword and cannot be used as a variable name",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 11,
+        "line": 2
+      },
+      "file": "tests/golden/syntax/err_reserved_ident.pact",
+      "start": {
+        "col": 7,
+        "line": 2
+      }
+    }
+  },
+  {
+    "code": "PACT-E0102",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": "record_",
+            "span": {
+              "end": {
+                "col": 20,
+                "line": 2
+              },
+              "file": "tests/golden/syntax/err_reserved_ident.pact",
+              "start": {
+                "col": 14,
+                "line": 2
+              }
+            }
+          }
+        ],
+        "title": "Rename to 'record_'"
+      }
+    ],
+    "message": "'record' is a reserved keyword and cannot be used as an expression",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 20,
+        "line": 2
+      },
+      "file": "tests/golden/syntax/err_reserved_ident.pact",
+      "start": {
+        "col": 14,
+        "line": 2
+      }
+    }
+  },
+  {
+    "code": "PACT-E0102",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": "type_",
+            "span": {
+              "end": {
+                "col": 14,
+                "line": 3
+              },
+              "file": "tests/golden/syntax/err_reserved_ident.pact",
+              "start": {
+                "col": 10,
+                "line": 3
+              }
+            }
+          }
+        ],
+        "title": "Rename to 'type_'"
+      }
+    ],
+    "message": "'type' is a reserved keyword and cannot be used as an expression",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 14,
+        "line": 3
+      },
+      "file": "tests/golden/syntax/err_reserved_ident.pact",
+      "start": {
+        "col": 10,
+        "line": 3
+      }
+    }
+  }
+]

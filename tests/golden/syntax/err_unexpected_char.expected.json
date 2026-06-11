@@ -1,0 +1,76 @@
+[
+  {
+    "code": "PACT-E0001",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": "",
+            "span": {
+              "end": {
+                "col": 14,
+                "line": 2
+              },
+              "file": "tests/golden/syntax/err_unexpected_char.pact",
+              "start": {
+                "col": 13,
+                "line": 2
+              }
+            }
+          }
+        ],
+        "title": "Remove this character"
+      }
+    ],
+    "message": "unexpected character '@'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 14,
+        "line": 2
+      },
+      "file": "tests/golden/syntax/err_unexpected_char.pact",
+      "start": {
+        "col": 13,
+        "line": 2
+      }
+    }
+  },
+  {
+    "code": "PACT-E0101",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": "\n",
+            "span": {
+              "end": {
+                "col": 15,
+                "line": 2
+              },
+              "file": "tests/golden/syntax/err_unexpected_char.pact",
+              "start": {
+                "col": 15,
+                "line": 2
+              }
+            }
+          }
+        ],
+        "title": "Insert a line break"
+      }
+    ],
+    "message": "expected a line break after this statement, found integer literal '2'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 16,
+        "line": 2
+      },
+      "file": "tests/golden/syntax/err_unexpected_char.pact",
+      "start": {
+        "col": 15,
+        "line": 2
+      }
+    }
+  }
+]

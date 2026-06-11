@@ -1,0 +1,152 @@
+{
+  "decl": null,
+  "imports": [],
+  "items": [
+    {
+      "body": {
+        "span": "3:1-7:2",
+        "stmts": [
+          {
+            "expr": {
+              "args": [
+                {
+                  "kind": "Name",
+                  "name": "tx",
+                  "span": "4:20-4:22"
+                }
+              ],
+              "callee": {
+                "base": {
+                  "base": {
+                    "kind": "Name",
+                    "name": "Audit",
+                    "span": "4:3-4:8"
+                  },
+                  "kind": "Field",
+                  "name": {
+                    "name": "Log",
+                    "span": "4:9-4:12"
+                  },
+                  "span": "4:3-4:12"
+                },
+                "kind": "Field",
+                "name": {
+                  "name": "record",
+                  "span": "4:13-4:19"
+                },
+                "span": "4:3-4:19"
+              },
+              "kind": "Call",
+              "span": "4:3-4:23"
+            },
+            "kind": "Expr",
+            "span": "4:3-4:23"
+          },
+          {
+            "else_fail": null,
+            "kind": "Let",
+            "name": {
+              "name": "settled",
+              "span": "5:7-5:14"
+            },
+            "span": "5:3-5:32",
+            "ty": null,
+            "value": {
+              "base": {
+                "base": {
+                  "kind": "Name",
+                  "name": "tx",
+                  "span": "5:17-5:19"
+                },
+                "kind": "Field",
+                "name": {
+                  "name": "receipt",
+                  "span": "5:20-5:27"
+                },
+                "span": "5:17-5:27"
+              },
+              "kind": "Field",
+              "name": {
+                "name": "isOk",
+                "span": "5:28-5:32"
+              },
+              "span": "5:17-5:32"
+            }
+          },
+          {
+            "kind": "Return",
+            "span": "6:3-6:26",
+            "value": {
+              "kind": "Binary",
+              "lhs": {
+                "kind": "Name",
+                "name": "settled",
+                "span": "6:10-6:17"
+              },
+              "op": "Ne",
+              "rhs": {
+                "kind": "Bool",
+                "span": "6:21-6:26",
+                "value": false
+              },
+              "span": "6:10-6:26"
+            }
+          }
+        ]
+      },
+      "ensures": [],
+      "kind": "Func",
+      "name": {
+        "name": "report",
+        "span": "1:6-1:12"
+      },
+      "params": [
+        {
+          "name": {
+            "name": "tx",
+            "span": "1:13-1:15"
+          },
+          "span": "1:13-1:25",
+          "ty": {
+            "args": [],
+            "path": [
+              {
+                "name": "Transfer",
+                "span": "1:17-1:25"
+              }
+            ],
+            "span": "1:17-1:25"
+          }
+        }
+      ],
+      "requires": [],
+      "ret": {
+        "args": [],
+        "path": [
+          {
+            "name": "Bool",
+            "span": "1:30-1:34"
+          }
+        ],
+        "span": "1:30-1:34"
+      },
+      "span": "1:1-7:2",
+      "uses": [
+        {
+          "path": [
+            {
+              "name": "Audit",
+              "span": "2:8-2:13"
+            },
+            {
+              "name": "Log",
+              "span": "2:14-2:17"
+            }
+          ],
+          "span": "2:8-2:17"
+        }
+      ]
+    }
+  ],
+  "span": "1:1-8:1"
+}

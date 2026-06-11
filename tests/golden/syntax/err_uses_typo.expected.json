@@ -1,0 +1,39 @@
+[
+  {
+    "code": "PACT-E0104",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": "uses",
+            "span": {
+              "end": {
+                "col": 6,
+                "line": 2
+              },
+              "file": "tests/golden/syntax/err_uses_typo.pact",
+              "start": {
+                "col": 3,
+                "line": 2
+              }
+            }
+          }
+        ],
+        "title": "Replace 'use' with 'uses'"
+      }
+    ],
+    "message": "unknown clause 'use': contract clauses are 'uses', 'requires', and 'ensures'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 6,
+        "line": 2
+      },
+      "file": "tests/golden/syntax/err_uses_typo.pact",
+      "start": {
+        "col": 3,
+        "line": 2
+      }
+    }
+  }
+]

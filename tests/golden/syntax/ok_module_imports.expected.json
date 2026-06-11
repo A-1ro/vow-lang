@@ -1,0 +1,76 @@
+{
+  "decl": {
+    "path": [
+      {
+        "name": "payments",
+        "span": "1:8-1:16"
+      },
+      {
+        "name": "transfer",
+        "span": "1:17-1:25"
+      }
+    ],
+    "span": "1:1-1:25"
+  },
+  "imports": [
+    {
+      "alias": null,
+      "names": [
+        {
+          "name": "Money",
+          "span": "3:21-3:26"
+        },
+        {
+          "name": "Currency",
+          "span": "3:28-3:36"
+        }
+      ],
+      "path": [
+        {
+          "name": "core",
+          "span": "3:8-3:12"
+        },
+        {
+          "name": "money",
+          "span": "3:13-3:18"
+        }
+      ],
+      "span": "3:1-3:38"
+    },
+    {
+      "alias": {
+        "name": "Database",
+        "span": "4:26-4:34"
+      },
+      "names": [],
+      "path": [
+        {
+          "name": "infra",
+          "span": "4:8-4:13"
+        },
+        {
+          "name": "database",
+          "span": "4:14-4:22"
+        }
+      ],
+      "span": "4:1-4:34"
+    },
+    {
+      "alias": null,
+      "names": [],
+      "path": [
+        {
+          "name": "core",
+          "span": "5:8-5:12"
+        },
+        {
+          "name": "prelude",
+          "span": "5:13-5:20"
+        }
+      ],
+      "span": "5:1-5:20"
+    }
+  ],
+  "items": [],
+  "span": "1:1-6:1"
+}

@@ -1,0 +1,139 @@
+{
+  "decl": null,
+  "imports": [],
+  "items": [
+    {
+      "body": {
+        "span": "1:33-11:2",
+        "stmts": [
+          {
+            "cond": {
+              "kind": "Binary",
+              "lhs": {
+                "kind": "Name",
+                "name": "n",
+                "span": "2:6-2:7"
+              },
+              "op": "Lt",
+              "rhs": {
+                "kind": "Int",
+                "span": "2:10-2:11",
+                "value": 0
+              },
+              "span": "2:6-2:11"
+            },
+            "else_branch": {
+              "kind": "Block",
+              "span": "4:10-10:4",
+              "stmts": [
+                {
+                  "cond": {
+                    "kind": "Binary",
+                    "lhs": {
+                      "kind": "Name",
+                      "name": "n",
+                      "span": "5:8-5:9"
+                    },
+                    "op": "Eq",
+                    "rhs": {
+                      "kind": "Int",
+                      "span": "5:13-5:14",
+                      "value": 0
+                    },
+                    "span": "5:8-5:14"
+                  },
+                  "else_branch": {
+                    "kind": "Block",
+                    "span": "7:12-9:6",
+                    "stmts": [
+                      {
+                        "kind": "Return",
+                        "span": "8:7-8:24",
+                        "value": {
+                          "kind": "Str",
+                          "span": "8:14-8:24",
+                          "value": "positive"
+                        }
+                      }
+                    ]
+                  },
+                  "kind": "If",
+                  "span": "5:5-9:6",
+                  "then_block": {
+                    "span": "5:15-7:6",
+                    "stmts": [
+                      {
+                        "kind": "Return",
+                        "span": "6:7-6:20",
+                        "value": {
+                          "kind": "Str",
+                          "span": "6:14-6:20",
+                          "value": "zero"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "kind": "If",
+            "span": "2:3-10:4",
+            "then_block": {
+              "span": "2:12-4:4",
+              "stmts": [
+                {
+                  "kind": "Return",
+                  "span": "3:5-3:22",
+                  "value": {
+                    "kind": "Str",
+                    "span": "3:12-3:22",
+                    "value": "negative"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "ensures": [],
+      "kind": "Func",
+      "name": {
+        "name": "classify",
+        "span": "1:6-1:14"
+      },
+      "params": [
+        {
+          "name": {
+            "name": "n",
+            "span": "1:15-1:16"
+          },
+          "span": "1:15-1:21",
+          "ty": {
+            "args": [],
+            "path": [
+              {
+                "name": "Int",
+                "span": "1:18-1:21"
+              }
+            ],
+            "span": "1:18-1:21"
+          }
+        }
+      ],
+      "requires": [],
+      "ret": {
+        "args": [],
+        "path": [
+          {
+            "name": "String",
+            "span": "1:26-1:32"
+          }
+        ],
+        "span": "1:26-1:32"
+      },
+      "span": "1:1-11:2",
+      "uses": []
+    }
+  ],
+  "span": "1:1-12:1"
+}

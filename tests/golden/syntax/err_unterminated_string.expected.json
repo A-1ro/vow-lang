@@ -1,0 +1,39 @@
+[
+  {
+    "code": "PACT-E0002",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": "\"",
+            "span": {
+              "end": {
+                "col": 19,
+                "line": 2
+              },
+              "file": "tests/golden/syntax/err_unterminated_string.pact",
+              "start": {
+                "col": 19,
+                "line": 2
+              }
+            }
+          }
+        ],
+        "title": "Insert a closing '\"'"
+      }
+    ],
+    "message": "unterminated string literal",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 19,
+        "line": 2
+      },
+      "file": "tests/golden/syntax/err_unterminated_string.pact",
+      "start": {
+        "col": 13,
+        "line": 2
+      }
+    }
+  }
+]

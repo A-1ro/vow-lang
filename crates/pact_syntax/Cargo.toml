@@ -6,3 +6,4 @@ license.workspace = true
 description = "Pact lexer, parser, and AST. No type knowledge."
 
 [dependencies]
+serde.workspace = true

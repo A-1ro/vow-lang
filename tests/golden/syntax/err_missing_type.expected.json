@@ -1,0 +1,39 @@
+[
+  {
+    "code": "PACT-E0101",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": ":",
+            "span": {
+              "end": {
+                "col": 14,
+                "line": 1
+              },
+              "file": "tests/golden/syntax/err_missing_type.pact",
+              "start": {
+                "col": 14,
+                "line": 1
+              }
+            }
+          }
+        ],
+        "title": "Insert ':'"
+      }
+    ],
+    "message": "expected ':', found ')'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 15,
+        "line": 1
+      },
+      "file": "tests/golden/syntax/err_missing_type.pact",
+      "start": {
+        "col": 14,
+        "line": 1
+      }
+    }
+  }
+]
