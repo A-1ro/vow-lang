@@ -7,3 +7,7 @@ description = "Pact canonical formatter. Must not change AST semantics."
 
 [dependencies]
 pact_syntax = { path = "../pact_syntax" }
+
+[dev-dependencies]
+serde_json.workspace = true
+proptest.workspace = true
