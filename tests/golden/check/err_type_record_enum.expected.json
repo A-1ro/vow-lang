@@ -1,0 +1,127 @@
+[
+  {
+    "code": "PACT-E2004",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Add the missing field(s)"
+      }
+    ],
+    "message": "missing field(s) 'y' in 'Point' literal",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 31,
+        "line": 14
+      },
+      "file": "tests/golden/check/err_type_record_enum.pact",
+      "start": {
+        "col": 17,
+        "line": 14
+      }
+    }
+  },
+  {
+    "code": "PACT-E2002",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Use one of the fields of 'Point'"
+      }
+    ],
+    "message": "no field 'z' on 'Point'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 36,
+        "line": 15
+      },
+      "file": "tests/golden/check/err_type_record_enum.pact",
+      "start": {
+        "col": 35,
+        "line": 15
+      }
+    }
+  },
+  {
+    "code": "PACT-E2003",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Name the variant to construct"
+      }
+    ],
+    "message": "enum 'Shape' needs a variant: 'Shape.Variant { ... }'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 35,
+        "line": 16
+      },
+      "file": "tests/golden/check/err_type_record_enum.pact",
+      "start": {
+        "col": 16,
+        "line": 16
+      }
+    }
+  },
+  {
+    "code": "PACT-E2003",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": "Dot",
+            "span": {
+              "end": {
+                "col": 24,
+                "line": 17
+              },
+              "file": "tests/golden/check/err_type_record_enum.pact",
+              "start": {
+                "col": 20,
+                "line": 17
+              }
+            }
+          }
+        ],
+        "title": "Did you mean 'Dot'?"
+      }
+    ],
+    "message": "no variant 'Dott' on enum 'Shape'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 24,
+        "line": 17
+      },
+      "file": "tests/golden/check/err_type_record_enum.pact",
+      "start": {
+        "col": 20,
+        "line": 17
+      }
+    }
+  },
+  {
+    "code": "PACT-E2002",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Use one of the fields of 'Point'"
+      }
+    ],
+    "message": "no field 'z' on record 'Point'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 13,
+        "line": 18
+      },
+      "file": "tests/golden/check/err_type_record_enum.pact",
+      "start": {
+        "col": 12,
+        "line": 18
+      }
+    }
+  }
+]

@@ -1,0 +1,61 @@
+[
+  {
+    "code": "PACT-E3002",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": "Database.Write",
+            "span": {
+              "end": {
+                "col": 22,
+                "line": 4
+              },
+              "file": "tests/golden/check/err_effect_unknown.pact",
+              "start": {
+                "col": 8,
+                "line": 4
+              }
+            }
+          }
+        ],
+        "title": "Did you mean 'Database.Write'?"
+      }
+    ],
+    "message": "unknown effect 'Database.Wirte'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 22,
+        "line": 4
+      },
+      "file": "tests/golden/check/err_effect_unknown.pact",
+      "start": {
+        "col": 8,
+        "line": 4
+      }
+    }
+  },
+  {
+    "code": "PACT-E3002",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Use a standard effect (IO, Network.*, File.*, Database.*, Clock, Random, Audit.Log)"
+      }
+    ],
+    "message": "unknown effect 'Disk.Scan'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 17,
+        "line": 10
+      },
+      "file": "tests/golden/check/err_effect_unknown.pact",
+      "start": {
+        "col": 8,
+        "line": 10
+      }
+    }
+  }
+]

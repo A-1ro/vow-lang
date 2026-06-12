@@ -1,0 +1,61 @@
+[
+  {
+    "code": "PACT-E3001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Add 'uses Database.Write' to 'save'"
+      }
+    ],
+    "message": "effect 'Database.Write' used but not declared in 'uses' clause of 'save' (required by call to 'writeRow')",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 22,
+        "line": 10
+      },
+      "file": "tests/golden/check/err_effect_undeclared.pact",
+      "start": {
+        "col": 10,
+        "line": 10
+      }
+    }
+  },
+  {
+    "code": "PACT-E3001",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": ", Database.Write",
+            "span": {
+              "end": {
+                "col": 13,
+                "line": 14
+              },
+              "file": "tests/golden/check/err_effect_undeclared.pact",
+              "start": {
+                "col": 13,
+                "line": 14
+              }
+            }
+          }
+        ],
+        "title": "Add 'Database.Write' to uses clause"
+      }
+    ],
+    "message": "effect 'Database.Write' used but not declared in 'uses' clause of 'audit' (required by call to 'writeRow')",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 22,
+        "line": 16
+      },
+      "file": "tests/golden/check/err_effect_undeclared.pact",
+      "start": {
+        "col": 10,
+        "line": 16
+      }
+    }
+  }
+]

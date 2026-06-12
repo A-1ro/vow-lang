@@ -1,0 +1,24 @@
+[
+  {
+    "code": "PACT-E3001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Add 'uses File.Read' to 'boot'"
+      }
+    ],
+    "message": "effect 'File.Read' used but not declared in 'uses' clause of 'boot' (required by call to 'loadConfig')",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 26,
+        "line": 16
+      },
+      "file": "tests/golden/check/err_effect_transitive.pact",
+      "start": {
+        "col": 10,
+        "line": 16
+      }
+    }
+  }
+]

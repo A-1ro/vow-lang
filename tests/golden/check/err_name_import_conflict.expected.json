@@ -1,0 +1,46 @@
+[
+  {
+    "code": "PACT-E1004",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Remove or alias the duplicate import"
+      }
+    ],
+    "message": "name 'Money' is imported more than once (first introduced at line 3)",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 29,
+        "line": 4
+      },
+      "file": "tests/golden/check/err_name_import_conflict.pact",
+      "start": {
+        "col": 24,
+        "line": 4
+      }
+    }
+  },
+  {
+    "code": "PACT-E1004",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Rename 'Money' or remove the import"
+      }
+    ],
+    "message": "'Money' conflicts with an imported name",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 13,
+        "line": 6
+      },
+      "file": "tests/golden/check/err_name_import_conflict.pact",
+      "start": {
+        "col": 8,
+        "line": 6
+      }
+    }
+  }
+]

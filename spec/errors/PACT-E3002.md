@@ -1,0 +1,18 @@
+# PACT-E3002: unknown effect
+
+エフェクト検査: `uses` 節に標準エフェクト階層(spec §3.2)に存在しない
+エフェクトを書いた。v0.1 で使えるのは `IO`、`Network.{Read,Write}`、
+`File.{Read,Write}`、`Database.{Read,Write}`、`Clock`、`Random`、`Audit.Log`
+とその中間ノードのみ(ユーザー定義エフェクトは v0.2 以降)。
+
+```pact
+func saveRow(id: Int) -> Bool
+  uses Database.Wirte   // error: unknown effect 'Database.Wirte'
+{
+  return true
+}
+```
+
+## 修正
+
+typo なら fix の提案(`Did you mean 'Database.Write'?`)を適用する。

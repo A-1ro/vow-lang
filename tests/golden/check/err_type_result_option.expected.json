@@ -1,0 +1,141 @@
+[
+  {
+    "code": "PACT-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Use Some/None instead of Ok/Err"
+      }
+    ],
+    "message": "expected 'Option<Int>', found 'Result<Int, _>'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 17,
+        "line": 5
+      },
+      "file": "tests/golden/check/err_type_result_option.pact",
+      "start": {
+        "col": 12,
+        "line": 5
+      }
+    }
+  },
+  {
+    "code": "PACT-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Use Ok/Err instead of Some/None"
+      }
+    ],
+    "message": "expected 'Result<Int, String>', found 'Option<Int>'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 19,
+        "line": 12
+      },
+      "file": "tests/golden/check/err_type_result_option.pact",
+      "start": {
+        "col": 12,
+        "line": 12
+      }
+    }
+  },
+  {
+    "code": "PACT-E2001",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": "Ok(",
+            "span": {
+              "end": {
+                "col": 10,
+                "line": 14
+              },
+              "file": "tests/golden/check/err_type_result_option.pact",
+              "start": {
+                "col": 10,
+                "line": 14
+              }
+            }
+          },
+          {
+            "new_text": ")",
+            "span": {
+              "end": {
+                "col": 11,
+                "line": 14
+              },
+              "file": "tests/golden/check/err_type_result_option.pact",
+              "start": {
+                "col": 11,
+                "line": 14
+              }
+            }
+          }
+        ],
+        "title": "Wrap the value in 'Ok(...)'"
+      }
+    ],
+    "message": "expected 'Result<Int, String>', found 'Int'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 11,
+        "line": 14
+      },
+      "file": "tests/golden/check/err_type_result_option.pact",
+      "start": {
+        "col": 10,
+        "line": 14
+      }
+    }
+  },
+  {
+    "code": "PACT-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Change the expression to type 'String'"
+      }
+    ],
+    "message": "expected 'String', found 'Int'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 42,
+        "line": 18
+      },
+      "file": "tests/golden/check/err_type_result_option.pact",
+      "start": {
+        "col": 41,
+        "line": 18
+      }
+    }
+  },
+  {
+    "code": "PACT-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Unwrap only Option or Result values"
+      }
+    ],
+    "message": "'else fail' requires an Option or Result value, found 'Bool'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 21,
+        "line": 19
+      },
+      "file": "tests/golden/check/err_type_result_option.pact",
+      "start": {
+        "col": 16,
+        "line": 19
+      }
+    }
+  }
+]

@@ -1,0 +1,68 @@
+[
+  {
+    "code": "PACT-E2005",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Construct a 'AccountId' value explicitly"
+      }
+    ],
+    "message": "expected 'AccountId', found 'String'; a tagged type does not mix with its base type",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 27,
+        "line": 11
+      },
+      "file": "tests/golden/check/err_type_tagged_confusion.pact",
+      "start": {
+        "col": 24,
+        "line": 11
+      }
+    }
+  },
+  {
+    "code": "PACT-E2005",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Pass a 'AccountId' value instead"
+      }
+    ],
+    "message": "cannot use 'OrderId' where 'AccountId' is expected; distinct tagged types do not mix",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 31,
+        "line": 12
+      },
+      "file": "tests/golden/check/err_type_tagged_confusion.pact",
+      "start": {
+        "col": 26,
+        "line": 12
+      }
+    }
+  },
+  {
+    "code": "PACT-E2005",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Align both sides to the same tagged type"
+      }
+    ],
+    "message": "cannot compare 'AccountId' with 'String'; tagged types do not mix",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 24,
+        "line": 13
+      },
+      "file": "tests/golden/check/err_type_tagged_confusion.pact",
+      "start": {
+        "col": 10,
+        "line": 13
+      }
+    }
+  }
+]

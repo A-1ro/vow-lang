@@ -1,0 +1,61 @@
+[
+  {
+    "code": "PACT-E1001",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": "price",
+            "span": {
+              "end": {
+                "col": 29,
+                "line": 4
+              },
+              "file": "tests/golden/check/err_name_undefined.pact",
+              "start": {
+                "col": 25,
+                "line": 4
+              }
+            }
+          }
+        ],
+        "title": "Did you mean 'price'?"
+      }
+    ],
+    "message": "undefined name 'prce'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 29,
+        "line": 4
+      },
+      "file": "tests/golden/check/err_name_undefined.pact",
+      "start": {
+        "col": 25,
+        "line": 4
+      }
+    }
+  },
+  {
+    "code": "PACT-E1001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Define or import 'tax'"
+      }
+    ],
+    "message": "undefined name 'tax'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 23,
+        "line": 5
+      },
+      "file": "tests/golden/check/err_name_undefined.pact",
+      "start": {
+        "col": 20,
+        "line": 5
+      }
+    }
+  }
+]

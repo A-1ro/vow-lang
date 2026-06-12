@@ -1,0 +1,61 @@
+[
+  {
+    "code": "PACT-E1002",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Define or import 'CustomerId'"
+      }
+    ],
+    "message": "undefined type 'CustomerId'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 17,
+        "line": 4
+      },
+      "file": "tests/golden/check/err_name_undefined_type.pact",
+      "start": {
+        "col": 7,
+        "line": 4
+      }
+    }
+  },
+  {
+    "code": "PACT-E1002",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": "String",
+            "span": {
+              "end": {
+                "col": 37,
+                "line": 7
+              },
+              "file": "tests/golden/check/err_name_undefined_type.pact",
+              "start": {
+                "col": 32,
+                "line": 7
+              }
+            }
+          }
+        ],
+        "title": "Did you mean 'String'?"
+      }
+    ],
+    "message": "undefined type 'Strin'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 37,
+        "line": 7
+      },
+      "file": "tests/golden/check/err_name_undefined_type.pact",
+      "start": {
+        "col": 32,
+        "line": 7
+      }
+    }
+  }
+]

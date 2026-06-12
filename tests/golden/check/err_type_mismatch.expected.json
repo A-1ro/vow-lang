@@ -1,0 +1,90 @@
+[
+  {
+    "code": "PACT-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Change the expression to type 'Int'"
+      }
+    ],
+    "message": "expected 'Int', found 'String'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 27,
+        "line": 4
+      },
+      "file": "tests/golden/check/err_type_mismatch.pact",
+      "start": {
+        "col": 20,
+        "line": 4
+      }
+    }
+  },
+  {
+    "code": "PACT-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Use a Bool condition"
+      }
+    ],
+    "message": "if condition must be 'Bool', found 'Int'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 11,
+        "line": 5
+      },
+      "file": "tests/golden/check/err_type_mismatch.pact",
+      "start": {
+        "col": 6,
+        "line": 5
+      }
+    }
+  },
+  {
+    "code": "PACT-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Change the expression to type 'Int'"
+      }
+    ],
+    "message": "expected 'Int', found 'String'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 18,
+        "line": 6
+      },
+      "file": "tests/golden/check/err_type_mismatch.pact",
+      "start": {
+        "col": 12,
+        "line": 6
+      }
+    }
+  },
+  {
+    "code": "PACT-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Change the expression to type 'Bool'"
+      }
+    ],
+    "message": "expected 'Bool', found 'Int'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 15,
+        "line": 8
+      },
+      "file": "tests/golden/check/err_type_mismatch.pact",
+      "start": {
+        "col": 14,
+        "line": 8
+      }
+    }
+  }
+]

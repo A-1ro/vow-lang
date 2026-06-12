@@ -1,0 +1,46 @@
+[
+  {
+    "code": "PACT-E4002",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Move this condition to an 'ensures' clause"
+      }
+    ],
+    "message": "'old(...)' is only available in 'ensures' clauses",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 24,
+        "line": 4
+      },
+      "file": "tests/golden/check/err_contract_old_misuse.pact",
+      "start": {
+        "col": 12,
+        "line": 4
+      }
+    }
+  },
+  {
+    "code": "PACT-E4002",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Move this condition to an 'ensures' clause"
+      }
+    ],
+    "message": "'result' is only available in 'ensures' clauses",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 18,
+        "line": 5
+      },
+      "file": "tests/golden/check/err_contract_old_misuse.pact",
+      "start": {
+        "col": 12,
+        "line": 5
+      }
+    }
+  }
+]

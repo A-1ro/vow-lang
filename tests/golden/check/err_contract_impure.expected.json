@@ -1,0 +1,46 @@
+[
+  {
+    "code": "PACT-E4001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Move the effectful call into the function body"
+      }
+    ],
+    "message": "call to 'currentBalance' (uses Database.Read) is not allowed in a contract; contract expressions must be pure",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 30,
+        "line": 10
+      },
+      "file": "tests/golden/check/err_contract_impure.pact",
+      "start": {
+        "col": 12,
+        "line": 10
+      }
+    }
+  },
+  {
+    "code": "PACT-E4001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Move the effectful call into the function body"
+      }
+    ],
+    "message": "call to 'currentBalance' (uses Database.Read) is not allowed in a contract; contract expressions must be pure",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 29,
+        "line": 11
+      },
+      "file": "tests/golden/check/err_contract_impure.pact",
+      "start": {
+        "col": 11,
+        "line": 11
+      }
+    }
+  }
+]

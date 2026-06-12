@@ -1,0 +1,15 @@
+# PACT-E2006: wrong number of type arguments
+
+型検査: 型参照の型引数の個数が定義と合わない。v0.1 でジェネリクスを持つのは
+組み込みの `Result<T, E>`(2 引数)と `Option<T>`(1 引数)のみで、
+ユーザー定義型は型引数を取れない(spec §8)。
+
+```pact
+func demo() -> Option<Int, String> {   // error: type 'Option' takes 1 type argument(s), found 2
+  return None()
+}
+```
+
+## 修正
+
+型引数の個数を定義に合わせる。

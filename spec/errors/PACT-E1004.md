@@ -1,0 +1,14 @@
+# PACT-E1004: import conflict
+
+名前解決: import が導入する名前が衝突した。同じ名前を二度 import した場合と、
+import 名と同名のローカル定義がある場合の両方を含む(再エクスポート禁止・
+モジュールパス 1:1 の前提では、別名 `as` での回避が正攻法 — spec §2.3)。
+
+```pact
+import core.money { Money }
+import billing.money { Money }   // error: name 'Money' is imported more than once
+```
+
+## 修正
+
+`import ... as 別名` で別名を付けるか、不要な import / ローカル定義を改名・削除する。
