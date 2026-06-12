@@ -1,0 +1,17 @@
+{
+  "name": "pact-e2e",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Pact M4 e2e: transpile examples, typecheck with tsc --strict, run with vitest",
+  "scripts": {
+    "typecheck": "tsc --strict --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@pact/runtime": "file:../../runtime",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^4.0.0"
+  }
+}

@@ -1,6 +1,7 @@
 module effects.transfer
 
-import core.money { Money }
+import core.money { AccountId, Money }
+import infra.audit as Audit
 import infra.database as Database
 
 record TransferReceipt {
@@ -15,7 +16,7 @@ enum TransferError {
 }
 
 func transferFunds(from: AccountId, to: AccountId, amount: Money) -> Result<TransferReceipt, TransferError>
-  uses Database.Write, Audit.Log
+  uses Database.Read, Database.Write, Audit.Log
   requires amount > Money.zero
   requires from != to
 {
@@ -25,6 +26,7 @@ func transferFunds(from: AccountId, to: AccountId, amount: Money) -> Result<Tran
   }
   Database.debit(from, amount)
   Database.credit(to, amount)
-  Audit.Log.record(Transfer { from, to, amount })
-  return Ok(TransferReceipt { from, to, amount })
+  let receipt = TransferReceipt { from, to, amount }
+  Audit.Log.record(receipt)
+  return Ok(receipt)
 }

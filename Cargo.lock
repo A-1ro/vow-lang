@@ -214,6 +214,8 @@ name = "pact_emit"
 version = "0.1.0"
 dependencies = [
  "pact_check",
+ "pact_syntax",
+ "serde_json",
 ]
 
 [[package]]

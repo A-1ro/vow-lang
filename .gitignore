@@ -1,2 +1,4 @@
 /target
 node_modules/
+/tests/e2e/generated/
+/runtime/dist/

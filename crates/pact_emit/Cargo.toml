@@ -6,4 +6,6 @@ license.workspace = true
 description = "Pact to TypeScript transpiler with source maps. Must not re-implement checking."
 
 [dependencies]
+pact_syntax = { path = "../pact_syntax" }
 pact_check = { path = "../pact_check" }
+serde_json.workspace = true

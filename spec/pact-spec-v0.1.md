@@ -118,15 +118,19 @@ IO
 
 | Pact | TypeScript |
 |---|---|
-| `record` | readonly object型 + ファクトリ関数 |
-| `enum` | tagged union + コンストラクタ関数 |
-| `Result/Option` | 専用ランタイム(`@pact/runtime`) |
-| `uses` | 型レベル検査はPact側で完結。TS出力にはコメントとして残す |
-| `requires/ensures` | アサーション挿入 |
-| tagged型 | branded type |
+| `record` | readonly object型 + 同名ファクトリ関数 |
+| `enum` | `kind` 判別のtagged union + 同名コンストラクタ集(tupleペイロードは `values`、名前付きフィールドは `fields`) |
+| `Result/Option` | 専用ランタイム(`@pact/runtime`)。内部判別子 `ok` を共有し、`else fail` は両者を同じ形で分岐できる |
+| `uses` | 型レベル検査はPact側で完結。TS出力にはdocコメントとして残す |
+| `requires/ensures` | アサーション挿入。違反は構造化エラー `PactContractViolation`(clause/func/condition/file/line/col)を送出。`ensures` は本体をIIFEに包み戻り値(`result`)を検査、`old(expr)` は関数先頭でキャプチャ |
+| tagged型 | branded type(`__pactTag`)+ 同名コンストラクタ関数 |
+| `module` / `import` | モジュールパスとファイルパスの1:1対応のまま相対import(`import { X } from "../core/money"` / `import * as Database from "../infra/database"`) |
+| `Int` の除算 | `Math.trunc(a / b)`(0方向への切り捨て) |
+| `implies` | `!(a) \|\| b` |
 
+- **非同期の扱い(M4で決着)**: v0.1の出力は全関数同期。非同期は v0.2 以降で `uses Async` としてエフェクト統合を再検討する(§9参照)。
 - 出力TSは人間が読める品質を保つ(デバッグ時のsource of truthはPactだが、スタックトレースの追跡可能性を確保)。
-- source map対応。
+- source map(v3)対応。`sources` は .pact ファイル、`sourcesContent` 埋め込み。契約違反のエラー位置は .pact 側の行番号に解決される。
 
 ## 6. Pact MCP Server
 
@@ -186,7 +190,7 @@ pact test             # 契約チェック有効でテスト実行
 
 ## 9. 未決事項
 
-1. 非同期の扱い — TSターゲットなので全関数async化が楽だが、エフェクトと統合する設計(`uses Async`?)も検討余地あり
+1. ~~非同期の扱い~~ — **決着(M4)**: v0.1は全関数同期でトランスパイルする。エフェクトと統合する設計(`uses Async`)はv0.2以降で再検討
 2. 契約式の言語 — 本体と同一文法か、契約専用のサブセットか
 3. `uses IO` のような包括許可をlintで警告すべきか(合意書の解像度問題)
-4. 実装言語 — TypeScript(エコシステム親和性) vs Rust(性能・将来性)
+4. ~~実装言語~~ — **決着(M0)**: Rust(Cargoワークスペース)。ランタイムのみTS

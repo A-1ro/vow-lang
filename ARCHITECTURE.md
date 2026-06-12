@@ -42,7 +42,10 @@ pact-lang/
 │   │   ├── syntax/           # {name}.pact + {name}.expected.json
 │   │   ├── fmt/              # {name}.input.pact + {name}.expected.pact
 │   │   └── check/            # {name}.pact + {name}.expected.json
-│   ├── e2e/                  # トランスパイル→vitest実行テスト
+│   ├── e2e/                  # トランスパイル→tsc --strict→vitest実行テスト
+│   │   ├── stubs/            # import先(core.money / infra.*)のTSスタブ実装
+│   │   ├── tests/            # vitestテスト(期待出力・契約違反・source map)
+│   │   └── generated/        # pact_emitの出力先(git管理外、e2eテストが再生成)
 │   └── mcp/                  # MCPサーバー統合テスト
 │
 ├── docs/                     # ロードマップ・設計メモ

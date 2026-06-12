@@ -106,6 +106,15 @@ fmt/clippy/test)がコミットされている。最後に cargo test と cargo 
 - @pact/runtime のAPI表面(Result/Optionのメソッド名)
 - 出力TSのスタイル(人間可読性の基準サンプルを承認)
 
+### 合意の記録(M4実施時)
+- **非同期**: v0.1 は全関数同期出力。`uses Async` 統合は v0.2 で再検討(spec §5/§9 に反映済み)
+- **@pact/runtime API**: `Result<T,E> = Ok<T> | Err<E>`(`isOk`/`isErr`/`value`/`error`)、
+  `Option<T> = Some<T> | None`(`isSome`/`isNone`/`value`)。両者は内部判別子 `ok` を共有し
+  `else fail` の展開が単一形になる。契約違反は `PactContractViolation`
+  (clause/func/condition/file/line/col、`toJSON()` あり)
+- **出力TSスタイル**: 基準サンプルは tests/e2e/generated/contracts/withdraw.ts(e2e 実行で再生成)。
+  契約は docコメント + 実行時アサーション、enum は `kind` 判別 tagged union
+
 ### /goal
 ```
 /goal examples/配下の全.pactファイルがTSにトランスパイルされ、

@@ -1,7 +1,5 @@
 module basics.options
 
-import core.option { Option }
-
 func firstPositive(a: Int, b: Int) -> Option<Int> {
   if a > 0 {
     return Some(a)
