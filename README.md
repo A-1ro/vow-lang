@@ -13,7 +13,7 @@ Vow は「**AIが書き、人間が承認し、コンパイラが履行を保証
 - **実装**: Rust の Cargo ワークスペース。ランタイム(`@vow/runtime`)のみ TypeScript の npm パッケージ
 - **ツールチェイン**: `vow` CLI と Vow MCP Server を言語仕様と同格の一級市民として扱う
 
-> ⚠️ **ステータス: v0.1 実装フェーズ(M0〜M5)完了。** 言語処理(パーサ〜トランスパイラ)と MCP サーバーは動作します。`vow` CLI バイナリ(`vow_cli`)はまだスタブです。仕様は `spec/vow-spec-v0.1.md`(Draft)が正本です。
+> ⚠️ **ステータス: v0.1 実装フェーズ(M0〜M5)完了 + M6 着手。** 言語処理(パーサ〜トランスパイラ)と MCP サーバーが動作し、`vow` CLI バイナリ(`vow_cli`)は `check` / `fmt` が使えます(`build` / `test` は M7 で未実装)。仕様は `spec/vow-spec-v0.1.md`(Draft)が正本です。
 
 ---
 
@@ -83,7 +83,7 @@ vow_check  ←─ vow_emit
 | [`vow_fmt`](crates/vow_fmt) | 正規形フォーマッタ(AST の意味的変更禁止) | ✅ |
 | [`vow_emit`](crates/vow_emit) | TS トランスパイラ + source map(検査の再実装禁止) | ✅ |
 | [`vow_mcp`](crates/vow_mcp) | MCP サーバー。spec/・examples/ をビルド時埋め込み配信 | ✅ |
-| [`vow_cli`](crates/vow_cli) | `vow` バイナリ(check/fmt/build/test) | 🚧 スタブ |
+| [`vow_cli`](crates/vow_cli) | `vow` バイナリ。check / fmt は実装済み(build / test は M7) | 🚧 一部 |
 
 そのほか:
 
@@ -120,6 +120,28 @@ CI(`.github/workflows/ci.yml`)は **fmt / clippy / test** の 3 ジョブ。test
 
 ---
 
+## `vow` CLI
+
+ツールチェインのコマンドラインフロントエンド。現状 `check` / `fmt` が使えます(`build` / `test` は M7 で未実装)。
+
+```bash
+# インストール(リポジトリのルートで)
+cargo install --path crates/vow_cli      # ~/.cargo/bin/vow に入る
+
+# あるいはインストールせず実行(開発中)
+cargo run -p vow_cli --bin vow -- check examples/basics/options.vow
+```
+
+```bash
+vow check <file> [--json]            # 意味検査(既定は散文、--json で Diagnostic[])
+vow fmt <file> [--check | --write]   # 正規形整形(既定は stdout、--check は検証、--write は上書き)
+```
+
+終了コードは `0` 成功 / `1` 診断エラー・未整形・構文エラー / `2` 使用法エラー。
+インストールの他の方法やサブコマンドの詳細は [`docs/cli.md`](docs/cli.md) を参照。
+
+---
+
 ## Vow MCP Server
 
 エージェントが Vow を「学習なしで」書けるようにするための取扱説明書サーバー。stdio トランスポート上の JSON-RPC 2.0(改行区切り)で動きます。
@@ -153,6 +175,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"vow_spec",
 - [`spec/vow-spec-v0.1.md`](spec/vow-spec-v0.1.md) — 言語仕様(source of truth。仕様と実装が食い違ったら**仕様を先に直す**)
 - [`spec/diagnostic-schema.md`](spec/diagnostic-schema.md) — 構造化 Diagnostic スキーマとエラーコード採番ルール
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — リポジトリ構成の契約とクレート責務・依存規則
+- [`docs/cli.md`](docs/cli.md) — `vow` CLI のインストールとサブコマンド(check / fmt)の使い方
 - [`docs/vow-roadmap-goals.md`](docs/vow-roadmap-goals.md) — Milestone 別の /goal 契約書集
 - [`CLAUDE.md`](CLAUDE.md) — Claude Code 向けの作業ガイド
 
