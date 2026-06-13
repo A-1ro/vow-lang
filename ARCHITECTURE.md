@@ -12,6 +12,7 @@ vow-lang/
 ├── rust-toolchain.toml       # ツールチェイン固定
 ├── ARCHITECTURE.md           # 本ファイル
 ├── CLAUDE.md                 # Claude Code向けプロジェクトコンテキスト
+├── install.sh                # `vow` CLIのビルド済みバイナリ導入スクリプト(curl|sh)
 │
 ├── crates/
 │   ├── vow_syntax/          # レキサー + パーサ + AST定義
@@ -63,7 +64,9 @@ vow-lang/
 │   └── bow-kun.ico           # favicon(16/32/48 同梱)
 │
 └── .github/
-    └── workflows/ci.yml      # fmt / clippy / test
+    └── workflows/
+        ├── ci.yml           # fmt / clippy / test
+        └── release.yml      # v*タグでvowバイナリをビルドしGitHub Releasesへ添付
 ```
 
 ## クレート責務と依存規則
