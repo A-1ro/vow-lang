@@ -125,10 +125,13 @@ CI(`.github/workflows/ci.yml`)は **fmt / clippy / test** の 3 ジョブ。test
 ツールチェインのコマンドラインフロントエンド。現状 `check` / `fmt` が使えます(`build` / `test` は M7 で未実装)。
 
 ```bash
-# インストール(リポジトリのルートで)
-cargo install --path crates/vow_cli      # ~/.cargo/bin/vow に入る
+# 1. ビルド済みバイナリ(Rust 不要・macOS / Linux)
+curl -fsSL https://raw.githubusercontent.com/A-1ro/vow-lang/main/install.sh | sh
 
-# あるいはインストールせず実行(開発中)
+# 2. cargo install(Rust ユーザー・クローン不要)
+cargo install --git https://github.com/A-1ro/vow-lang.git vow_cli
+
+# 3. インストールせず実行(開発中)
 cargo run -p vow_cli --bin vow -- check examples/basics/options.vow
 ```
 

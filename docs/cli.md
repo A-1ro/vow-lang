@@ -11,21 +11,42 @@
 
 ## インストール
 
-要件: stable Rust(`rust-toolchain.toml` で固定)。CLI 自体に Node.js は不要。
+用途に応じて4通り。Rust を持っていなければ 1、持っていれば 2 が手軽。
 
-### 1. ローカルからインストール(推奨)
+### 1. ビルド済みバイナリ(Rust 不要・推奨)
 
-リポジトリのルートで:
+GitHub Releases に上がっている各 OS / アーキテクチャ向けバイナリを取得する。
+`install.sh` がプラットフォームを判定し、最新リリースから `~/.local/bin/vow` に置く:
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/A-1ro/vow-lang/main/install.sh | sh
+```
+
+- 対応: macOS(Apple Silicon / Intel)・Linux(x86_64 / aarch64)。Windows は 2 を使う。
+- `~/.local/bin` が `PATH` になければスクリプトが追加方法を案内する。
+- 環境変数で上書き可能:
+  - `VOW_VERSION=v0.1.0` — 入れるタグを固定(既定は最新リリース)
+  - `VOW_INSTALL_DIR=/usr/local/bin` — インストール先を変更
+- 手動で入れたい場合は [Releases](https://github.com/A-1ro/vow-lang/releases) から
+  `vow-<target>.tar.gz`(Windows は `.zip`)を落として展開し、`vow` を PATH 上に置く。
+
+### 2. cargo install(Rust ユーザー)
+
+要件: stable Rust(`rust-toolchain.toml` で固定)。CLI 自体に Node.js は不要。
+`~/.cargo/bin/vow` に入る(`[[bin]] name = "vow"`)。`~/.cargo/bin` が `PATH` にあれば、
+以降はどこでも `vow check ...` / `vow build ...` で使える。
+
+```bash
+# クローン不要。GitHub から直接(任意のタグは --tag v0.1.0、ブランチは --branch main)
+cargo install --git https://github.com/A-1ro/vow-lang.git vow_cli
+
+# クローン済みなら、リポジトリのルートで
 cargo install --path crates/vow_cli
 ```
 
-- `~/.cargo/bin/vow` に `vow` バイナリが入る(`[[bin]] name = "vow"`)。
-- `~/.cargo/bin` が `PATH` にあれば、以降はどこでも `vow check ...` / `vow build ...` で使える。
-- アンインストールは `cargo uninstall vow_cli`。
+アンインストールはどちらも `cargo uninstall vow_cli`。
 
-### 2. インストールせず使う(開発中)
+### 3. インストールせず使う(開発中)
 
 ビルドし直しが効くので、リポジトリ内での開発にはこちらが手軽:
 
@@ -35,7 +56,7 @@ cargo run -p vow_cli --bin vow -- check <file>
 
 `--` より後ろが `vow` に渡る引数。
 
-### 3. リリースバイナリを直接置く
+### 4. リリースバイナリを直接ビルド
 
 `cargo install` を使わず成果物だけ欲しい場合:
 
@@ -147,6 +168,25 @@ vow test examples/app    # ディレクトリ指定
 ```bash
 vow check src/main.vow && echo "OK" || echo "失敗 (exit $?)"
 ```
+
+---
+
+## リリースの発行(メンテナ向け)
+
+ビルド済みバイナリ(インストール方法 1)は `v*` タグの push で自動公開される。
+`.github/workflows/release.yml` が各 OS / アーキテクチャ向けに `vow` をビルドし、
+同名タグの GitHub Release に `vow-<target>.tar.gz`(Windows は `.zip`)を添付する。
+
+```bash
+# 例: v0.1.0 を公開する
+cargo test --workspace                 # 緑であること
+git tag v0.1.0
+git push origin v0.1.0                  # → release ワークフローが起動
+```
+
+- 配布対象: `x86_64` / `aarch64` × Linux・macOS、および `x86_64` Windows。
+- アセット名は `install.sh` が参照するため変更しない(target トリプル命名)。
+- Release 本体はワークフローが `--generate-notes` で自動作成する。
 
 ---
 

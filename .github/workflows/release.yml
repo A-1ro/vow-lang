@@ -1,0 +1,90 @@
+name: Release
+
+# v* タグ push で各プラットフォーム向けの `vow` バイナリをビルドし、
+# そのタグの GitHub Release にアセットとして添付する。
+# install.sh が `vow-<target>.tar.gz` / `vow-<target>.zip` の命名に依存する。
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # Release の作成・アセットアップロードに必要
+
+env:
+  CARGO_TERM_COLOR: always
+
+defaults:
+  run:
+    shell: bash # Windows ランナーでも git bash で同じスクリプトを使う
+
+jobs:
+  # タグに対応する Release を先に1つだけ作る(build マトリクスの競合を避ける)。
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create release if absent
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
+            || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
+                 --title "$TAG" --generate-notes
+
+  build:
+    needs: create-release
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            linker: gcc-aarch64-linux-gnu
+          - target: x86_64-apple-darwin
+            os: macos-13
+          - target: aarch64-apple-darwin
+            os: macos-14
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Install cross linker (aarch64 linux)
+        if: matrix.linker != ''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.linker }}
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
+      - name: Build
+        run: cargo build --release --locked -p vow_cli --bin vow --target ${{ matrix.target }}
+      - name: Package
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          dist="vow-$TARGET"
+          mkdir "$dist"
+          cp README.md "$dist/"
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cp "target/$TARGET/release/vow.exe" "$dist/"
+            7z a "$dist.zip" "$dist" >/dev/null
+            echo "ASSET=$dist.zip" >> "$GITHUB_ENV"
+          else
+            cp "target/$TARGET/release/vow" "$dist/"
+            tar czf "$dist.tar.gz" "$dist"
+            echo "ASSET=$dist.tar.gz" >> "$GITHUB_ENV"
+          fi
+      - name: Upload asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release upload "$TAG" "$ASSET" --repo "$GITHUB_REPOSITORY" --clobber
