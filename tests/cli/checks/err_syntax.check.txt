@@ -1,0 +1,7 @@
+error[VOW-E0104]: unknown clause 'use': contract clauses are 'uses', 'requires', and 'ensures'
+ --> tests/cli/checks/err_syntax.vow:4:3
+  |
+4 |   use Database.Write
+  |   ^^^
+  = fix: Replace 'use' with 'uses'
+

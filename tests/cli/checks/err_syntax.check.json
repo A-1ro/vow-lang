@@ -1,0 +1,39 @@
+[
+  {
+    "severity": "error",
+    "code": "VOW-E0104",
+    "message": "unknown clause 'use': contract clauses are 'uses', 'requires', and 'ensures'",
+    "span": {
+      "file": "tests/cli/checks/err_syntax.vow",
+      "start": {
+        "line": 4,
+        "col": 3
+      },
+      "end": {
+        "line": 4,
+        "col": 6
+      }
+    },
+    "fixes": [
+      {
+        "title": "Replace 'use' with 'uses'",
+        "edits": [
+          {
+            "span": {
+              "file": "tests/cli/checks/err_syntax.vow",
+              "start": {
+                "line": 4,
+                "col": 3
+              },
+              "end": {
+                "line": 4,
+                "col": 6
+              }
+            },
+            "new_text": "uses"
+          }
+        ]
+      }
+    ]
+  }
+]

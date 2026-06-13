@@ -1,0 +1,7 @@
+error[VOW-E3001]: effect 'Database.Write' used but not declared in 'uses' clause of 'save' (required by call to 'writeRow')
+  --> tests/cli/checks/err_effect.vow:10:10
+   |
+10 |   return writeRow(id)
+   |          ^^^^^^^^^^^^
+   = fix: Add 'uses Database.Write' to 'save'
+
