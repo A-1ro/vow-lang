@@ -13,6 +13,7 @@
 //! golden の再生成: `UPDATE_GOLDEN=1 cargo test -p vow_cli --test cli`
 //! (golden の変更は人間レビュー必須 — ARCHITECTURE.md 不変条件 3)
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -38,11 +39,17 @@ struct Run {
 /// リポジトリルートを cwd に `vow` を起動する。相対パス引数は span.file に
 /// そのまま入るため、golden 内のパスがマシン非依存になる。
 fn run_vow(args: &[&str]) -> Run {
-    let output = Command::new(env!("CARGO_BIN_EXE_vow"))
-        .current_dir(repo_root())
-        .args(args)
-        .output()
-        .expect("spawn vow");
+    run_vow_env(args, &[])
+}
+
+/// `run_vow` に環境変数の上書きを足した版(`vow test` が子へ env を伝播する確認用)。
+fn run_vow_env(args: &[&str], envs: &[(&str, &str)]) -> Run {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_vow"));
+    cmd.current_dir(repo_root()).args(args);
+    for (k, v) in envs {
+        cmd.env(k, v);
+    }
+    let output = cmd.output().expect("spawn vow");
     Run {
         stdout: String::from_utf8(output.stdout).expect("stdout is utf-8"),
         stderr: String::from_utf8(output.stderr).expect("stderr is utf-8"),
@@ -278,7 +285,10 @@ fn usage_errors_exit_2() {
         vec!["check", "--bogus", "a.vow"],
         vec!["fmt"],
         vec!["fmt", "--check", "--write", "tests/cli/fmt/messy.input.vow"],
-        vec!["build", "."],
+        vec!["build"],
+        vec!["build", "a", "b"],
+        vec!["build", "src", "--out-dir"],
+        vec!["test", "a", "b"],
     ] {
         let run = run_vow(&args);
         assert_eq!(run.code, 2, "args {args:?} should be a usage error");
@@ -319,4 +329,249 @@ fn help_and_version_exit_0() {
     let version = run_vow(&["--version"]);
     assert_eq!(version.code, 0);
     assert!(version.stdout.starts_with("vow "));
+}
+
+// ---------------------------------------------------------------------------
+// golden: vow build(出力ツリー)/ 挙動: all-or-nothing・--no-source-map
+// ---------------------------------------------------------------------------
+
+/// ディレクトリツリーを (リポジトリ非依存の相対パス -> 内容) に集める。
+fn collect_tree(root: &Path) -> BTreeMap<String, String> {
+    fn walk(base: &Path, dir: &Path, map: &mut BTreeMap<String, String>) {
+        for entry in fs::read_dir(dir).expect("read dir") {
+            let path = entry.expect("dir entry").path();
+            if path.is_dir() {
+                walk(base, &path, map);
+            } else {
+                let rel = path
+                    .strip_prefix(base)
+                    .expect("under base")
+                    .to_string_lossy()
+                    .replace('\\', "/");
+                map.insert(rel, fs::read_to_string(&path).expect("read file"));
+            }
+        }
+    }
+    let mut map = BTreeMap::new();
+    if root.is_dir() {
+        walk(root, root, &mut map);
+    }
+    map
+}
+
+/// 一時出力先を作り直して返す(前回の生成物を残さない)。
+fn fresh_out(name: &str) -> PathBuf {
+    let out = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
+    if out.exists() {
+        fs::remove_dir_all(&out).expect("clean tmp out dir");
+    }
+    out
+}
+
+#[test]
+fn build_golden_tree() {
+    let out = fresh_out("build_app");
+    let out_str = out.to_str().expect("utf-8 tmp path");
+    let run = run_vow(&["build", "tests/cli/projects/app", "--out-dir", out_str]);
+    assert_eq!(run.code, 0, "build failed: stderr={:?}", run.stderr);
+    assert_eq!(run.stdout, "", "build must not write stdout");
+    assert!(
+        run.stderr.contains("wrote 2 module(s)"),
+        "build summary missing: stderr={:?}",
+        run.stderr
+    );
+
+    let actual = collect_tree(&out);
+    let expected_dir = cli_dir().join("projects/app/expected");
+
+    if update_golden() {
+        if expected_dir.exists() {
+            fs::remove_dir_all(&expected_dir).expect("clean expected");
+        }
+        for (rel, content) in &actual {
+            let dest = expected_dir.join(rel);
+            fs::create_dir_all(dest.parent().expect("golden parent")).expect("mkdir golden");
+            fs::write(&dest, content).expect("write golden");
+        }
+        return;
+    }
+
+    let expected = collect_tree(&expected_dir);
+    assert!(
+        !expected.is_empty(),
+        "no golden under {} (regenerate with UPDATE_GOLDEN=1)",
+        expected_dir.display()
+    );
+    assert_eq!(
+        actual.keys().collect::<Vec<_>>(),
+        expected.keys().collect::<Vec<_>>(),
+        "build output tree differs from golden (paths)"
+    );
+    for (rel, content) in &expected {
+        assert_eq!(
+            actual.get(rel),
+            Some(content),
+            "{rel}: build output differs from golden"
+        );
+    }
+}
+
+#[test]
+fn build_all_or_nothing_writes_nothing_on_error() {
+    let out = fresh_out("build_broken");
+    let out_str = out.to_str().expect("utf-8 tmp path");
+    let run = run_vow(&["build", "tests/cli/projects/broken", "--out-dir", out_str]);
+    assert_eq!(run.code, 1, "broken build must exit 1");
+    assert!(
+        run.stdout.is_empty(),
+        "stdout must stay empty: {:?}",
+        run.stdout
+    );
+    assert!(
+        run.stderr.contains("error[VOW-E3001]"),
+        "diagnostic missing: stderr={:?}",
+        run.stderr
+    );
+    assert!(
+        run.stderr.contains("no output written"),
+        "all-or-nothing note missing: stderr={:?}",
+        run.stderr
+    );
+    let tree = collect_tree(&out);
+    assert!(
+        tree.is_empty(),
+        "all-or-nothing: nothing must be written, got {:?}",
+        tree.keys().collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn build_missing_dir_exits_2() {
+    let run = run_vow(&["build", "tests/cli/projects/does-not-exist"]);
+    assert_eq!(run.code, 2);
+    assert!(
+        run.stderr.contains("is not a directory"),
+        "stderr={:?}",
+        run.stderr
+    );
+}
+
+#[test]
+fn build_no_source_map_omits_maps_and_comment() {
+    let out = fresh_out("build_app_nomap");
+    let out_str = out.to_str().expect("utf-8 tmp path");
+    let run = run_vow(&[
+        "build",
+        "tests/cli/projects/app",
+        "--out-dir",
+        out_str,
+        "--no-source-map",
+    ]);
+    assert_eq!(run.code, 0, "stderr={:?}", run.stderr);
+    let tree = collect_tree(&out);
+    assert!(
+        tree.keys().all(|k| !k.ends_with(".map")),
+        "no .map files expected: {:?}",
+        tree.keys().collect::<Vec<_>>()
+    );
+    assert!(tree.contains_key("app/math.ts"), "ts still emitted");
+    for (k, v) in &tree {
+        assert!(
+            !v.contains("sourceMappingURL"),
+            "{k} still references a source map"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 挙動: vow test(dev ビルド → npm test 委譲・契約 on)。Node が必要。
+// ---------------------------------------------------------------------------
+
+fn has_npm() -> bool {
+    Command::new("npm")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+/// プロジェクトディレクトリで npm を実行し、失敗したら出力ごと panic する。
+fn npm(args: &[&str], cwd: &Path) {
+    let out = Command::new("npm")
+        .args(args)
+        .current_dir(cwd)
+        .output()
+        .unwrap_or_else(|e| panic!("spawn npm {}: {e}", args.join(" ")));
+    assert!(
+        out.status.success(),
+        "npm {} failed in {}:\n--- stdout ---\n{}\n--- stderr ---\n{}",
+        args.join(" "),
+        cwd.display(),
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr),
+    );
+}
+
+/// @vow/runtime をビルド(dist が無ければ install + build)。e2e と同じ前提。
+fn ensure_runtime_built(root: &Path) {
+    if root.join("runtime/dist/index.js").is_file() {
+        return;
+    }
+    let runtime = root.join("runtime");
+    npm(&["install", "--no-audit", "--no-fund"], &runtime);
+    npm(&["run", "build"], &runtime);
+}
+
+#[test]
+fn vow_test_builds_then_runs_contracts() {
+    if !has_npm() {
+        eprintln!("skipping vow_test_builds_then_runs_contracts: npm not found");
+        return;
+    }
+    let root = repo_root().canonicalize().expect("repo root");
+    ensure_runtime_built(&root);
+
+    let project = root.join("tests/cli/projects/app");
+    let dist = project.join("dist");
+    if dist.exists() {
+        fs::remove_dir_all(&dist).expect("clean project dist");
+    }
+    npm(&["install", "--no-audit", "--no-fund"], &project);
+
+    // (a) 既定: dev ビルド(契約 on)→ vitest 全件パス → exit 0。
+    let pass = run_vow(&["test", "tests/cli/projects/app"]);
+    assert_eq!(
+        pass.code, 0,
+        "vow test should pass:\n--- stdout ---\n{}\n--- stderr ---\n{}",
+        pass.stdout, pass.stderr
+    );
+
+    // (b) 直前にビルドした dist が tsc --strict --noEmit でエラーゼロ(goal 条件 3)。
+    let tsc = Command::new("npx")
+        .args(["tsc", "--strict", "--noEmit"])
+        .current_dir(&project)
+        .output()
+        .expect("spawn tsc");
+    assert!(
+        tsc.status.success(),
+        "tsc --strict --noEmit failed:\n{}\n{}",
+        String::from_utf8_lossy(&tsc.stdout),
+        String::from_utf8_lossy(&tsc.stderr),
+    );
+
+    // (c) requires 違反を捕捉しないテストは失敗 → npm test 非ゼロ → vow test 非ゼロ
+    //     (goal 条件 4)。env が子(npm→vitest→node)まで伝播することも確認する。
+    let fail = run_vow_env(
+        &["test", "tests/cli/projects/app"],
+        &[("VOW_EXPECT_VIOLATION", "uncaught")],
+    );
+    assert_ne!(
+        fail.code, 0,
+        "a requires violation must make vow test exit non-zero"
+    );
+    let combined = format!("{}{}", fail.stdout, fail.stderr);
+    assert!(
+        combined.contains("VowContractViolation"),
+        "the contract violation must surface VowContractViolation:\n{combined}"
+    );
 }

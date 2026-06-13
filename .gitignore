@@ -2,3 +2,5 @@
 node_modules/
 /tests/e2e/generated/
 /runtime/dist/
+# vow build / vow test の CLI フィクスチャの生成物(golden は expected/ 側)
+/tests/cli/projects/*/dist/

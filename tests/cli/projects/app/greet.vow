@@ -1,0 +1,9 @@
+module app.greet
+
+record Greeting {
+  count: Int
+}
+
+func bump(g: Greeting) -> Greeting {
+  return Greeting { count: g.count + 1 }
+}

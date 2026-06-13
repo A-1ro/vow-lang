@@ -1,0 +1,17 @@
+{
+  "name": "vow-cli-project-app",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "vow build / vow test の CLI 統合フィクスチャ(M7)。`vow test` が dev ビルド後に呼ぶ npm test スクリプトを持つ。",
+  "scripts": {
+    "typecheck": "tsc --strict --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@vow/runtime": "file:../../../../runtime",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^4.0.0"
+  }
+}
