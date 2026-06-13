@@ -3,7 +3,7 @@
   "id": 8,
   "method": "tools/call",
   "params": {
-    "name": "vow_check",
+    "name": "kei_check",
     "arguments": {
       "source": "module demo\n\nfunc readFile(path: String) -> String\n  uses File.Read\n{\n  return \"data\"\n}\n\nfunc boot(path: String) -> String {\n  return readFile(path)\n}\n"
     }

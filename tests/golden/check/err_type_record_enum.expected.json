@@ -1,6 +1,6 @@
 [
   {
-    "code": "VOW-E2004",
+    "code": "KEI-E2004",
     "fixes": [
       {
         "edits": [],
@@ -14,7 +14,7 @@
         "col": 31,
         "line": 14
       },
-      "file": "tests/golden/check/err_type_record_enum.vow",
+      "file": "tests/golden/check/err_type_record_enum.kei",
       "start": {
         "col": 17,
         "line": 14
@@ -22,7 +22,7 @@
     }
   },
   {
-    "code": "VOW-E2002",
+    "code": "KEI-E2002",
     "fixes": [
       {
         "edits": [],
@@ -36,7 +36,7 @@
         "col": 36,
         "line": 15
       },
-      "file": "tests/golden/check/err_type_record_enum.vow",
+      "file": "tests/golden/check/err_type_record_enum.kei",
       "start": {
         "col": 35,
         "line": 15
@@ -44,7 +44,7 @@
     }
   },
   {
-    "code": "VOW-E2003",
+    "code": "KEI-E2003",
     "fixes": [
       {
         "edits": [],
@@ -58,7 +58,7 @@
         "col": 35,
         "line": 16
       },
-      "file": "tests/golden/check/err_type_record_enum.vow",
+      "file": "tests/golden/check/err_type_record_enum.kei",
       "start": {
         "col": 16,
         "line": 16
@@ -66,7 +66,7 @@
     }
   },
   {
-    "code": "VOW-E2003",
+    "code": "KEI-E2003",
     "fixes": [
       {
         "edits": [
@@ -77,7 +77,7 @@
                 "col": 24,
                 "line": 17
               },
-              "file": "tests/golden/check/err_type_record_enum.vow",
+              "file": "tests/golden/check/err_type_record_enum.kei",
               "start": {
                 "col": 20,
                 "line": 17
@@ -95,7 +95,7 @@
         "col": 24,
         "line": 17
       },
-      "file": "tests/golden/check/err_type_record_enum.vow",
+      "file": "tests/golden/check/err_type_record_enum.kei",
       "start": {
         "col": 20,
         "line": 17
@@ -103,7 +103,7 @@
     }
   },
   {
-    "code": "VOW-E2002",
+    "code": "KEI-E2002",
     "fixes": [
       {
         "edits": [],
@@ -117,7 +117,7 @@
         "col": 13,
         "line": 18
       },
-      "file": "tests/golden/check/err_type_record_enum.vow",
+      "file": "tests/golden/check/err_type_record_enum.kei",
       "start": {
         "col": 12,
         "line": 18

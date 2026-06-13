@@ -4,7 +4,7 @@
   "result": {
     "content": [
       {
-        "text": "No example matched 'zzz-no-match'.\n\n# Vow examples\n\n`vow_examples` の `query` にキーワードを渡すと該当する例を返す\n(パス・本文を部分一致で検索)。query を空にするとこの一覧を返す。\n\n- examples/basics/enums.vow\n- examples/basics/options.vow\n- examples/basics/records.vow\n- examples/contracts/counter.vow\n- examples/contracts/withdraw.vow\n- examples/effects/transfer.vow\n",
+        "text": "No example matched 'zzz-no-match'.\n\n# Kei examples\n\n`kei_examples` の `query` にキーワードを渡すと該当する例を返す\n(パス・本文を部分一致で検索)。query を空にするとこの一覧を返す。\n\n- examples/basics/enums.kei\n- examples/basics/options.kei\n- examples/basics/records.kei\n- examples/contracts/counter.kei\n- examples/contracts/withdraw.kei\n- examples/effects/transfer.kei\n",
         "type": "text"
       }
     ],

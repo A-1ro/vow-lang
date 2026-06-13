@@ -1,4 +1,4 @@
-tests/cli/fmt/messy.input.vow: not formatted (run `vow fmt --write tests/cli/fmt/messy.input.vow`)
+tests/cli/fmt/messy.input.kei: not formatted (run `kei fmt --write tests/cli/fmt/messy.input.kei`)
  module cli.messy
  
  func calc(a: Int, b: Int, c: Int) -> Int {

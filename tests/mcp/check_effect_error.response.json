@@ -4,7 +4,7 @@
   "result": {
     "content": [
       {
-        "text": "[\n  {\n    \"severity\": \"error\",\n    \"code\": \"VOW-E3001\",\n    \"message\": \"effect 'File.Read' used but not declared in 'uses' clause of 'boot' (required by call to 'readFile')\",\n    \"span\": {\n      \"file\": \"source.vow\",\n      \"start\": {\n        \"line\": 10,\n        \"col\": 10\n      },\n      \"end\": {\n        \"line\": 10,\n        \"col\": 24\n      }\n    },\n    \"fixes\": [\n      {\n        \"title\": \"Add 'uses File.Read' to 'boot'\",\n        \"edits\": []\n      }\n    ]\n  }\n]",
+        "text": "[\n  {\n    \"severity\": \"error\",\n    \"code\": \"KEI-E3001\",\n    \"message\": \"effect 'File.Read' used but not declared in 'uses' clause of 'boot' (required by call to 'readFile')\",\n    \"span\": {\n      \"file\": \"source.kei\",\n      \"start\": {\n        \"line\": 10,\n        \"col\": 10\n      },\n      \"end\": {\n        \"line\": 10,\n        \"col\": 24\n      }\n    },\n    \"fixes\": [\n      {\n        \"title\": \"Add 'uses File.Read' to 'boot'\",\n        \"edits\": []\n      }\n    ]\n  }\n]",
         "type": "text"
       }
     ],

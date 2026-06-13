@@ -1,8 +1,8 @@
 name: Release
 
-# v* タグ push で各プラットフォーム向けの `vow` バイナリをビルドし、
+# v* タグ push で各プラットフォーム向けの `kei` バイナリをビルドし、
 # そのタグの GitHub Release にアセットとして添付する。
-# install.sh が `vow-<target>.tar.gz` / `vow-<target>.zip` の命名に依存する。
+# install.sh が `kei-<target>.tar.gz` / `kei-<target>.zip` の命名に依存する。
 on:
   push:
     tags: ["v*"]
@@ -66,20 +66,20 @@ jobs:
           sudo apt-get install -y ${{ matrix.linker }}
           echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> "$GITHUB_ENV"
       - name: Build
-        run: cargo build --release --locked -p vow_cli --bin vow --target ${{ matrix.target }}
+        run: cargo build --release --locked -p kei_cli --bin kei --target ${{ matrix.target }}
       - name: Package
         env:
           TARGET: ${{ matrix.target }}
         run: |
-          dist="vow-$TARGET"
+          dist="kei-$TARGET"
           mkdir "$dist"
           cp README.md "$dist/"
           if [ "$RUNNER_OS" = "Windows" ]; then
-            cp "target/$TARGET/release/vow.exe" "$dist/"
+            cp "target/$TARGET/release/kei.exe" "$dist/"
             7z a "$dist.zip" "$dist" >/dev/null
             echo "ASSET=$dist.zip" >> "$GITHUB_ENV"
           else
-            cp "target/$TARGET/release/vow" "$dist/"
+            cp "target/$TARGET/release/kei" "$dist/"
             tar czf "$dist.tar.gz" "$dist"
             echo "ASSET=$dist.tar.gz" >> "$GITHUB_ENV"
           fi

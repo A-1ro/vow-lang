@@ -1,8 +1,8 @@
-// examples/contracts/withdraw.vow の実行テスト:
+// examples/contracts/withdraw.kei の実行テスト:
 // 正常系・異常系(Result)と、requires 違反の構造化エラー(goal 条件 3)。
 
 import { beforeEach, describe, expect, it } from "vitest";
-import { VowContractViolation } from "@vow/runtime";
+import { KeiContractViolation } from "@kei/runtime";
 
 import { withdraw } from "../generated/contracts/withdraw";
 import { AccountId, Money } from "../generated/core/money";
@@ -49,7 +49,7 @@ describe("contracts/withdraw", () => {
     }
   });
 
-  it("requires 違反は構造化エラー VowContractViolation を投げる", () => {
+  it("requires 違反は構造化エラー KeiContractViolation を投げる", () => {
     Database.seed(alice, Money.of(100));
     let thrown: unknown;
     try {
@@ -57,20 +57,20 @@ describe("contracts/withdraw", () => {
     } catch (e) {
       thrown = e;
     }
-    expect(thrown).toBeInstanceOf(VowContractViolation);
-    const violation = thrown as VowContractViolation;
+    expect(thrown).toBeInstanceOf(KeiContractViolation);
+    const violation = thrown as KeiContractViolation;
     expect(violation.clause).toBe("requires");
     expect(violation.func).toBe("withdraw");
     expect(violation.condition).toBe("amount > Money.zero");
-    expect(violation.file).toBe("examples/contracts/withdraw.vow");
+    expect(violation.file).toBe("examples/contracts/withdraw.kei");
     expect(violation.line).toBe(13);
     // 構造化データとして JSON 化できる(診断は JSON が正、散文は派生)。
     expect(violation.toJSON()).toEqual({
-      name: "VowContractViolation",
+      name: "KeiContractViolation",
       clause: "requires",
       func: "withdraw",
       condition: "amount > Money.zero",
-      file: "examples/contracts/withdraw.vow",
+      file: "examples/contracts/withdraw.kei",
       line: 13,
       col: violation.col,
     });

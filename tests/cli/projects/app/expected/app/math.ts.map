@@ -3,7 +3,7 @@
   "mappings": ";;;;;;;;;;AAEA;EACW;IAAA;;;;;;;;;EACA;IAAA;;;;;;;;;;IAGT;;EAFQ;IAAA",
   "names": [],
   "sources": [
-    "math.vow"
+    "math.kei"
   ],
   "sourcesContent": [
     "module app.math\n\nfunc addPositive(a: Int, b: Int) -> Int\n  requires a > 0\n  requires b > 0\n  ensures result == a + b\n{\n  return a + b\n}\n"

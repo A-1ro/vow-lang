@@ -3,7 +3,7 @@
   "id": 5,
   "method": "tools/call",
   "params": {
-    "name": "vow_spec",
-    "arguments": { "topic": "VOW-E3001" }
+    "name": "kei_spec",
+    "arguments": { "topic": "KEI-E3001" }
   }
 }

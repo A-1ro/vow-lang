@@ -1,0 +1,22 @@
+[package]
+name = "kei_cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The `kei` CLI: check / fmt / build / test. No language-processing logic."
+
+[[bin]]
+name = "kei"
+path = "src/main.rs"
+
+[dependencies]
+kei_check = { path = "../kei_check" }
+kei_emit = { path = "../kei_emit" }
+kei_fmt = { path = "../kei_fmt" }
+kei_syntax = { path = "../kei_syntax" }
+# --json の Diagnostic[] 直列化(構造化出力は serde が正)。
+serde_json = { workspace = true }
+
+[dev-dependencies]
+# CLI 統合テストが --json 出力を構造比較するため。
+serde_json = { workspace = true }

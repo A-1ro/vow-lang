@@ -1,0 +1,9 @@
+[package]
+name = "kei_syntax"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Kei lexer, parser, and AST. No type knowledge."
+
+[dependencies]
+serde.workspace = true

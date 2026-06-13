@@ -146,6 +146,61 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
+name = "kei_check"
+version = "0.1.0"
+dependencies = [
+ "kei_syntax",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "kei_cli"
+version = "0.1.0"
+dependencies = [
+ "kei_check",
+ "kei_emit",
+ "kei_fmt",
+ "kei_syntax",
+ "serde_json",
+]
+
+[[package]]
+name = "kei_emit"
+version = "0.1.0"
+dependencies = [
+ "kei_check",
+ "kei_syntax",
+ "serde_json",
+]
+
+[[package]]
+name = "kei_fmt"
+version = "0.1.0"
+dependencies = [
+ "kei_syntax",
+ "proptest",
+ "serde_json",
+]
+
+[[package]]
+name = "kei_mcp"
+version = "0.1.0"
+dependencies = [
+ "kei_check",
+ "kei_fmt",
+ "kei_syntax",
+ "serde_json",
+]
+
+[[package]]
+name = "kei_syntax"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "leb128fmt"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -423,61 +478,6 @@ name = "unicode-xid"
 version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
-
-[[package]]
-name = "vow_check"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "vow_syntax",
-]
-
-[[package]]
-name = "vow_cli"
-version = "0.1.0"
-dependencies = [
- "serde_json",
- "vow_check",
- "vow_emit",
- "vow_fmt",
- "vow_syntax",
-]
-
-[[package]]
-name = "vow_emit"
-version = "0.1.0"
-dependencies = [
- "serde_json",
- "vow_check",
- "vow_syntax",
-]
-
-[[package]]
-name = "vow_fmt"
-version = "0.1.0"
-dependencies = [
- "proptest",
- "serde_json",
- "vow_syntax",
-]
-
-[[package]]
-name = "vow_mcp"
-version = "0.1.0"
-dependencies = [
- "serde_json",
- "vow_check",
- "vow_fmt",
- "vow_syntax",
-]
-
-[[package]]
-name = "vow_syntax"
-version = "0.1.0"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "wait-timeout"

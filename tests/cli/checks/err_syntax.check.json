@@ -1,10 +1,10 @@
 [
   {
     "severity": "error",
-    "code": "VOW-E0104",
+    "code": "KEI-E0104",
     "message": "unknown clause 'use': contract clauses are 'uses', 'requires', and 'ensures'",
     "span": {
-      "file": "tests/cli/checks/err_syntax.vow",
+      "file": "tests/cli/checks/err_syntax.kei",
       "start": {
         "line": 4,
         "col": 3
@@ -20,7 +20,7 @@
         "edits": [
           {
             "span": {
-              "file": "tests/cli/checks/err_syntax.vow",
+              "file": "tests/cli/checks/err_syntax.kei",
               "start": {
                 "line": 4,
                 "col": 3

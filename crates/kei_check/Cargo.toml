@@ -1,0 +1,13 @@
+[package]
+name = "kei_check"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Kei semantic checker: name resolution, types, effects, contracts. Sole definition of Diagnostic."
+
+[dependencies]
+kei_syntax = { path = "../kei_syntax" }
+serde.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

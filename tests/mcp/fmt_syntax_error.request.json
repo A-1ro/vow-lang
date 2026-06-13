@@ -3,7 +3,7 @@
   "id": 10,
   "method": "tools/call",
   "params": {
-    "name": "vow_fmt",
+    "name": "kei_fmt",
     "arguments": {
       "source": "module demo\n\nfunc double(x: Int -> Int {\n  return x + x\n}\n"
     }

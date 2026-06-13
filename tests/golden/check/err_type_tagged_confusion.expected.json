@@ -1,6 +1,6 @@
 [
   {
-    "code": "VOW-E2005",
+    "code": "KEI-E2005",
     "fixes": [
       {
         "edits": [],
@@ -14,7 +14,7 @@
         "col": 27,
         "line": 11
       },
-      "file": "tests/golden/check/err_type_tagged_confusion.vow",
+      "file": "tests/golden/check/err_type_tagged_confusion.kei",
       "start": {
         "col": 24,
         "line": 11
@@ -22,7 +22,7 @@
     }
   },
   {
-    "code": "VOW-E2005",
+    "code": "KEI-E2005",
     "fixes": [
       {
         "edits": [],
@@ -36,7 +36,7 @@
         "col": 31,
         "line": 12
       },
-      "file": "tests/golden/check/err_type_tagged_confusion.vow",
+      "file": "tests/golden/check/err_type_tagged_confusion.kei",
       "start": {
         "col": 26,
         "line": 12
@@ -44,7 +44,7 @@
     }
   },
   {
-    "code": "VOW-E2005",
+    "code": "KEI-E2005",
     "fixes": [
       {
         "edits": [],
@@ -58,7 +58,7 @@
         "col": 24,
         "line": 13
       },
-      "file": "tests/golden/check/err_type_tagged_confusion.vow",
+      "file": "tests/golden/check/err_type_tagged_confusion.kei",
       "start": {
         "col": 10,
         "line": 13

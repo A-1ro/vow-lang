@@ -1,7 +1,7 @@
 // e2e スタブ: examples が import する infra.database のインメモリ実装。
 // spec §3.3 の「テスト時は DI 的なモジュール差し替えで代替」に相当する。
 
-import { None, Option, Some } from "@vow/runtime";
+import { None, Option, Some } from "@kei/runtime";
 import { AccountId, Money } from "../core/money";
 
 export type Account = {

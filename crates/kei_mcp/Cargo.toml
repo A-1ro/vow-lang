@@ -1,0 +1,20 @@
+[package]
+name = "kei_mcp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Kei MCP server: serves spec/ and examples/ embedded at build time. No language-processing logic."
+
+[lib]
+name = "kei_mcp"
+path = "src/lib.rs"
+
+[[bin]]
+name = "kei-mcp"
+path = "src/main.rs"
+
+[dependencies]
+kei_check = { path = "../kei_check" }
+kei_fmt = { path = "../kei_fmt" }
+kei_syntax = { path = "../kei_syntax" }
+serde_json = { workspace = true }
