@@ -1,6 +1,6 @@
-# pact fmt 正規形スタイル v0.1(M2)
+# vow fmt 正規形スタイル v0.1(M2)
 
-> `pact_fmt` の出力規則。tests/golden/fmt/ が契約本文であり、本書はその要約。
+> `vow_fmt` の出力規則。tests/golden/fmt/ が契約本文であり、本書はその要約。
 > 規則の変更は golden の変更を伴うため人間レビュー必須(ARCHITECTURE.md 不変条件 3)。
 
 ## 全体

@@ -3,7 +3,7 @@
   "id": 5,
   "method": "tools/call",
   "params": {
-    "name": "pact_spec",
-    "arguments": { "topic": "PACT-E3001" }
+    "name": "vow_spec",
+    "arguments": { "topic": "VOW-E3001" }
   }
 }

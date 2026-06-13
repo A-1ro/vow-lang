@@ -3,7 +3,7 @@
   "id": 3,
   "method": "tools/call",
   "params": {
-    "name": "pact_spec",
+    "name": "vow_spec",
     "arguments": {}
   }
 }

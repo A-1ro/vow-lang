@@ -1,6 +1,6 @@
 [
   {
-    "code": "PACT-E0104",
+    "code": "VOW-E0104",
     "fixes": [
       {
         "edits": [
@@ -11,7 +11,7 @@
                 "col": 6,
                 "line": 2
               },
-              "file": "tests/golden/syntax/err_uses_typo.pact",
+              "file": "tests/golden/syntax/err_uses_typo.vow",
               "start": {
                 "col": 3,
                 "line": 2
@@ -29,7 +29,7 @@
         "col": 6,
         "line": 2
       },
-      "file": "tests/golden/syntax/err_uses_typo.pact",
+      "file": "tests/golden/syntax/err_uses_typo.vow",
       "start": {
         "col": 3,
         "line": 2

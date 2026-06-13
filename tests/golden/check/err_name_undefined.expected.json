@@ -1,6 +1,6 @@
 [
   {
-    "code": "PACT-E1001",
+    "code": "VOW-E1001",
     "fixes": [
       {
         "edits": [
@@ -11,7 +11,7 @@
                 "col": 29,
                 "line": 4
               },
-              "file": "tests/golden/check/err_name_undefined.pact",
+              "file": "tests/golden/check/err_name_undefined.vow",
               "start": {
                 "col": 25,
                 "line": 4
@@ -29,7 +29,7 @@
         "col": 29,
         "line": 4
       },
-      "file": "tests/golden/check/err_name_undefined.pact",
+      "file": "tests/golden/check/err_name_undefined.vow",
       "start": {
         "col": 25,
         "line": 4
@@ -37,7 +37,7 @@
     }
   },
   {
-    "code": "PACT-E1001",
+    "code": "VOW-E1001",
     "fixes": [
       {
         "edits": [],
@@ -51,7 +51,7 @@
         "col": 23,
         "line": 5
       },
-      "file": "tests/golden/check/err_name_undefined.pact",
+      "file": "tests/golden/check/err_name_undefined.vow",
       "start": {
         "col": 20,
         "line": 5

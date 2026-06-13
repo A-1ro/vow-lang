@@ -1,7 +1,7 @@
-// examples/contracts/counter.pact の実行テスト: ensures / old() の実行時検査。
+// examples/contracts/counter.vow の実行テスト: ensures / old() の実行時検査。
 
 import { describe, expect, it } from "vitest";
-import { PactContractViolation } from "@pact/runtime";
+import { VowContractViolation } from "@vow/runtime";
 
 import { increment } from "../generated/contracts/counter";
 
@@ -18,11 +18,11 @@ describe("contracts/counter", () => {
     } catch (e) {
       thrown = e;
     }
-    expect(thrown).toBeInstanceOf(PactContractViolation);
-    const violation = thrown as PactContractViolation;
+    expect(thrown).toBeInstanceOf(VowContractViolation);
+    const violation = thrown as VowContractViolation;
     expect(violation.clause).toBe("requires");
     expect(violation.func).toBe("increment");
     expect(violation.condition).toBe("step > 0");
-    expect(violation.file).toBe("examples/contracts/counter.pact");
+    expect(violation.file).toBe("examples/contracts/counter.vow");
   });
 });
