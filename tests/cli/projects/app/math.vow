@@ -1,0 +1,9 @@
+module app.math
+
+func addPositive(a: Int, b: Int) -> Int
+  requires a > 0
+  requires b > 0
+  ensures result == a + b
+{
+  return a + b
+}
