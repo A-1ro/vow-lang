@@ -49,7 +49,10 @@ vow-lang/
 │   ├── mcp/                  # MCPサーバー統合テスト
 │   └── cli/                  # `vow` CLI統合テスト(実バイナリ起動でstdout/stderr/終了コード検証)
 │       ├── checks/           # {name}.vow + {name}.check.txt(散文) + {name}.check.json
-│       └── fmt/              # {name}.input.vow (+ {name}.expected.vow / {name}.fmtcheck.txt / {name}.fmt.txt)
+│       ├── fmt/              # {name}.input.vow (+ {name}.expected.vow / {name}.fmtcheck.txt / {name}.fmt.txt)
+│       └── projects/         # `vow build`/`vow test`のプロジェクトfixture
+│           ├── app/          # .vow + expected/(buildツリーのgolden) + package.json/tests/(vow test)
+│           └── broken/       # 検査エラーを含むall-or-nothing検証用(dist は git管理外)
 │
 ├── docs/                     # ロードマップ・設計メモ
 │   └── vow-roadmap-goals.md
@@ -82,7 +85,7 @@ vow_check  ←─ vow_emit
 | vow_check | 意味検査全般。**Diagnostic型の定義元** | 出力形式(散文/JSON)の整形 |
 | vow_fmt | AST→正規形テキスト | ASTの意味的変更 |
 | vow_emit | 検査済みAST→TS+source map | 検査の再実装 |
-| vow_cli | 引数解釈・ファイルIO・Diagnosticの散文整形 | 言語処理ロジック |
+| vow_cli | 引数解釈・ファイルIO・Diagnosticの散文整形・ディレクトリ走査・テストランナー起動 | 言語処理ロジック(検査/整形/トランスパイルは委譲)。`vow test`はランナーの知識を持たず`npm test`へ委譲 |
 | vow_mcp | MCPプロトコル・spec/とexamples/の埋め込み配信 | 言語処理ロジック |
 
 ### 外部依存の追加記録(M6 事前合意の手続き)
@@ -91,6 +94,11 @@ vow_check  ←─ vow_emit
   CLI 統合テスト(`tests/cli.rs`)は std の `std::process::Command` で実バイナリを起動するため
   追加クレートは要らず、`serde_json` を dev-dependency にも置いて `--json` 出力を構造比較する。
   引数解釈は手書き(clap 等は不採用)、整形検証は `CARGO_TARGET_TMPDIR` の一時ファイルで行う。
+- `vow build` / `vow test`(M7): 新規依存なし。`build` は `vow_emit::emit_module` をディレクトリ走査で
+  回し、`ts_path` 通りに書き出す(all-or-nothing)。`test` は `<dir>` を dev ビルドして `std::process::Command`
+  で `npm test` を起動するだけ(Node はプロジェクト側の前提。CI の test ジョブと同じ)。
+  `vow build` の出力ツリーは `tests/cli/projects/*/expected/` で golden 比較、`vow test` の契約 on 実行
+  (`requires` 違反 → `VowContractViolation` → 非ゼロ終了)は Node 在席時のみ走る統合テストで検証する。
 
 ## 設計上の不変条件
 

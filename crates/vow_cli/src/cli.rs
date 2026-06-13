@@ -6,13 +6,23 @@
 
 use std::path::PathBuf;
 
-/// 解釈済みのサブコマンド。実行は各ランナー(check / fmt)が担う。
+/// 解釈済みのサブコマンド。実行は各ランナー(check / fmt / build / test)が担う。
 #[derive(Debug, PartialEq, Eq)]
 pub enum Command {
     /// `vow check <file> [--json]`
     Check { file: PathBuf, json: bool },
     /// `vow fmt <file> [--check | --write]`
     Fmt { file: PathBuf, mode: FmtMode },
+    /// `vow build <dir> [--out-dir <dir>] [--no-source-map]`
+    Build {
+        dir: PathBuf,
+        /// 出力先。`None` のとき既定 `<dir>/dist/`(ランナーが解決する)。
+        out_dir: Option<PathBuf>,
+        /// source map を既定 on にするか。`--no-source-map` で `false`。
+        source_map: bool,
+    },
+    /// `vow test [<dir>]`。省略時はカレントディレクトリ。
+    Test { dir: PathBuf },
     /// `vow help` / `--help` / `-h`。使い方を stdout に出して終了コード 0。
     Help,
     /// `vow version` / `--version` / `-V`。
@@ -51,9 +61,8 @@ pub fn parse(args: Vec<String>) -> Result<Command, UsageError> {
         "version" | "--version" | "-V" => Ok(Command::Version),
         "check" => parse_check(it),
         "fmt" => parse_fmt(it),
-        "build" | "test" => Err(UsageError::new(format!(
-            "subcommand '{sub}' is not implemented yet (planned for M7)"
-        ))),
+        "build" => parse_build(it),
+        "test" => parse_test(it),
         other => Err(UsageError::new(format!("unknown subcommand '{other}'"))),
     }
 }
@@ -113,6 +122,67 @@ fn parse_fmt(it: impl Iterator<Item = String>) -> Result<Command, UsageError> {
     })
 }
 
+fn parse_build(mut it: impl Iterator<Item = String>) -> Result<Command, UsageError> {
+    let mut dir: Option<PathBuf> = None;
+    let mut out_dir: Option<PathBuf> = None;
+    let mut source_map = true;
+    while let Some(arg) = it.next() {
+        match arg.as_str() {
+            "--out-dir" => {
+                if out_dir.is_some() {
+                    return Err(UsageError::new("--out-dir given more than once"));
+                }
+                let val = it
+                    .next()
+                    .ok_or_else(|| UsageError::new("--out-dir requires a <dir> value"))?;
+                out_dir = Some(PathBuf::from(val));
+            }
+            "--no-source-map" => source_map = false,
+            "--help" | "-h" => return Ok(Command::Help),
+            opt if is_option(opt) => {
+                return Err(UsageError::new(format!(
+                    "unknown option '{opt}' for 'build'"
+                )));
+            }
+            _ => {
+                if dir.is_some() {
+                    return Err(UsageError::new("build takes exactly one <dir>"));
+                }
+                dir = Some(PathBuf::from(arg));
+            }
+        }
+    }
+    let dir = dir.ok_or_else(|| UsageError::new("build requires a <dir> argument"))?;
+    Ok(Command::Build {
+        dir,
+        out_dir,
+        source_map,
+    })
+}
+
+fn parse_test(it: impl Iterator<Item = String>) -> Result<Command, UsageError> {
+    let mut dir: Option<PathBuf> = None;
+    for arg in it {
+        match arg.as_str() {
+            "--help" | "-h" => return Ok(Command::Help),
+            opt if is_option(opt) => {
+                return Err(UsageError::new(format!(
+                    "unknown option '{opt}' for 'test'"
+                )));
+            }
+            _ => {
+                if dir.is_some() {
+                    return Err(UsageError::new("test takes at most one <dir>"));
+                }
+                dir = Some(PathBuf::from(arg));
+            }
+        }
+    }
+    Ok(Command::Test {
+        dir: dir.unwrap_or_else(|| PathBuf::from(".")),
+    })
+}
+
 /// `--check` と `--write` は排他。既に別モードが立っていれば使用法エラー。
 fn set_mode(slot: &mut Option<FmtMode>, mode: FmtMode) -> Result<(), UsageError> {
     match slot {
@@ -139,13 +209,17 @@ USAGE:
     vow check <file> [--json]    意味検査(既定は散文 Diagnostic、--json で Diagnostic[])
     vow fmt <file> [--check | --write]
                                  正規形整形(既定は stdout、--check は検証、--write は上書き)
+    vow build <dir> [--out-dir <dir>] [--no-source-map]
+                                 <dir> 配下の全 .vow を検査し TS + source map を出力
+                                 (既定の出力先は <dir>/dist/。1 件でもエラーなら何も書かない)
+    vow test [<dir>]             dev ビルド(契約 on)後、プロジェクトの `npm test` を起動
     vow help | --help | -h       この使い方を表示
     vow version | --version | -V バージョンを表示
 
 EXIT CODES:
-    0  成功(検査エラーなし / 整形済み)
-    1  診断エラー検出(check)・未整形(fmt --check)・構文エラー(fmt)
-    2  使用法エラー(引数不正・ファイル不在)
+    0  成功(検査エラーなし / 整形済み / ビルド成功 / テスト全件パス)
+    1  診断エラー検出(check / build)・未整形(fmt --check)・構文エラー(fmt)・テスト失敗(test)
+    2  使用法エラー(引数不正・ファイル/ディレクトリ不在)
 ";
 
 #[cfg(test)]
@@ -203,6 +277,38 @@ mod tests {
     }
 
     #[test]
+    fn build_and_test() {
+        assert_eq!(
+            parse_args(&["build", "src"]),
+            Ok(Command::Build {
+                dir: PathBuf::from("src"),
+                out_dir: None,
+                source_map: true,
+            })
+        );
+        assert_eq!(
+            parse_args(&["build", "src", "--out-dir", "out", "--no-source-map"]),
+            Ok(Command::Build {
+                dir: PathBuf::from("src"),
+                out_dir: Some(PathBuf::from("out")),
+                source_map: false,
+            })
+        );
+        assert_eq!(
+            parse_args(&["test", "proj"]),
+            Ok(Command::Test {
+                dir: PathBuf::from("proj"),
+            })
+        );
+        assert_eq!(
+            parse_args(&["test"]),
+            Ok(Command::Test {
+                dir: PathBuf::from("."),
+            })
+        );
+    }
+
+    #[test]
     fn usage_errors() {
         assert!(parse_args(&[]).is_err());
         assert!(parse_args(&["check"]).is_err());
@@ -211,7 +317,11 @@ mod tests {
         assert!(parse_args(&["check", "--bogus", "a.vow"]).is_err());
         assert!(parse_args(&["fmt", "a.vow", "--check", "--write"]).is_err());
         assert!(parse_args(&["frobnicate", "a.vow"]).is_err());
-        assert!(parse_args(&["build", "."]).is_err());
+        assert!(parse_args(&["build"]).is_err());
+        assert!(parse_args(&["build", "a", "b"]).is_err());
+        assert!(parse_args(&["build", "src", "--out-dir"]).is_err());
+        assert!(parse_args(&["build", "src", "--bogus"]).is_err());
+        assert!(parse_args(&["test", "a", "b"]).is_err());
     }
 
     #[test]

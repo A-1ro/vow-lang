@@ -215,10 +215,17 @@ clippy 警告ゼロ。最後にテスト結果サマリと `vow check`・`vow fm
   全 Diagnostic を出して exit 1(all-or-nothing。中途半端な dist/ を残さない)。
 - **dev / release ビルド**(spec §4): `--release` で `ensures` 除去・`requires` のみ残すか。
   emit 側にビルドモード引数が要るため、M7 で対応するか v0.2 送りにするかを決定する。
+  → **決定(実装時)**: `--release` は v0.2 送り。emit にビルドモード引数を入れる改修が要り、
+  「スコープ外」にも明記済みのため、M7 は dev ビルド(契約 on)のみとした。`vow build` の
+  フラグは `--out-dir` / `--no-source-map` の 2 つに留める。
 - **`vow test` の実体**: v0.1 は Vow に test 構文がない。dev ビルド(契約 on)→ Node の
   テストランナー(vitest)へ委譲するラッパーとするか、v0.1 ではスコープ外にするか。
   採用する場合は Node 前提(CI の test ジョブと同じ)で、契約違反が非ゼロ終了に
   伝播することを保証する。
+  → **決定(実装時)**: ラッパーとして採用。`vow test [<dir>]` は dev ビルド後に
+  プロジェクトの `npm test`(package.json の test スクリプト)へ委譲し、ランナー選定・依存解決は
+  プロジェクト側の責務とする(`vow` はランナー非依存)。`requires` 違反が `VowContractViolation`
+  として非ゼロ終了に伝播することを Node 在席時の統合テストで保証する。
 
 ### /goal
 ```
