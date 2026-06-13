@@ -150,6 +150,103 @@ stdioトランスポートで起動し、tests/mcp/ の統合テスト(各ツー
 
 ---
 
+## M6: vow_cli — `vow check` / `vow fmt`(単一ファイル CLI 基盤)
+
+> `vow_cli` はスタブ(`main.rs` が exit 1 を返すのみ)。spec §7 の 4 サブコマンドの
+> うち、純 Rust・単一ファイルで完結する check / fmt を先に固める。CLI は
+> 引数解釈・ファイル IO・**Diagnostic の散文整形のみ**を持ち、言語処理は
+> vow_check / vow_fmt / vow_syntax へ委譲する(ARCHITECTURE.md vow_cli 行)。
+
+### 🤝 事前合意
+- **散文 Diagnostic レンダリング形式**(`vow check` の既定出力)。rustc 風
+  (`error[VOW-E3042]: <message>` + `--> file:line:col` + ソース行 + キャレット下線 +
+  `= fix: <title>`)を基準サンプルでレビュー。これが人間向けの一次接触面なので
+  golden snapshot を人間承認する。**散文整形は CLI に許された唯一の「ロジック」**で、
+  Diagnostic の全要素(code/message/span/fix)を欠落なく描画すること。
+- **`vow fmt` の挙動**: 既定は整形結果を stdout に出す(非破壊)。`--write` で上書き、
+  `--check` で整形済みか検証(未整形なら exit 1 + 差分表示)。cargo fmt 流(既定 in-place)に
+  するか prettier 流(既定 stdout)にするかを決定する。構文エラー入力は整形せず
+  Diagnostic を返す(vow_fmt::format_source の既存挙動)。
+- **終了コード規約**: `0`=成功 / `1`=診断エラー検出(check)・未整形(fmt --check) /
+  `2`=使用法エラー(引数不正・ファイル不在)。全サブコマンド共通。
+- **依存追加の可否**: 引数パーサ(clap 等)、CLI 統合テスト用(assert_cmd / predicates /
+  tempfile)。追加するなら ARCHITECTURE.md と Cargo.toml に記録する(不変条件の手続き)。
+
+### /goal
+```
+/goal `vow` バイナリの check / fmt サブコマンドが実装され、言語処理は
+vow_check / vow_fmt / vow_syntax への委譲のみで(CLI は引数解釈・ファイル IO・
+Diagnostic の散文整形だけを持つ)、tests/cli/ の golden test が全件パスする:
+(1) `vow check <file>` が散文 Diagnostic を既定出力し `--json` で
+Diagnostic[] (構造化) を出す、(2) エラーありで exit 1・なしで exit 0、
+(3) `vow fmt <file>` が正規形を出力し `--check` で未整形を exit 1 で検出、
+(4) 引数不正・ファイル不在で exit 2。CLI 統合テストは実バイナリを
+プロセス起動して stdout / stderr / 終了コードを検証する。新設の tests/cli/ と
+追加依存を ARCHITECTURE.md に反映する。cargo test --workspace 全件パス、
+clippy 警告ゼロ。最後にテスト結果サマリと `vow check`・`vow fmt` の実行例出力を
+表示して完了とする。
+```
+
+### golden / test 設計方針
+- `vow check`: examples/ とエラー入りサンプルを入力に、`{name}.check.txt`(散文)と
+  `{name}.check.json`(Diagnostic[])の両方を期待値に持つ。
+- `vow fmt`: 未整形入力 → 正規形 stdout 一致 / 整形済み入力 → `--check` exit 0 /
+  構文エラー入力 → 整形せず Diagnostic + exit 1。
+- 散文整形が span(file:line:col)とソース行・キャレットを正しく対応づけることを検証。
+
+### スコープ外
+- `vow build` / `vow test`(M7)
+- 設定ファイル(vow.toml)・複数ファイル一括処理・ウォッチモード
+
+---
+
+## M7: vow_cli — `vow build` / `vow test`(プロジェクト CLI)
+
+> M6 の基盤(引数解釈・終了コード・散文整形)の上に、ディレクトリ単位の
+> トランスパイルとテスト実行を載せる。言語処理は vow_emit への委譲のみ。
+> ビルドパイプラインは tests/e2e/ の手動手順(transpile → tsc → vitest)を
+> `vow build` / `vow test` として正規化したもの。
+
+### 🤝 事前合意
+- **プロジェクト/ビルドモデル**: 入力は `<dir>` 以下の `**/*.vow` を再帰収集。出力先は
+  既定 `<dir>/dist/`(`--out-dir` で変更)、emit の `ts_path`(モジュールパス由来)で
+  1:1 配置(spec §5 のファイルパス対応)。source map は既定 on(`--no-source-map` で抑止)。
+- **部分失敗の扱い**: 全ファイルを先に検査し、1 ファイルでもエラーがあれば**何も書かず**
+  全 Diagnostic を出して exit 1(all-or-nothing。中途半端な dist/ を残さない)。
+- **dev / release ビルド**(spec §4): `--release` で `ensures` 除去・`requires` のみ残すか。
+  emit 側にビルドモード引数が要るため、M7 で対応するか v0.2 送りにするかを決定する。
+- **`vow test` の実体**: v0.1 は Vow に test 構文がない。dev ビルド(契約 on)→ Node の
+  テストランナー(vitest)へ委譲するラッパーとするか、v0.1 ではスコープ外にするか。
+  採用する場合は Node 前提(CI の test ジョブと同じ)で、契約違反が非ゼロ終了に
+  伝播することを保証する。
+
+### /goal
+```
+/goal `vow` バイナリの build / test サブコマンドが実装され、言語処理は
+vow_emit への委譲のみ。(1) `vow build <dir>` が <dir> 配下の全 .vow を検査し、
+エラーゼロのとき out-dir に TS + source map をモジュールパス通りに書き出す、
+(2) 1 ファイルでもエラーなら何も書かず全 Diagnostic を出して exit 1、
+(3) 生成 TS が tsc --strict --noEmit でエラーゼロ、(4) `vow test` が dev ビルド後に
+テストランナーを起動し契約 on で実行(requires 違反を検出して非ゼロ終了することを
+含む)。tests/cli/projects/ のフィクスチャでビルド出力ツリーを golden 比較し、
+CLI 統合テストは実バイナリをプロセス起動して終了コードと出力を検証する。
+cargo test --workspace 全件パス、clippy 警告ゼロ。最後に `vow build` の出力ツリーと
+`vow test` の結果を表示して完了とする。
+```
+
+### golden / test 設計方針
+- `tests/cli/projects/<name>/`: 入力 .vow 群 + 期待 `dist/` ツリー(TS + .map)。
+  examples/ の再利用可。出力ツリーのパスと内容を golden 比較する。
+- 契約違反フィクスチャ: requires を破る入力で `vow test` が非ゼロ終了 + 構造化エラー
+  (`VowContractViolation`)を出すこと(M4 の e2e 契約違反テストの CLI 版)。
+
+### スコープ外
+- パッケージマネージャ・依存解決(spec §8「やらない」)
+- ウォッチモード・インクリメンタルビルド
+- release 最適化(`--release` を入れない判断ならビルドモード自体を丸ごと)
+
+---
+
 ## 全体運用メモ
 
 - 各/goal投入前に対象Milestoneのgolden testケースを人間がレビューする。
