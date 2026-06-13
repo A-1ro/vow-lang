@@ -48,6 +48,7 @@ pact_check  ←─ pact_emit
 - `cargo clippy --workspace --all-targets -- -D warnings` — 警告ゼロが必須
 - `cargo fmt --all -- --check` — 整形チェック(CI の fmt ジョブと同じ)
 - `cargo run -p pact_mcp --bin pact-mcp` — MCP サーバー起動(stdin から改行区切り JSON-RPC を読む)
+- `cargo run -p pact_emit --example transpile -- <input.pact> [output.ts]` — 単一 .pact を TS 化(検査 NG は Diagnostic を出して exit 1)。`pact build` 実装までの簡易トランスパイラ
 - `pact check <file>` / `pact fmt <file>` / `pact build <dir>` / `pact test` — `pact` CLI。**未実装(pact_cli はスタブ)**
 
 CI(`.github/workflows/ci.yml`)は fmt / clippy / test の 3 ジョブ。test ジョブのみ Node 22 をセットアップする(e2e が npm/npx を使うため)。
