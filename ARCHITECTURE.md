@@ -54,6 +54,11 @@ vow-lang/
 ├── docs/                     # ロードマップ・設計メモ
 │   └── vow-roadmap-goals.md
 │
+├── assets/                    # ブランド資産(README等で参照)
+│   ├── bow-kun.png           # マスコット bow-kun(契約書を咥えた柴犬, 1024px 原寸)
+│   ├── bow-kun-{16..512}.png # リサイズ版(16/32/48/64/128/256/512)
+│   └── bow-kun.ico           # favicon(16/32/48 同梱)
+│
 └── .github/
     └── workflows/ci.yml      # fmt / clippy / test
 ```

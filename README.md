@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/bow-kun-256.png" alt="Vow のマスコット bow-kun(契約書を咥えた柴犬)" width="160">
+</p>
+
 # Vow
 
 > **Code is a vow between humans and AI.**
