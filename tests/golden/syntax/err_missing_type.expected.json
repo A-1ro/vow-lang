@@ -1,6 +1,6 @@
 [
   {
-    "code": "VOW-E0101",
+    "code": "KEI-E0101",
     "fixes": [
       {
         "edits": [
@@ -11,7 +11,7 @@
                 "col": 14,
                 "line": 1
               },
-              "file": "tests/golden/syntax/err_missing_type.vow",
+              "file": "tests/golden/syntax/err_missing_type.kei",
               "start": {
                 "col": 14,
                 "line": 1
@@ -29,7 +29,7 @@
         "col": 15,
         "line": 1
       },
-      "file": "tests/golden/syntax/err_missing_type.vow",
+      "file": "tests/golden/syntax/err_missing_type.kei",
       "start": {
         "col": 14,
         "line": 1

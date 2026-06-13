@@ -4,7 +4,7 @@
   "result": {
     "content": [
       {
-        "text": "# VOW-E3001: effect used but not declared\n\nエフェクト検査: `uses` 節に宣言していないエフェクトを行使した。エフェクトは\nケーパビリティであり、呼び出し先の宣言エフェクトは呼び出し元へ推移的に\n伝播する(spec §3.1)。宣言は階層で包含してもよい(`uses IO` は全 IO、\n`uses Database` は `Database.Read` / `Database.Write` を包含する — spec §3.2)。\n\n```vow\nfunc writeRow(id: Int) -> Bool\n  uses Database.Write\n{\n  return true\n}\n\nfunc save(id: Int) -> Bool {\n  return writeRow(id)   // error: effect 'Database.Write' used but not declared in 'uses' clause of 'save'\n}\n```\n\n## 修正\n\nfix の提案に従い、呼び出し元の `uses` 節に不足エフェクトを追加する\n(既存の `uses` 節があれば `, Effect` の追記が機械適用できる)。\n",
+        "text": "# KEI-E3001: effect used but not declared\n\nエフェクト検査: `uses` 節に宣言していないエフェクトを行使した。エフェクトは\nケーパビリティであり、呼び出し先の宣言エフェクトは呼び出し元へ推移的に\n伝播する(spec §3.1)。宣言は階層で包含してもよい(`uses IO` は全 IO、\n`uses Database` は `Database.Read` / `Database.Write` を包含する — spec §3.2)。\n\n```kei\nfunc writeRow(id: Int) -> Bool\n  uses Database.Write\n{\n  return true\n}\n\nfunc save(id: Int) -> Bool {\n  return writeRow(id)   // error: effect 'Database.Write' used but not declared in 'uses' clause of 'save'\n}\n```\n\n## 修正\n\nfix の提案に従い、呼び出し元の `uses` 節に不足エフェクトを追加する\n(既存の `uses` 節があれば `, Effect` の追記が機械適用できる)。\n",
         "type": "text"
       }
     ],

@@ -1,6 +1,6 @@
 [
   {
-    "code": "VOW-E0103",
+    "code": "KEI-E0103",
     "fixes": [
       {
         "edits": [
@@ -11,7 +11,7 @@
                 "col": 1,
                 "line": 5
               },
-              "file": "tests/golden/syntax/err_unclosed_brace.vow",
+              "file": "tests/golden/syntax/err_unclosed_brace.kei",
               "start": {
                 "col": 1,
                 "line": 5
@@ -29,7 +29,7 @@
         "col": 28,
         "line": 1
       },
-      "file": "tests/golden/syntax/err_unclosed_brace.vow",
+      "file": "tests/golden/syntax/err_unclosed_brace.kei",
       "start": {
         "col": 27,
         "line": 1

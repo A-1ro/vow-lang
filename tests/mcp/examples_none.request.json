@@ -3,7 +3,7 @@
   "id": 13,
   "method": "tools/call",
   "params": {
-    "name": "vow_examples",
+    "name": "kei_examples",
     "arguments": { "query": "zzz-no-match" }
   }
 }

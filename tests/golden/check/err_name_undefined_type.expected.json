@@ -1,6 +1,6 @@
 [
   {
-    "code": "VOW-E1002",
+    "code": "KEI-E1002",
     "fixes": [
       {
         "edits": [],
@@ -14,7 +14,7 @@
         "col": 17,
         "line": 4
       },
-      "file": "tests/golden/check/err_name_undefined_type.vow",
+      "file": "tests/golden/check/err_name_undefined_type.kei",
       "start": {
         "col": 7,
         "line": 4
@@ -22,7 +22,7 @@
     }
   },
   {
-    "code": "VOW-E1002",
+    "code": "KEI-E1002",
     "fixes": [
       {
         "edits": [
@@ -33,7 +33,7 @@
                 "col": 37,
                 "line": 7
               },
-              "file": "tests/golden/check/err_name_undefined_type.vow",
+              "file": "tests/golden/check/err_name_undefined_type.kei",
               "start": {
                 "col": 32,
                 "line": 7
@@ -51,7 +51,7 @@
         "col": 37,
         "line": 7
       },
-      "file": "tests/golden/check/err_name_undefined_type.vow",
+      "file": "tests/golden/check/err_name_undefined_type.kei",
       "start": {
         "col": 32,
         "line": 7

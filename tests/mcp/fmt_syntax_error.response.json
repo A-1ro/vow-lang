@@ -4,7 +4,7 @@
   "result": {
     "content": [
       {
-        "text": "[\n  {\n    \"severity\": \"error\",\n    \"code\": \"VOW-E0101\",\n    \"message\": \"expected ',' or ')' in parameter list, found '->'\",\n    \"span\": {\n      \"file\": \"source.vow\",\n      \"start\": {\n        \"line\": 3,\n        \"col\": 20\n      },\n      \"end\": {\n        \"line\": 3,\n        \"col\": 22\n      }\n    },\n    \"fixes\": [\n      {\n        \"title\": \"Insert ')'\",\n        \"edits\": [\n          {\n            \"span\": {\n              \"file\": \"source.vow\",\n              \"start\": {\n                \"line\": 3,\n                \"col\": 20\n              },\n              \"end\": {\n                \"line\": 3,\n                \"col\": 20\n              }\n            },\n            \"new_text\": \")\"\n          }\n        ]\n      }\n    ]\n  }\n]",
+        "text": "[\n  {\n    \"severity\": \"error\",\n    \"code\": \"KEI-E0101\",\n    \"message\": \"expected ',' or ')' in parameter list, found '->'\",\n    \"span\": {\n      \"file\": \"source.kei\",\n      \"start\": {\n        \"line\": 3,\n        \"col\": 20\n      },\n      \"end\": {\n        \"line\": 3,\n        \"col\": 22\n      }\n    },\n    \"fixes\": [\n      {\n        \"title\": \"Insert ')'\",\n        \"edits\": [\n          {\n            \"span\": {\n              \"file\": \"source.kei\",\n              \"start\": {\n                \"line\": 3,\n                \"col\": 20\n              },\n              \"end\": {\n                \"line\": 3,\n                \"col\": 20\n              }\n            },\n            \"new_text\": \")\"\n          }\n        ]\n      }\n    ]\n  }\n]",
         "type": "text"
       }
     ],

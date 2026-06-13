@@ -1,7 +1,7 @@
 {
-  "name": "@vow/runtime",
+  "name": "@kei/runtime",
   "version": "0.1.0",
-  "description": "Runtime support for Vow-generated TypeScript: Result/Option and contract assertions",
+  "description": "Runtime support for Kei-generated TypeScript: Result/Option and contract assertions",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",

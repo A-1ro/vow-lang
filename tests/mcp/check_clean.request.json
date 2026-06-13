@@ -3,7 +3,7 @@
   "id": 7,
   "method": "tools/call",
   "params": {
-    "name": "vow_check",
+    "name": "kei_check",
     "arguments": {
       "source": "module demo\n\nfunc double(x: Int) -> Int {\n  return x + x\n}\n"
     }
