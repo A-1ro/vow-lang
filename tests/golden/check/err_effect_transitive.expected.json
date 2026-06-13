@@ -1,6 +1,6 @@
 [
   {
-    "code": "PACT-E3001",
+    "code": "VOW-E3001",
     "fixes": [
       {
         "edits": [],
@@ -14,7 +14,7 @@
         "col": 26,
         "line": 16
       },
-      "file": "tests/golden/check/err_effect_transitive.pact",
+      "file": "tests/golden/check/err_effect_transitive.vow",
       "start": {
         "col": 10,
         "line": 16

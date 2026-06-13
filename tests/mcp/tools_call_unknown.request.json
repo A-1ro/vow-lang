@@ -3,7 +3,7 @@
   "id": 16,
   "method": "tools/call",
   "params": {
-    "name": "pact_transpile",
+    "name": "vow_transpile",
     "arguments": { "source": "module demo\n" }
   }
 }

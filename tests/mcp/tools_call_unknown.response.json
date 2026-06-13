@@ -4,7 +4,7 @@
   "result": {
     "content": [
       {
-        "text": "Unknown tool 'pact_transpile'.",
+        "text": "Unknown tool 'vow_transpile'.",
         "type": "text"
       }
     ],

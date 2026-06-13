@@ -4,7 +4,7 @@
   "result": {
     "tools": [
       {
-        "description": "Look up the Pact language spec. Pass `topic` as a section number (e.g. \"3\"), a heading keyword, or an error code (e.g. \"PACT-E3001\"); omit it for the index.",
+        "description": "Look up the Vow language spec. Pass `topic` as a section number (e.g. \"3\"), a heading keyword, or an error code (e.g. \"VOW-E3001\"); omit it for the index.",
         "inputSchema": {
           "additionalProperties": false,
           "properties": {
@@ -16,15 +16,15 @@
           "required": [],
           "type": "object"
         },
-        "name": "pact_spec"
+        "name": "vow_spec"
       },
       {
-        "description": "Statically check Pact source (syntax + types + effects + contracts). Returns a Diagnostic[] JSON array, each with span, code, and at least one fix candidate.",
+        "description": "Statically check Vow source (syntax + types + effects + contracts). Returns a Diagnostic[] JSON array, each with span, code, and at least one fix candidate.",
         "inputSchema": {
           "additionalProperties": false,
           "properties": {
             "source": {
-              "description": "Pact source text to check.",
+              "description": "Vow source text to check.",
               "type": "string"
             }
           },
@@ -33,15 +33,15 @@
           ],
           "type": "object"
         },
-        "name": "pact_check"
+        "name": "vow_check"
       },
       {
-        "description": "Format Pact source into canonical form. On a syntax error it does not reformat and returns the Diagnostic[] instead (isError).",
+        "description": "Format Vow source into canonical form. On a syntax error it does not reformat and returns the Diagnostic[] instead (isError).",
         "inputSchema": {
           "additionalProperties": false,
           "properties": {
             "source": {
-              "description": "Pact source text to format.",
+              "description": "Vow source text to format.",
               "type": "string"
             }
           },
@@ -50,10 +50,10 @@
           ],
           "type": "object"
         },
-        "name": "pact_fmt"
+        "name": "vow_fmt"
       },
       {
-        "description": "Search Pact example snippets by keyword (matches path and body). Omit `query` to list all examples.",
+        "description": "Search Vow example snippets by keyword (matches path and body). Omit `query` to list all examples.",
         "inputSchema": {
           "additionalProperties": false,
           "properties": {
@@ -65,7 +65,7 @@
           "required": [],
           "type": "object"
         },
-        "name": "pact_examples"
+        "name": "vow_examples"
       }
     ]
   }

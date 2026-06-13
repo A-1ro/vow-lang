@@ -4,7 +4,7 @@
   "result": {
     "content": [
       {
-        "text": "# Pact spec index\n\n`pact_spec` の `topic` にセクション番号・見出しキーワード・エラーコードを渡すと\n該当箇所を返す。topic を空にするとこの索引を返す。\n\n## セクション (pact-spec-v0.1.md)\n\n- 0. ポジショニング\n- 1. 設計原則\n- 2. 構文スケッチ\n- 3. エフェクトシステム(v0.1の範囲)\n- 4. 契約の実行モデル\n- 5. トランスパイル戦略\n- 6. Pact MCP Server\n- 7. CLI\n- 8. v0.1 スコープ(MVP)\n- 9. 未決事項\n\n## Diagnostic スキーマ\n\n- diagnostic-schema (topic: \"diagnostic\")\n\n## エラーコード (spec/errors/)\n\n- PACT-E0001\n- PACT-E0002\n- PACT-E0003\n- PACT-E0004\n- PACT-E0101\n- PACT-E0102\n- PACT-E0103\n- PACT-E0104\n- PACT-E1001\n- PACT-E1002\n- PACT-E1003\n- PACT-E1004\n- PACT-E2001\n- PACT-E2002\n- PACT-E2003\n- PACT-E2004\n- PACT-E2005\n- PACT-E2006\n- PACT-E3001\n- PACT-E3002\n- PACT-E4001\n- PACT-E4002\n",
+        "text": "# Vow spec index\n\n`vow_spec` の `topic` にセクション番号・見出しキーワード・エラーコードを渡すと\n該当箇所を返す。topic を空にするとこの索引を返す。\n\n## セクション (vow-spec-v0.1.md)\n\n- 0. ポジショニング\n- 1. 設計原則\n- 2. 構文スケッチ\n- 3. エフェクトシステム(v0.1の範囲)\n- 4. 契約の実行モデル\n- 5. トランスパイル戦略\n- 6. Vow MCP Server\n- 7. CLI\n- 8. v0.1 スコープ(MVP)\n- 9. 未決事項\n\n## Diagnostic スキーマ\n\n- diagnostic-schema (topic: \"diagnostic\")\n\n## エラーコード (spec/errors/)\n\n- VOW-E0001\n- VOW-E0002\n- VOW-E0003\n- VOW-E0004\n- VOW-E0101\n- VOW-E0102\n- VOW-E0103\n- VOW-E0104\n- VOW-E1001\n- VOW-E1002\n- VOW-E1003\n- VOW-E1004\n- VOW-E2001\n- VOW-E2002\n- VOW-E2003\n- VOW-E2004\n- VOW-E2005\n- VOW-E2006\n- VOW-E3001\n- VOW-E3002\n- VOW-E4001\n- VOW-E4002\n",
         "type": "text"
       }
     ],

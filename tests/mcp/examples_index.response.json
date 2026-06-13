@@ -4,7 +4,7 @@
   "result": {
     "content": [
       {
-        "text": "# Pact examples\n\n`pact_examples` の `query` にキーワードを渡すと該当する例を返す\n(パス・本文を部分一致で検索)。query を空にするとこの一覧を返す。\n\n- examples/basics/enums.pact\n- examples/basics/options.pact\n- examples/basics/records.pact\n- examples/contracts/counter.pact\n- examples/contracts/withdraw.pact\n- examples/effects/transfer.pact\n",
+        "text": "# Vow examples\n\n`vow_examples` の `query` にキーワードを渡すと該当する例を返す\n(パス・本文を部分一致で検索)。query を空にするとこの一覧を返す。\n\n- examples/basics/enums.vow\n- examples/basics/options.vow\n- examples/basics/records.vow\n- examples/contracts/counter.vow\n- examples/contracts/withdraw.vow\n- examples/effects/transfer.vow\n",
         "type": "text"
       }
     ],

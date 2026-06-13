@@ -1,6 +1,6 @@
 [
   {
-    "code": "PACT-E0101",
+    "code": "VOW-E0101",
     "fixes": [
       {
         "edits": [
@@ -11,7 +11,7 @@
                 "col": 25,
                 "line": 1
               },
-              "file": "tests/golden/syntax/err_missing_paren.pact",
+              "file": "tests/golden/syntax/err_missing_paren.vow",
               "start": {
                 "col": 25,
                 "line": 1
@@ -29,7 +29,7 @@
         "col": 27,
         "line": 1
       },
-      "file": "tests/golden/syntax/err_missing_paren.pact",
+      "file": "tests/golden/syntax/err_missing_paren.vow",
       "start": {
         "col": 25,
         "line": 1

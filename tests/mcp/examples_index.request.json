@@ -3,7 +3,7 @@
   "id": 11,
   "method": "tools/call",
   "params": {
-    "name": "pact_examples",
+    "name": "vow_examples",
     "arguments": {}
   }
 }

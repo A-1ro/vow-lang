@@ -1,7 +1,7 @@
-// examples/effects/transfer.pact の実行テスト: エフェクトを持つ関数の e2e。
+// examples/effects/transfer.vow の実行テスト: エフェクトを持つ関数の e2e。
 
 import { beforeEach, describe, expect, it } from "vitest";
-import { PactContractViolation } from "@pact/runtime";
+import { VowContractViolation } from "@vow/runtime";
 
 import { transferFunds } from "../generated/effects/transfer";
 import { AccountId, Money } from "../generated/core/money";
@@ -62,8 +62,8 @@ describe("effects/transfer", () => {
     } catch (e) {
       thrown = e;
     }
-    expect(thrown).toBeInstanceOf(PactContractViolation);
-    const violation = thrown as PactContractViolation;
+    expect(thrown).toBeInstanceOf(VowContractViolation);
+    const violation = thrown as VowContractViolation;
     expect(violation.clause).toBe("requires");
     expect(violation.condition).toBe("from != to");
   });
