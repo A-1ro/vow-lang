@@ -1,0 +1,7 @@
+module cli.err_syntax
+
+func save(user: User) -> Bool
+  use Database.Write
+{
+  return true
+}

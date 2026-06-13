@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Vow は「AIが書き、人間が承認し、コンパイラが履行を保証する」ことを前提に設計されたプログラミング言語。TypeScript へトランスパイルされる(ターゲット: V8 / Cloudflare Workers / Node)。実装は Rust の Cargo ワークスペース、ランタイム(`@vow/runtime`)のみ TS の npm パッケージ。
 
-**現状: v0.1 実装フェーズ(M0〜M5)完了。** パーサ・意味検査・フォーマッタ・TS トランスパイラ・MCP サーバーが揃い、`cargo test --workspace` が全件パスする。開発は `docs/vow-roadmap-goals.md` の Milestone に沿って /goal 単位で進める。残務は `vow_cli`(`vow` バイナリのサブコマンド)が未実装でスタブのままな点と、ドッグフード実験(人間主導)。
+**現状: v0.1 実装フェーズ(M0〜M5)完了 + M6 着手。** パーサ・意味検査・フォーマッタ・TS トランスパイラ・MCP サーバーが揃い、`vow check` / `vow fmt`(vow_cli)も実装済みで、`cargo test --workspace` が全件パスする。開発は `docs/vow-roadmap-goals.md` の Milestone に沿って /goal 単位で進める。残務は `vow_cli` の `vow build` / `vow test`(M7)とドッグフード実験(人間主導)。
 
 ## Source of Truth(必読)
 
@@ -32,7 +32,7 @@ vow_check  ←─ vow_emit
 - `vow_fmt` — 正規形フォーマッタ(AST の意味的変更禁止)
 - `vow_emit` — TS トランスパイラ+source map(検査の再実装禁止)
 - `vow_cli` / `vow_mcp` — 言語処理ロジックを持たない。CLI は Diagnostic の散文整形、MCP は spec/・examples/ のビルド時埋め込み配信
-  - `vow_mcp` は実装済み(4 ツール: vow_spec / vow_check / vow_fmt / vow_examples)。`vow_cli` は**まだスタブ**(M0〜M5 のスコープ外)
+  - `vow_mcp` は実装済み(4 ツール: vow_spec / vow_check / vow_fmt / vow_examples)。`vow_cli` は **check / fmt 実装済み**(M6)、`build` / `test` は未実装(M7)
 
 ## 不変条件
 
@@ -40,7 +40,7 @@ vow_check  ←─ vow_emit
 2. コンパイラ診断は JSON(構造化 Diagnostic)が正、散文は派生。全 Diagnostic に span・code・最低1つの fix 候補を含める
 3. spec/ と examples/ は vow_mcp にビルド時埋め込み(仕様更新=MCP サーバー更新)
 4. `runtime/` は Rust ワークスペース外の独立 npm パッケージ
-5. 正規形を常に維持する。Rust コードは `cargo fmt`、`.vow`(examples/・golden)は正規形(vow_fmt)を保つ。`vow fmt` バイナリは vow_cli 実装後に置き換える
+5. 正規形を常に維持する。Rust コードは `cargo fmt`、`.vow`(examples/・golden)は正規形(vow_fmt)を保つ。`.vow` の整形は `vow fmt --write <file>`(または `--check` で検証)で行える
 
 ## コマンド
 
@@ -49,7 +49,9 @@ vow_check  ←─ vow_emit
 - `cargo fmt --all -- --check` — 整形チェック(CI の fmt ジョブと同じ)
 - `cargo run -p vow_mcp --bin vow-mcp` — MCP サーバー起動(stdin から改行区切り JSON-RPC を読む)
 - `cargo run -p vow_emit --example transpile -- <input.vow> [output.ts]` — 単一 .vow を TS 化(検査 NG は Diagnostic を出して exit 1)。`vow build` 実装までの簡易トランスパイラ
-- `vow check <file>` / `vow fmt <file>` / `vow build <dir>` / `vow test` — `vow` CLI。**未実装(vow_cli はスタブ)**
+- `cargo run -p vow_cli --bin vow -- check <file> [--json]` — 意味検査(既定は散文 Diagnostic、`--json` で `Diagnostic[]`)。エラーありで exit 1
+- `cargo run -p vow_cli --bin vow -- fmt <file> [--check | --write]` — 正規形整形(既定は stdout、`--check` で未整形を exit 1 検出、`--write` で上書き)
+- `vow build <dir>` / `vow test` — **未実装(M7)**
 
 CI(`.github/workflows/ci.yml`)は fmt / clippy / test の 3 ジョブ。test ジョブのみ Node 22 をセットアップする(e2e が npm/npx を使うため)。
 

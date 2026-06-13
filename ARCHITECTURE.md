@@ -46,7 +46,10 @@ vow-lang/
 │   │   ├── stubs/            # import先(core.money / infra.*)のTSスタブ実装
 │   │   ├── tests/            # vitestテスト(期待出力・契約違反・source map)
 │   │   └── generated/        # vow_emitの出力先(git管理外、e2eテストが再生成)
-│   └── mcp/                  # MCPサーバー統合テスト
+│   ├── mcp/                  # MCPサーバー統合テスト
+│   └── cli/                  # `vow` CLI統合テスト(実バイナリ起動でstdout/stderr/終了コード検証)
+│       ├── checks/           # {name}.vow + {name}.check.txt(散文) + {name}.check.json
+│       └── fmt/              # {name}.input.vow (+ {name}.expected.vow / {name}.fmtcheck.txt / {name}.fmt.txt)
 │
 ├── docs/                     # ロードマップ・設計メモ
 │   └── vow-roadmap-goals.md
@@ -76,6 +79,13 @@ vow_check  ←─ vow_emit
 | vow_emit | 検査済みAST→TS+source map | 検査の再実装 |
 | vow_cli | 引数解釈・ファイルIO・Diagnosticの散文整形 | 言語処理ロジック |
 | vow_mcp | MCPプロトコル・spec/とexamples/の埋め込み配信 | 言語処理ロジック |
+
+### 外部依存の追加記録(M6 事前合意の手続き)
+
+- `vow_cli`: `serde_json`(`--json` の `Diagnostic[]` 直列化に使用。構造化出力は serde が正)。
+  CLI 統合テスト(`tests/cli.rs`)は std の `std::process::Command` で実バイナリを起動するため
+  追加クレートは要らず、`serde_json` を dev-dependency にも置いて `--json` 出力を構造比較する。
+  引数解釈は手書き(clap 等は不採用)、整形検証は `CARGO_TARGET_TMPDIR` の一時ファイルで行う。
 
 ## 設計上の不変条件
 

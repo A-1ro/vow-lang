@@ -437,6 +437,7 @@ dependencies = [
 name = "vow_cli"
 version = "0.1.0"
 dependencies = [
+ "serde_json",
  "vow_check",
  "vow_emit",
  "vow_fmt",

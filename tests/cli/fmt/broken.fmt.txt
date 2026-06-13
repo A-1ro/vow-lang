@@ -1,0 +1,14 @@
+error[VOW-E0001]: unexpected character '@'
+ --> tests/cli/fmt/broken.input.vow:4:13
+  |
+4 |   let a = 1 @ 2
+  |             ^
+  = fix: Remove this character
+
+error[VOW-E0101]: expected a line break after this statement, found integer literal '2'
+ --> tests/cli/fmt/broken.input.vow:4:15
+  |
+4 |   let a = 1 @ 2
+  |               ^
+  = fix: Insert a line break
+

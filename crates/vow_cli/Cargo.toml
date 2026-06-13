@@ -14,3 +14,9 @@ vow_check = { path = "../vow_check" }
 vow_emit = { path = "../vow_emit" }
 vow_fmt = { path = "../vow_fmt" }
 vow_syntax = { path = "../vow_syntax" }
+# --json の Diagnostic[] 直列化(構造化出力は serde が正)。
+serde_json = { workspace = true }
+
+[dev-dependencies]
+# CLI 統合テストが --json 出力を構造比較するため。
+serde_json = { workspace = true }
