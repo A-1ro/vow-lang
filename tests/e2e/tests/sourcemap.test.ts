@@ -1,5 +1,5 @@
 // source map の検証(goal 条件 4): 生成 TS の契約違反 throw 行が
-// .vow 側の requires 行へ解決されること。
+// .kei 側の requires 行へ解決されること。
 
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -81,22 +81,22 @@ describe("source map", () => {
     mappings: string;
   };
 
-  it("source map v3 として .vow ソースを参照している", () => {
+  it("source map v3 として .kei ソースを参照している", () => {
     expect(map.version).toBe(3);
-    expect(map.sources[0]).toBe("examples/contracts/withdraw.vow");
+    expect(map.sources[0]).toBe("examples/contracts/withdraw.kei");
     expect(ts).toContain("//# sourceMappingURL=withdraw.ts.map");
   });
 
-  it("requires 違反の throw 行が .vow の requires 行へ解決される", () => {
-    const vowSource = map.sourcesContent[0]!;
-    const requiresLine = vowSource
+  it("requires 違反の throw 行が .kei の requires 行へ解決される", () => {
+    const keiSource = map.sourcesContent[0]!;
+    const requiresLine = keiSource
       .split("\n")
       .findIndex((l) => l.includes("requires amount > Money.zero"));
     expect(requiresLine).toBeGreaterThanOrEqual(0);
 
     const throwLine = ts
       .split("\n")
-      .findIndex((l) => l.includes("throw new VowContractViolation"));
+      .findIndex((l) => l.includes("throw new KeiContractViolation"));
     expect(throwLine).toBeGreaterThanOrEqual(0);
 
     const mappings = decodeMappings(map.mappings);
@@ -104,9 +104,9 @@ describe("source map", () => {
     expect(resolved.srcLine).toBe(requiresLine);
   });
 
-  it("else fail の展開行が .vow の let 行へ解決される", () => {
-    const vowSource = map.sourcesContent[0]!;
-    const letLine = vowSource
+  it("else fail の展開行が .kei の let 行へ解決される", () => {
+    const keiSource = map.sourcesContent[0]!;
+    const letLine = keiSource
       .split("\n")
       .findIndex((l) => l.includes("let current = Database.fetchBalance"));
     expect(letLine).toBeGreaterThanOrEqual(0);

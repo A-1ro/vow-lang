@@ -3,7 +3,7 @@
   "id": 16,
   "method": "tools/call",
   "params": {
-    "name": "vow_transpile",
+    "name": "kei_transpile",
     "arguments": { "source": "module demo\n" }
   }
 }

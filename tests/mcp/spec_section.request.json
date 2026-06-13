@@ -3,7 +3,7 @@
   "id": 4,
   "method": "tools/call",
   "params": {
-    "name": "vow_spec",
+    "name": "kei_spec",
     "arguments": { "topic": "3" }
   }
 }

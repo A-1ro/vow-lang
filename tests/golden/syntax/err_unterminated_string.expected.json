@@ -1,6 +1,6 @@
 [
   {
-    "code": "VOW-E0002",
+    "code": "KEI-E0002",
     "fixes": [
       {
         "edits": [
@@ -11,7 +11,7 @@
                 "col": 19,
                 "line": 2
               },
-              "file": "tests/golden/syntax/err_unterminated_string.vow",
+              "file": "tests/golden/syntax/err_unterminated_string.kei",
               "start": {
                 "col": 19,
                 "line": 2
@@ -29,7 +29,7 @@
         "col": 19,
         "line": 2
       },
-      "file": "tests/golden/syntax/err_unterminated_string.vow",
+      "file": "tests/golden/syntax/err_unterminated_string.kei",
       "start": {
         "col": 13,
         "line": 2

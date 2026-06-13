@@ -1,6 +1,6 @@
 [
   {
-    "code": "VOW-E0101",
+    "code": "KEI-E0101",
     "fixes": [
       {
         "edits": [
@@ -11,7 +11,7 @@
                 "col": 5,
                 "line": 3
               },
-              "file": "tests/golden/syntax/err_multiple.vow",
+              "file": "tests/golden/syntax/err_multiple.kei",
               "start": {
                 "col": 5,
                 "line": 3
@@ -29,7 +29,7 @@
         "col": 8,
         "line": 3
       },
-      "file": "tests/golden/syntax/err_multiple.vow",
+      "file": "tests/golden/syntax/err_multiple.kei",
       "start": {
         "col": 5,
         "line": 3
@@ -37,7 +37,7 @@
     }
   },
   {
-    "code": "VOW-E0101",
+    "code": "KEI-E0101",
     "fixes": [
       {
         "edits": [
@@ -48,7 +48,7 @@
                 "col": 20,
                 "line": 6
               },
-              "file": "tests/golden/syntax/err_multiple.vow",
+              "file": "tests/golden/syntax/err_multiple.kei",
               "start": {
                 "col": 20,
                 "line": 6
@@ -66,7 +66,7 @@
         "col": 22,
         "line": 6
       },
-      "file": "tests/golden/syntax/err_multiple.vow",
+      "file": "tests/golden/syntax/err_multiple.kei",
       "start": {
         "col": 20,
         "line": 6

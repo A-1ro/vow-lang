@@ -4,7 +4,7 @@
   "result": {
     "content": [
       {
-        "text": "### examples/contracts/withdraw.vow\n\n```vow\nmodule contracts.withdraw\n\nimport core.money { AccountId, Money }\nimport infra.database as Database\n\nenum WithdrawError {\n  NotFound(AccountId)\n  Overdraft { limit: Money }\n}\n\nfunc withdraw(account: AccountId, amount: Money) -> Result<Money, WithdrawError>\n  uses Database.Read, Database.Write\n  requires amount > Money.zero\n  ensures result.isOk implies amount > Money.zero\n{\n  let current = Database.fetchBalance(account) else fail WithdrawError.NotFound(account)\n  if current < amount {\n    return Err(WithdrawError.Overdraft { limit: current })\n  }\n  Database.setBalance(account, current - amount)\n  return Ok(current - amount)\n}\n```",
+        "text": "### examples/contracts/withdraw.kei\n\n```kei\nmodule contracts.withdraw\n\nimport core.money { AccountId, Money }\nimport infra.database as Database\n\nenum WithdrawError {\n  NotFound(AccountId)\n  Overdraft { limit: Money }\n}\n\nfunc withdraw(account: AccountId, amount: Money) -> Result<Money, WithdrawError>\n  uses Database.Read, Database.Write\n  requires amount > Money.zero\n  ensures result.isOk implies amount > Money.zero\n{\n  let current = Database.fetchBalance(account) else fail WithdrawError.NotFound(account)\n  if current < amount {\n    return Err(WithdrawError.Overdraft { limit: current })\n  }\n  Database.setBalance(account, current - amount)\n  return Ok(current - amount)\n}\n```",
         "type": "text"
       }
     ],

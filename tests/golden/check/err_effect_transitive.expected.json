@@ -1,6 +1,6 @@
 [
   {
-    "code": "VOW-E3001",
+    "code": "KEI-E3001",
     "fixes": [
       {
         "edits": [],
@@ -14,7 +14,7 @@
         "col": 26,
         "line": 16
       },
-      "file": "tests/golden/check/err_effect_transitive.vow",
+      "file": "tests/golden/check/err_effect_transitive.kei",
       "start": {
         "col": 10,
         "line": 16

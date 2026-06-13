@@ -1,9 +1,0 @@
-[package]
-name = "vow_syntax"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-description = "Vow lexer, parser, and AST. No type knowledge."
-
-[dependencies]
-serde.workspace = true

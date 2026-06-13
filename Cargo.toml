@@ -1,12 +1,12 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/vow_syntax",
-    "crates/vow_check",
-    "crates/vow_fmt",
-    "crates/vow_emit",
-    "crates/vow_cli",
-    "crates/vow_mcp",
+    "crates/kei_syntax",
+    "crates/kei_check",
+    "crates/kei_fmt",
+    "crates/kei_emit",
+    "crates/kei_cli",
+    "crates/kei_mcp",
 ]
 
 [workspace.package]

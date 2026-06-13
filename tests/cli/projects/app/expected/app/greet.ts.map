@@ -3,7 +3,7 @@
   "mappings": ";;;AAEA;EACE;;;;;;;AAGF;EACE",
   "names": [],
   "sources": [
-    "greet.vow"
+    "greet.kei"
   ],
   "sourcesContent": [
     "module app.greet\n\nrecord Greeting {\n  count: Int\n}\n\nfunc bump(g: Greeting) -> Greeting {\n  return Greeting { count: g.count + 1 }\n}\n"

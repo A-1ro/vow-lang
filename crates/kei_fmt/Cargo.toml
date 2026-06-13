@@ -1,0 +1,13 @@
+[package]
+name = "kei_fmt"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Kei canonical formatter. Must not change AST semantics."
+
+[dependencies]
+kei_syntax = { path = "../kei_syntax" }
+
+[dev-dependencies]
+serde_json.workspace = true
+proptest.workspace = true

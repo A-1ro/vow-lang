@@ -1,6 +1,6 @@
 [
   {
-    "code": "VOW-E3002",
+    "code": "KEI-E3002",
     "fixes": [
       {
         "edits": [
@@ -11,7 +11,7 @@
                 "col": 22,
                 "line": 4
               },
-              "file": "tests/golden/check/err_effect_unknown.vow",
+              "file": "tests/golden/check/err_effect_unknown.kei",
               "start": {
                 "col": 8,
                 "line": 4
@@ -29,7 +29,7 @@
         "col": 22,
         "line": 4
       },
-      "file": "tests/golden/check/err_effect_unknown.vow",
+      "file": "tests/golden/check/err_effect_unknown.kei",
       "start": {
         "col": 8,
         "line": 4
@@ -37,7 +37,7 @@
     }
   },
   {
-    "code": "VOW-E3002",
+    "code": "KEI-E3002",
     "fixes": [
       {
         "edits": [],
@@ -51,7 +51,7 @@
         "col": 17,
         "line": 10
       },
-      "file": "tests/golden/check/err_effect_unknown.vow",
+      "file": "tests/golden/check/err_effect_unknown.kei",
       "start": {
         "col": 8,
         "line": 10

@@ -1,0 +1,11 @@
+[package]
+name = "kei_emit"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Kei to TypeScript transpiler with source maps. Must not re-implement checking."
+
+[dependencies]
+kei_syntax = { path = "../kei_syntax" }
+kei_check = { path = "../kei_check" }
+serde_json.workspace = true

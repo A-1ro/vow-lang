@@ -1,6 +1,6 @@
 [
   {
-    "code": "VOW-E2001",
+    "code": "KEI-E2001",
     "fixes": [
       {
         "edits": [],
@@ -14,7 +14,7 @@
         "col": 17,
         "line": 5
       },
-      "file": "tests/golden/check/err_type_result_option.vow",
+      "file": "tests/golden/check/err_type_result_option.kei",
       "start": {
         "col": 12,
         "line": 5
@@ -22,7 +22,7 @@
     }
   },
   {
-    "code": "VOW-E2001",
+    "code": "KEI-E2001",
     "fixes": [
       {
         "edits": [],
@@ -36,7 +36,7 @@
         "col": 19,
         "line": 12
       },
-      "file": "tests/golden/check/err_type_result_option.vow",
+      "file": "tests/golden/check/err_type_result_option.kei",
       "start": {
         "col": 12,
         "line": 12
@@ -44,7 +44,7 @@
     }
   },
   {
-    "code": "VOW-E2001",
+    "code": "KEI-E2001",
     "fixes": [
       {
         "edits": [
@@ -55,7 +55,7 @@
                 "col": 10,
                 "line": 14
               },
-              "file": "tests/golden/check/err_type_result_option.vow",
+              "file": "tests/golden/check/err_type_result_option.kei",
               "start": {
                 "col": 10,
                 "line": 14
@@ -69,7 +69,7 @@
                 "col": 11,
                 "line": 14
               },
-              "file": "tests/golden/check/err_type_result_option.vow",
+              "file": "tests/golden/check/err_type_result_option.kei",
               "start": {
                 "col": 11,
                 "line": 14
@@ -87,7 +87,7 @@
         "col": 11,
         "line": 14
       },
-      "file": "tests/golden/check/err_type_result_option.vow",
+      "file": "tests/golden/check/err_type_result_option.kei",
       "start": {
         "col": 10,
         "line": 14
@@ -95,7 +95,7 @@
     }
   },
   {
-    "code": "VOW-E2001",
+    "code": "KEI-E2001",
     "fixes": [
       {
         "edits": [],
@@ -109,7 +109,7 @@
         "col": 42,
         "line": 18
       },
-      "file": "tests/golden/check/err_type_result_option.vow",
+      "file": "tests/golden/check/err_type_result_option.kei",
       "start": {
         "col": 41,
         "line": 18
@@ -117,7 +117,7 @@
     }
   },
   {
-    "code": "VOW-E2001",
+    "code": "KEI-E2001",
     "fixes": [
       {
         "edits": [],
@@ -131,7 +131,7 @@
         "col": 21,
         "line": 19
       },
-      "file": "tests/golden/check/err_type_result_option.vow",
+      "file": "tests/golden/check/err_type_result_option.kei",
       "start": {
         "col": 16,
         "line": 19

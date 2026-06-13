@@ -1,6 +1,6 @@
 [
   {
-    "code": "VOW-E3001",
+    "code": "KEI-E3001",
     "fixes": [
       {
         "edits": [],
@@ -14,7 +14,7 @@
         "col": 22,
         "line": 10
       },
-      "file": "tests/golden/check/err_effect_undeclared.vow",
+      "file": "tests/golden/check/err_effect_undeclared.kei",
       "start": {
         "col": 10,
         "line": 10
@@ -22,7 +22,7 @@
     }
   },
   {
-    "code": "VOW-E3001",
+    "code": "KEI-E3001",
     "fixes": [
       {
         "edits": [
@@ -33,7 +33,7 @@
                 "col": 13,
                 "line": 14
               },
-              "file": "tests/golden/check/err_effect_undeclared.vow",
+              "file": "tests/golden/check/err_effect_undeclared.kei",
               "start": {
                 "col": 13,
                 "line": 14
@@ -51,7 +51,7 @@
         "col": 22,
         "line": 16
       },
-      "file": "tests/golden/check/err_effect_undeclared.vow",
+      "file": "tests/golden/check/err_effect_undeclared.kei",
       "start": {
         "col": 10,
         "line": 16

@@ -34,7 +34,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      # e2e テスト(vow_emit/tests/e2e.rs)が npm / npx を使う
+      # e2e テスト(kei_emit/tests/e2e.rs)が npm / npx を使う
       - uses: actions/setup-node@v4
         with:
           node-version: 22

@@ -1,7 +1,7 @@
 # Diagnostic スキーマ v0.1
 
-> spec/vow-spec-v0.1.md §6.2 の「案」を M0 で確定させたもの。
-> **Diagnostic 型の唯一の定義元は `vow_check` クレート**(ARCHITECTURE.md 不変条件 1)。
+> spec/kei-spec-v0.1.md §6.2 の「案」を M0 で確定させたもの。
+> **Diagnostic 型の唯一の定義元は `kei_check` クレート**(ARCHITECTURE.md 不変条件 1)。
 > 本文書と実装が食い違った場合は本文書を先に直す。
 
 ## 設計原則
@@ -14,16 +14,16 @@
 
 ## エラーコード採番ルール
 
-形式: `VOW-E[カテゴリ1桁][連番3桁]`(例: `VOW-E2042`)
+形式: `KEI-E[カテゴリ1桁][連番3桁]`(例: `KEI-E2042`)
 
 | カテゴリ | 範囲 | 担当領域 |
 |---|---|---|
-| 0 | VOW-E0xxx | 字句・構文(lexer / parser) |
-| 1 | VOW-E1xxx | 名前解決(未定義参照・重複定義・import) |
-| 2 | VOW-E2xxx | 型検査 |
-| 3 | VOW-E3xxx | エフェクト検査(uses 節) |
-| 4 | VOW-E4xxx | 契約検査(requires / ensures の純粋性等) |
-| 5 | VOW-E5xxx | フォーマッタ・トランスパイラ等ツール側 |
+| 0 | KEI-E0xxx | 字句・構文(lexer / parser) |
+| 1 | KEI-E1xxx | 名前解決(未定義参照・重複定義・import) |
+| 2 | KEI-E2xxx | 型検査 |
+| 3 | KEI-E3xxx | エフェクト検査(uses 節) |
+| 4 | KEI-E4xxx | 契約検査(requires / ensures の純粋性等) |
+| 5 | KEI-E5xxx | フォーマッタ・トランスパイラ等ツール側 |
 
 連番は領域内で一意・欠番可・再利用禁止。
 
@@ -73,10 +73,10 @@
 ```json
 {
   "severity": "error",
-  "code": "VOW-E3042",
+  "code": "KEI-E3042",
   "message": "Effect 'Database.Write' used but not declared in 'uses' clause",
   "span": {
-    "file": "transfer.vow",
+    "file": "transfer.kei",
     "start": { "line": 12, "col": 3 },
     "end": { "line": 12, "col": 28 }
   },
@@ -86,7 +86,7 @@
       "edits": [
         {
           "span": {
-            "file": "transfer.vow",
+            "file": "transfer.kei",
             "start": { "line": 3, "col": 21 },
             "end": { "line": 3, "col": 21 }
           },
@@ -103,4 +103,4 @@
 - フィールド名は snake_case(serde デフォルトのまま)。
 - enum 値(severity)は小文字文字列。
 - 未知フィールドは前方互換のため読み捨て可。出力側は本スキーマ外のフィールドを追加しない。
-- `vow check --json` は Diagnostic の配列(`Diagnostic[]`)を出力する。
+- `kei check --json` は Diagnostic の配列(`Diagnostic[]`)を出力する。

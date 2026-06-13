@@ -1,6 +1,6 @@
 [
   {
-    "code": "VOW-E1004",
+    "code": "KEI-E1004",
     "fixes": [
       {
         "edits": [],
@@ -14,7 +14,7 @@
         "col": 29,
         "line": 4
       },
-      "file": "tests/golden/check/err_name_import_conflict.vow",
+      "file": "tests/golden/check/err_name_import_conflict.kei",
       "start": {
         "col": 24,
         "line": 4
@@ -22,7 +22,7 @@
     }
   },
   {
-    "code": "VOW-E1004",
+    "code": "KEI-E1004",
     "fixes": [
       {
         "edits": [],
@@ -36,7 +36,7 @@
         "col": 13,
         "line": 6
       },
-      "file": "tests/golden/check/err_name_import_conflict.vow",
+      "file": "tests/golden/check/err_name_import_conflict.kei",
       "start": {
         "col": 8,
         "line": 6
