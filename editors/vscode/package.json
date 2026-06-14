@@ -2,7 +2,7 @@
   "name": "kei-lang",
   "displayName": "Kei Language",
   "description": "Kei 言語(.kei)のシンタックスハイライト・ファイルアイコン・言語サーバー(診断/契約 Hover)。AIが書き、人間が承認し、コンパイラが履行を保証する言語のためのエディタ支援。",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "A-1ro",
   "license": "MIT",
   "icon": "icons/bow-kun-128.png",
