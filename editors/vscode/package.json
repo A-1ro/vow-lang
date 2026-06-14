@@ -9,6 +9,9 @@
   "engines": {
     "vscode": "^1.70.0"
   },
+  "scripts": {
+    "vscode:prepublish": "echo \"no build step (declarative extension)\""
+  },
   "categories": [
     "Programming Languages"
   ],
@@ -27,7 +30,6 @@
   "bugs": {
     "url": "https://github.com/A-1ro/kei-lang/issues"
   },
-  "activationEvents": [],
   "contributes": {
     "languages": [
       {
