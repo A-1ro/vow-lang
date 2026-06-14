@@ -90,6 +90,8 @@ kei_check  ←─ kei_emit
 - [`runtime/`](runtime) — `@kei/runtime`(Rust ワークスペース外の独立 npm パッケージ。Result/Option/契約アサーション)
 - [`spec/`](spec) — 言語仕様(source of truth)。`kei-spec-v0.1.md` / `diagnostic-schema.md` / `errors/*.md`(エラーコード 1 つにつき 1 ファイル)
 - [`examples/`](examples) — `.kei` サンプル集(`kei_examples` の配信元、常に check-clean)
+- [`skills/`](skills) — Claude Code 向けスキル(`kei/SKILL.md`。エージェントが Kei を書くための取説、全例 check-clean)
+- [`.claude-plugin/`](.claude-plugin) — プラグイン manifest + marketplace 定義(スキルを配布可能プラグインとして公開)
 - [`tests/`](tests) — `golden/`(契約本文)/ `e2e/`(トランスパイル→tsc→vitest)/ `mcp/`(MCP 統合 golden)
 
 詳細は [`ARCHITECTURE.md`](ARCHITECTURE.md) を参照(リポジトリ構成の**契約**)。
@@ -145,6 +147,25 @@ kei fmt <file> [--check | --write]   # 正規形整形(既定は stdout、--chec
 
 ---
 
+## Claude Code プラグイン(Kei skill)
+
+[Claude Code](https://claude.com/claude-code) のエージェントに Kei を「学習なしで」書かせるためのスキルを、配布可能なプラグインとして同梱しています。文法・契約・エフェクト・型・失敗処理の最小十分セットと頻出エラーの直し方を**一括ロード**し、書いたコードは `kei check` の検証ループで仕上げます。
+
+```text
+# Claude Code 上で実行
+/plugin marketplace add A-1ro/kei-lang
+/plugin install kei@kei-lang
+```
+
+インストール後、`.kei` を書く場面でスキル(起動名 `kei`)が自動的に効きます。スキル本体は [`skills/kei/SKILL.md`](skills/kei/SKILL.md)、配布用の manifest は [`.claude-plugin/`](.claude-plugin)(`plugin.json` + `marketplace.json`)。
+
+- **スキル(本セクション)** — 静的な知識をプロンプトに一括ロード(ラウンドトリップなし)。Claude Code でのコード生成はこちらが最短経路。
+- **MCP サーバー(次セクション)** — 同じ取説を JSON-RPC で動的に引くサーバー。任意のエージェント・即引きリファレンス用途。
+
+両者は併存します。スキルが「書く前に読み切る取説」、MCP が「必要なときに引くサーバー」、`kei check` が「書いた後の検証」という役割分担です。
+
+---
+
 ## Kei MCP Server
 
 エージェントが Kei を「学習なしで」書けるようにするための取扱説明書サーバー。stdio トランスポート上の JSON-RPC 2.0(改行区切り)で動きます。
@@ -179,6 +200,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"kei_spec",
 - [`spec/diagnostic-schema.md`](spec/diagnostic-schema.md) — 構造化 Diagnostic スキーマとエラーコード採番ルール
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — リポジトリ構成の契約とクレート責務・依存規則
 - [`docs/cli.md`](docs/cli.md) — `kei` CLI のインストールとサブコマンド(check / fmt)の使い方
+- [`skills/kei/SKILL.md`](skills/kei/SKILL.md) — Claude Code 向けの Kei 取説スキル(配布可能プラグインとして同梱)
 - [`docs/kei-roadmap-goals.md`](docs/kei-roadmap-goals.md) — Milestone 別の /goal 契約書集
 - [`CLAUDE.md`](CLAUDE.md) — Claude Code 向けの作業ガイド
 
