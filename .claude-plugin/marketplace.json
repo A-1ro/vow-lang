@@ -1,0 +1,21 @@
+{
+  "name": "kei-lang",
+  "owner": {
+    "name": "Eiichiro Iriguchi",
+    "url": "https://github.com/A-1ro/kei-lang"
+  },
+  "description": "Kei 言語の公式 Claude Code プラグイン配布元。",
+  "plugins": [
+    {
+      "name": "kei",
+      "source": "./",
+      "description": "Kei 言語を学習なしで正しく書くためのスキル(kei skill)。",
+      "version": "0.1.0",
+      "keywords": [
+        "kei",
+        "language",
+        "skill"
+      ]
+    }
+  ]
+}
