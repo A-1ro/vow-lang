@@ -254,6 +254,61 @@ cargo test --workspace 全件パス、clippy 警告ゼロ。最後に `kei build
 
 ---
 
+## M8: kei_lsp — 言語サーバー(エディタ統合)【提案 / 最小実装着手済み】
+
+> シンタックスハイライト(editors/vscode、PR #13)は宣言的機能のみで、
+> 参照検索・定義ジャンプ・契約ホバー・リアルタイム診断は扱えない。これらの
+> **言語機能**を LSP で提供する。kei_cli / kei_mcp と同じく「言語処理を持たない
+> 薄いアダプタ」として独立クレート `kei_lsp`(バイナリ `kei-lsp`)を追加し、
+> kei_check の Diagnostic と kei_syntax の AST を LSP プロトコルに翻訳する。
+
+### 🤝 事前合意(人間との合意が必要 — 着手前に確定する)
+- **クレート構成**: kei_mcp と並列の独立クレート `kei_lsp`。依存は
+  `kei_lsp → kei_check / kei_syntax / kei_fmt` の一方向のみ(逆流・循環なし)。
+  CLAUDE.md「kei_cli/kei_mcp は言語処理ロジックを持たない」を踏襲し、LSP も
+  プロトコル変換に徹する(kei_cli のサブコマンドに言語処理を持ち込まない)。
+- **採用ライブラリ**: `lsp-server` + `lsp-types`(同期・rust-analyzer 系)。
+  tower-lsp(tokio/async)は不採用。理由 → ARCHITECTURE.md「外部依存の追加記録」M8 参照。
+- **機能スコープと段階**: (M8a 最小)textDocument/publishDiagnostics + textDocument/hover
+  (契約 uses/requires/ensures 表示)。(M8b)定義ジャンプ・参照検索・ドキュメントシンボル
+  (アウトライン)・フォーマット(kei_fmt 接続)・CodeAction(fix の TextEdit 適用)。
+- **kei_check の公開 API**: M8a(Diagnostics + Hover)は既存の `check_module` /
+  `syntax_diagnostics` と AST だけで実現でき、**kei_check への変更は不要**。
+  M8b の定義ジャンプ・参照検索は名前解決結果(シンボルの定義/参照位置)が要るため、
+  kei_check に「検査を再実装しない範囲」での最小公開 API 追加(例: シンボルテーブル/
+  解決結果の read-only ビュー)を別途設計合意する。
+- **VS Code 拡張(editors/vscode)の languageClient 化**: Rust 側 LSP が動いてから。
+  拡張に TS エントリ(main)を足すと vsce の前提(現状 no-op prepublish の宣言的拡張)が
+  変わるため、別 PR で扱う。位置系は kei(1 始まり・Unicode スカラー値)↔ LSP(0 始まり・
+  UTF-16)の変換が要る。v0.1 最小は BMP 前提のスカラー値近似で、非 BMP の列ずれは既知の制約。
+
+### /goal(M8a 最小)
+```
+/goal 独立クレート kei_lsp(バイナリ kei-lsp)を追加し、言語処理は
+kei_check / kei_syntax / kei_fmt への委譲のみ。(1) initialize で
+textDocumentSync=FULL と hoverProvider を広告、(2) didOpen/didChange で
+全文を受け取り再検査し textDocument/publishDiagnostics を返す(kei_check の
+Diagnostic を LSP Diagnostic へ写し、code/severity/range/source と fix タイトルを
+保持)、(3) textDocument/hover で関数名上に契約(uses/requires/ensures)と署名を
+表示、(4) didClose で診断をクリア、(5) shutdown/exit で正常終了。
+変換層・解析層を I/O から独立した純関数にして単体テストし、Connection::memory()
+で initialize→didOpen→publishDiagnostics→hover→shutdown のフローを統合テストする。
+cargo test --workspace 全件パス、clippy 警告ゼロ、fmt --check パス。
+```
+
+### golden / test 設計方針
+- 変換(kei Diagnostic ↔ LSP)・解析(diagnostics / hover)は純関数で単体テスト。
+- プロトコルフローは `Connection::memory()` の統合テストで検証(実バイナリ起動なし)。
+- 既存の検査 golden(tests/golden/check/)が契約本文。LSP は変換のみで挙動を変えない。
+
+### スコープ外(M8a)
+- 定義ジャンプ・参照検索・リネーム・補完(M8b 以降。kei_check の API 追加合意が要る)
+- VS Code 拡張の languageClient 化(別 PR)
+- 非 BMP 文字の正確な UTF-16 列変換(BMP 前提の近似に留める)
+- ワークスペース横断の名前解決(単一ファイル検査の範囲のみ)
+
+---
+
 ## 全体運用メモ
 
 - 各/goal投入前に対象Milestoneのgolden testケースを人間がレビューする。
