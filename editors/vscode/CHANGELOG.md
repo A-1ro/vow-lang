@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0
+
+- **言語サーバー(LSP)統合** — `kei-lsp` を起動し、`.kei` のリアルタイム診断(名前解決・型・エフェクト・契約検査)と契約(`uses` / `requires` / `ensures`)の Hover を提供
+- 設定 `kei.server.path` / `kei.trace.server`、コマンド `Kei: Restart Language Server` を追加
+- 依存 `vscode-languageclient` ^9 を追加し、対応 VS Code を `^1.82.0` に更新
+
 ## 0.1.0
 
 初版。
