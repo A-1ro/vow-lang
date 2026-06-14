@@ -1,19 +1,21 @@
 {
   "name": "kei-lang",
   "displayName": "Kei Language",
-  "description": "Kei 言語(.kei)のシンタックスハイライトとファイルアイコン。AIが書き、人間が承認し、コンパイラが履行を保証する言語のためのエディタ支援。",
-  "version": "0.1.0",
+  "description": "Kei 言語(.kei)のシンタックスハイライト・ファイルアイコン・言語サーバー(診断/契約 Hover)。AIが書き、人間が承認し、コンパイラが履行を保証する言語のためのエディタ支援。",
+  "version": "0.2.0",
   "publisher": "A-1ro",
   "license": "MIT",
   "icon": "icons/bow-kun-128.png",
+  "main": "./extension.js",
   "engines": {
-    "vscode": "^1.70.0"
+    "vscode": "^1.82.0"
   },
   "scripts": {
-    "vscode:prepublish": "echo \"no build step (declarative extension)\""
+    "vscode:prepublish": "echo \"no build step (plain JS + bundled deps)\""
   },
   "categories": [
-    "Programming Languages"
+    "Programming Languages",
+    "Linters"
   ],
   "keywords": [
     "kei",
@@ -30,6 +32,9 @@
   "bugs": {
     "url": "https://github.com/A-1ro/kei-lang/issues"
   },
+  "activationEvents": [
+    "onLanguage:kei"
+  ],
   "contributes": {
     "languages": [
       {
@@ -54,6 +59,35 @@
         "scopeName": "source.kei",
         "path": "./syntaxes/kei.tmLanguage.json"
       }
-    ]
+    ],
+    "commands": [
+      {
+        "command": "kei.restartServer",
+        "title": "Kei: Restart Language Server"
+      }
+    ],
+    "configuration": {
+      "title": "Kei",
+      "properties": {
+        "kei.server.path": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "`kei-lsp` 言語サーバー実行ファイルのパス。空のときは `PATH` 上の `kei-lsp` を使う。リポジトリで開発中なら `${workspaceFolder}/target/debug/kei-lsp` を指定する。"
+        },
+        "kei.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "VS Code と Kei 言語サーバー間の JSON-RPC 通信のトレース(デバッグ用)。"
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
   }
 }
