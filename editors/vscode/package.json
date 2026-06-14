@@ -1,0 +1,57 @@
+{
+  "name": "kei-lang",
+  "displayName": "Kei Language",
+  "description": "Kei 言語(.kei)のシンタックスハイライトとファイルアイコン。AIが書き、人間が承認し、コンパイラが履行を保証する言語のためのエディタ支援。",
+  "version": "0.1.0",
+  "publisher": "TODO-SET-PUBLISHER",
+  "license": "MIT",
+  "icon": "icons/bow-kun-128.png",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "kei",
+    "kei-lang",
+    "contracts",
+    "effects"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/A-1ro/kei-lang.git",
+    "directory": "editors/vscode"
+  },
+  "homepage": "https://github.com/A-1ro/kei-lang",
+  "bugs": {
+    "url": "https://github.com/A-1ro/kei-lang/issues"
+  },
+  "activationEvents": [],
+  "contributes": {
+    "languages": [
+      {
+        "id": "kei",
+        "aliases": [
+          "Kei",
+          "kei"
+        ],
+        "extensions": [
+          ".kei"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./icons/bow-kun-32.png",
+          "dark": "./icons/bow-kun-32.png"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "kei",
+        "scopeName": "source.kei",
+        "path": "./syntaxes/kei.tmLanguage.json"
+      }
+    ]
+  }
+}
