@@ -4,3 +4,5 @@ node_modules/
 /runtime/dist/
 # kei build / kei test の CLI フィクスチャの生成物(golden は expected/ 側)
 /tests/cli/projects/*/dist/
+editors/.DS_Store
+.vscode/settings.json
