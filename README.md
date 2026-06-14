@@ -13,7 +13,7 @@ Kei は「**AIが書き、人間が承認し、コンパイラが履行を保証
 - **実装**: Rust の Cargo ワークスペース。ランタイム(`@kei/runtime`)のみ TypeScript の npm パッケージ
 - **ツールチェイン**: `kei` CLI と Kei MCP Server を言語仕様と同格の一級市民として扱う
 
-> ⚠️ **ステータス: v0.1 実装フェーズ(M0〜M5)完了 + M6 着手。** 言語処理(パーサ〜トランスパイラ)と MCP サーバーが動作し、`kei` CLI バイナリ(`kei_cli`)は `check` / `fmt` が使えます(`build` / `test` は M7 で未実装)。仕様は `spec/kei-spec-v0.1.md`(Draft)が正本です。
+> ✅ **ステータス: v0.1 実装フェーズ(M0〜M7)完了。** 言語処理(パーサ〜トランスパイラ)と MCP サーバーが動作し、`kei` CLI バイナリ(`kei_cli`)は `check` / `fmt` / `build` / `test` が使えます。`cargo test --workspace` は全件パス。残務はドッグフード実験(人間主導)。仕様は `spec/kei-spec-v0.1.md`(Draft)が正本です。
 
 ---
 
@@ -83,7 +83,7 @@ kei_check  ←─ kei_emit
 | [`kei_fmt`](crates/kei_fmt) | 正規形フォーマッタ(AST の意味的変更禁止) | ✅ |
 | [`kei_emit`](crates/kei_emit) | TS トランスパイラ + source map(検査の再実装禁止) | ✅ |
 | [`kei_mcp`](crates/kei_mcp) | MCP サーバー。spec/・examples/ をビルド時埋め込み配信 | ✅ |
-| [`kei_cli`](crates/kei_cli) | `kei` バイナリ。check / fmt は実装済み(build / test は M7) | 🚧 一部 |
+| [`kei_cli`](crates/kei_cli) | `kei` バイナリ。check / fmt / build / test 実装済み | ✅ |
 
 そのほか:
 
@@ -124,7 +124,7 @@ CI(`.github/workflows/ci.yml`)は **fmt / clippy / test** の 3 ジョブ。test
 
 ## `kei` CLI
 
-ツールチェインのコマンドラインフロントエンド。現状 `check` / `fmt` が使えます(`build` / `test` は M7 で未実装)。
+ツールチェインのコマンドラインフロントエンド。`check` / `fmt` / `build` / `test` の 4 サブコマンドを提供します。
 
 ```bash
 # 1. ビルド済みバイナリ(Rust 不要・macOS / Linux)
@@ -138,11 +138,13 @@ cargo run -p kei_cli --bin kei -- check examples/basics/options.kei
 ```
 
 ```bash
-kei check <file> [--json]            # 意味検査(既定は散文、--json で Diagnostic[])
-kei fmt <file> [--check | --write]   # 正規形整形(既定は stdout、--check は検証、--write は上書き)
+kei check <file> [--json]                        # 意味検査(既定は散文、--json で Diagnostic[])
+kei fmt <file> [--check | --write]               # 正規形整形(既定は stdout、--check は検証、--write は上書き)
+kei build <dir> [--out-dir <dir>] [--no-source-map]  # <dir> 配下の全 .kei を検査し TS + source map を出力(既定 <dir>/dist/)
+kei test [<dir>]                                 # dev ビルド(契約 on)後、プロジェクトの npm test を起動(Node 必須)
 ```
 
-終了コードは `0` 成功 / `1` 診断エラー・未整形・構文エラー / `2` 使用法エラー。
+終了コードは `0` 成功(検査エラーなし / 整形済み / ビルド成功 / テスト全件パス)/ `1` 診断エラー(check・build)・未整形(fmt --check)・構文エラー・テスト失敗(test)/ `2` 使用法エラー。
 インストールの他の方法やサブコマンドの詳細は [`docs/cli.md`](docs/cli.md) を参照。
 
 ---
@@ -199,7 +201,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"kei_spec",
 - [`spec/kei-spec-v0.1.md`](spec/kei-spec-v0.1.md) — 言語仕様(source of truth。仕様と実装が食い違ったら**仕様を先に直す**)
 - [`spec/diagnostic-schema.md`](spec/diagnostic-schema.md) — 構造化 Diagnostic スキーマとエラーコード採番ルール
 - [`ARCHITECTURE.md`](ARCHITECTURE.md) — リポジトリ構成の契約とクレート責務・依存規則
-- [`docs/cli.md`](docs/cli.md) — `kei` CLI のインストールとサブコマンド(check / fmt)の使い方
+- [`docs/cli.md`](docs/cli.md) — `kei` CLI のインストールとサブコマンド(check / fmt / build / test)の使い方
 - [`skills/kei/SKILL.md`](skills/kei/SKILL.md) — Claude Code 向けの Kei 取説スキル(配布可能プラグインとして同梱)
 - [`docs/kei-roadmap-goals.md`](docs/kei-roadmap-goals.md) — Milestone 別の /goal 契約書集
 - [`CLAUDE.md`](CLAUDE.md) — Claude Code 向けの作業ガイド
