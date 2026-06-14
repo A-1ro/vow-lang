@@ -3,7 +3,7 @@
   "displayName": "Kei Language",
   "description": "Kei 言語(.kei)のシンタックスハイライトとファイルアイコン。AIが書き、人間が承認し、コンパイラが履行を保証する言語のためのエディタ支援。",
   "version": "0.1.0",
-  "publisher": "TODO-SET-PUBLISHER",
+  "publisher": "A-1ro",
   "license": "MIT",
   "icon": "icons/bow-kun-128.png",
   "engines": {
