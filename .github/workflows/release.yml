@@ -45,8 +45,11 @@ jobs:
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
             linker: gcc-aarch64-linux-gnu
+          # Intel Mac 版は Apple Silicon ランナー上でクロスコンパイルする。
+          # macos-13(Intel)ランナーは枯渇しがちで割り当て待ちで詰まるため、
+          # macos-14 + `rustup target add` だけで両アーキを賄う(追加リンカ不要)。
           - target: x86_64-apple-darwin
-            os: macos-13
+            os: macos-14
           - target: aarch64-apple-darwin
             os: macos-14
           - target: x86_64-pc-windows-msvc
