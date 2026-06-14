@@ -12,13 +12,31 @@ const { LanguageClient, TransportKind } = require("vscode-languageclient/node");
 /** @type {LanguageClient | undefined} */
 let client;
 
-/** 設定 `kei.server.path` があればそれ、無ければ PATH 上の `kei-lsp`。 */
+/** 設定 `kei.server.path` があればそれ(VS Code 変数を展開)、無ければ PATH 上の `kei-lsp`。 */
 function resolveServerCommand() {
   const configured = workspace.getConfiguration("kei").get("server.path");
   if (typeof configured === "string" && configured.trim().length > 0) {
-    return configured.trim();
+    return substituteVariables(configured.trim());
   }
   return "kei-lsp";
+}
+
+/**
+ * 設定値内の VS Code 変数を展開する。VS Code は任意の設定値では ${workspaceFolder} を
+ * 自動展開しない(launch.json / tasks.json 等の特定文脈のみ)ため、ここで自前で解決する。
+ * 対応: ${workspaceFolder}(先頭のワークスペースフォルダの絶対パス)。
+ * フォルダ未オープン時や対象変数が無いときは元の文字列をそのまま返す。
+ * @param {string} value
+ * @returns {string}
+ */
+function substituteVariables(value) {
+  const folders = workspace.workspaceFolders;
+  if (!folders || folders.length === 0) {
+    return value;
+  }
+  const root = folders[0].uri.fsPath;
+  // 置換は文字列ではなく関数で行い、パスに $& 等が含まれても誤展開しないようにする。
+  return value.replace(/\$\{workspaceFolder\}/g, () => root);
 }
 
 function buildClient() {
