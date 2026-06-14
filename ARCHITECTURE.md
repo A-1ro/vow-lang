@@ -20,7 +20,8 @@ kei-lang/
 │   ├── kei_fmt/             # 正規形フォーマッタ
 │   ├── kei_emit/            # TSトランスパイラ + source map
 │   ├── kei_cli/             # `kei` バイナリ(check/fmt/build/test)
-│   └── kei_mcp/             # MCPサーバーバイナリ
+│   ├── kei_mcp/             # MCPサーバーバイナリ
+│   └── kei_lsp/             # LSPサーバーバイナリ(kei-lsp)
 │
 ├── runtime/                  # @kei/runtime (npmパッケージ, TS実装)
 │   ├── package.json
@@ -78,8 +79,9 @@ kei_syntax ←─ kei_fmt
      ↑
 kei_check  ←─ kei_emit
      ↑              ↑
-     └── kei_cli ──┘
-     └── kei_mcp ──┘
+     ├── kei_cli ──┘
+     ├── kei_mcp
+     └── kei_lsp   (→ kei_check / kei_syntax / kei_fmt)
 ```
 
 | クレート | 責務 | してはいけないこと |
@@ -90,6 +92,7 @@ kei_check  ←─ kei_emit
 | kei_emit | 検査済みAST→TS+source map | 検査の再実装 |
 | kei_cli | 引数解釈・ファイルIO・Diagnosticの散文整形・ディレクトリ走査・テストランナー起動 | 言語処理ロジック(検査/整形/トランスパイルは委譲)。`kei test`はランナーの知識を持たず`npm test`へ委譲 |
 | kei_mcp | MCPプロトコル・spec/とexamples/の埋め込み配信 | 言語処理ロジック |
+| kei_lsp | LSPプロトコル変換。kei_checkのDiagnostic→LSP Diagnostic、AST→Hover(契約表示)へ写す。同期stdioループ | 言語処理ロジック(検査/整形/パースは委譲)。kei_check/kei_syntax/kei_fmtへ一方向依存のみ |
 
 ### 外部依存の追加記録(M6 事前合意の手続き)
 
@@ -102,6 +105,13 @@ kei_check  ←─ kei_emit
   で `npm test` を起動するだけ(Node はプロジェクト側の前提。CI の test ジョブと同じ)。
   `kei build` の出力ツリーは `tests/cli/projects/*/expected/` で golden 比較、`kei test` の契約 on 実行
   (`requires` 違反 → `KeiContractViolation` → 非ゼロ終了)は Node 在席時のみ走る統合テストで検証する。
+- `kei_lsp`(M8): `lsp-server`(同期 stdio JSON-RPC スキャフォルド)+ `lsp-types`(LSP 型)+ `serde` /
+  `serde_json`。tower-lsp(tokio/async)は採用しない — 本サーバーの実処理は同期関数
+  `kei_check::check_module` の呼び出しだけで、非同期ランタイムを持ち込む理由がない(kei_mcp が
+  serde_json だけで JSON-RPC を手回ししているのと同じ「最小依存・薄いアダプタ」方針)。lsp-server は
+  rust-analyzer と同系統の同期スキャフォルドで、kei_mcp の `Server::handle` と同じく
+  「リクエスト Value → レスポンス」のディスパッチに落ちる。言語処理は一切再実装せず、Diagnostic と
+  AST を LSP に翻訳する境界に徹する。
 
 ## 設計上の不変条件
 

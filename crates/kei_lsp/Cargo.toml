@@ -1,0 +1,23 @@
+[package]
+name = "kei_lsp"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Kei language server (LSP). Translates kei_check Diagnostics and AST into the Language Server Protocol. No language-processing logic."
+
+[lib]
+name = "kei_lsp"
+path = "src/lib.rs"
+
+[[bin]]
+name = "kei-lsp"
+path = "src/main.rs"
+
+[dependencies]
+kei_check = { path = "../kei_check" }
+kei_fmt = { path = "../kei_fmt" }
+kei_syntax = { path = "../kei_syntax" }
+lsp-server = "0.7"
+lsp-types = "0.97"
+serde = { workspace = true }
+serde_json = { workspace = true }
