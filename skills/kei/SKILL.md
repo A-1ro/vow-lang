@@ -112,6 +112,7 @@ enum FetchError {
 
 - 組み込み型は `Int`(i64)・`String`・`Bool`・`Result<T, E>`・`Option<T>` のみ。それ以外は同一ファイルの `record` / `enum` / `type` 宣言か `import` が要る。
 - ユーザー定義型は **型引数を取れない**(ジェネリクスは `Result`(2)・`Option`(1)だけ)。
+- **コレクション(`List` / 配列 / `Map`)は未実装。** `List<T>` を書くと `KEI-E1002 undefined type 'List'` になる。反復・集計・絞り込みは現状 Kei では書けない(ホスト TS 側の責務)。`List` は v0.3 で段階導入予定(立場B / `spec/kei-spec-v0.3-collections.md`)だが、**いまは使わない**。複数要素を扱う必要があれば 1 エンティティ単位の関数に分解する。
 
 ### 値の構築
 

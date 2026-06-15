@@ -29,6 +29,7 @@ kei-lang/
 │
 ├── spec/                     # 言語仕様(source of truth)
 │   ├── kei-spec-v0.1.md
+│   ├── kei-spec-v0.3-collections.md  # コレクション型(立場B / List 段階導入, Draft, #25)
 │   ├── diagnostic-schema.md  # Diagnosticスキーマ定義(M0で確定)
 │   ├── grammar.md            # 文法リファレンス(kei_specツールの配信元)
 │   └── errors/               # エラーコード別解説

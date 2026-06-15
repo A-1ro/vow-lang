@@ -1,0 +1,46 @@
+[
+  {
+    "code": "KEI-E1002",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Define or import 'List'"
+      }
+    ],
+    "message": "undefined type 'List'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 45,
+        "line": 13
+      },
+      "file": "tests/golden/check/err_collection_total_stock_value.kei",
+      "start": {
+        "col": 32,
+        "line": 13
+      }
+    }
+  },
+  {
+    "code": "KEI-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Call 'addProductValue(...)'"
+      }
+    ],
+    "message": "function 'addProductValue' must be called; functions are not values in v0.1",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 42,
+        "line": 14
+      },
+      "file": "tests/golden/check/err_collection_total_stock_value.kei",
+      "start": {
+        "col": 27,
+        "line": 14
+      }
+    }
+  }
+]

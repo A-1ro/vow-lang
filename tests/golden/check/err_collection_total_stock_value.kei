@@ -1,0 +1,15 @@
+module collections.total_stock_value
+
+record Product {
+  id: String
+  quantity: Int
+  unitPrice: Int
+}
+
+func addProductValue(acc: Int, product: Product) -> Int {
+  return acc + product.quantity * product.unitPrice
+}
+
+func totalStockValue(products: List<Product>) -> Int {
+  return products.fold(0, addProductValue)
+}

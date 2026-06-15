@@ -4,7 +4,7 @@
   "result": {
     "content": [
       {
-        "text": "No spec section matched 'no-such-section'.\n\n# Kei spec index\n\n`kei_spec` の `topic` にセクション番号・見出しキーワード・エラーコードを渡すと\n該当箇所を返す。topic を空にするとこの索引を返す。\n\n## セクション (kei-spec-v0.1.md)\n\n- 0. ポジショニング\n- 1. 設計原則\n- 2. 構文スケッチ\n- 3. エフェクトシステム(v0.1の範囲)\n- 4. 契約の実行モデル\n- 5. トランスパイル戦略\n- 6. Kei MCP Server\n- 7. CLI\n- 8. v0.1 スコープ(MVP)\n- 9. 未決事項\n\n## Diagnostic スキーマ\n\n- diagnostic-schema (topic: \"diagnostic\")\n\n## エラーコード (spec/errors/)\n\n- KEI-E0001\n- KEI-E0002\n- KEI-E0003\n- KEI-E0004\n- KEI-E0101\n- KEI-E0102\n- KEI-E0103\n- KEI-E0104\n- KEI-E1001\n- KEI-E1002\n- KEI-E1003\n- KEI-E1004\n- KEI-E2001\n- KEI-E2002\n- KEI-E2003\n- KEI-E2004\n- KEI-E2005\n- KEI-E2006\n- KEI-E3001\n- KEI-E3002\n- KEI-E4001\n- KEI-E4002\n",
+        "text": "No spec section matched 'no-such-section'.\n\n# Kei spec index\n\n`kei_spec` の `topic` にセクション番号・見出しキーワード・エラーコードを渡すと\n該当箇所を返す。topic を空にするとこの索引を返す。\n\n## セクション (kei-spec-v0.1.md)\n\n- 0. ポジショニング\n- 1. 設計原則\n- 2. 構文スケッチ\n- 3. エフェクトシステム(v0.1の範囲)\n- 4. 契約の実行モデル\n- 5. トランスパイル戦略\n- 6. Kei MCP Server\n- 7. CLI\n- 8. v0.1 スコープ(MVP)\n- 9. 未決事項\n- 10. 射程の宣言(立場B / v0.3 以降)\n\n## 追加仕様ドラフト (spec/)\n\n- kei-spec-v0.3-collections.md (topic: \"collections\")\n\n## Diagnostic スキーマ\n\n- diagnostic-schema (topic: \"diagnostic\")\n\n## エラーコード (spec/errors/)\n\n- KEI-E0001\n- KEI-E0002\n- KEI-E0003\n- KEI-E0004\n- KEI-E0101\n- KEI-E0102\n- KEI-E0103\n- KEI-E0104\n- KEI-E1001\n- KEI-E1002\n- KEI-E1003\n- KEI-E1004\n- KEI-E2001\n- KEI-E2002\n- KEI-E2003\n- KEI-E2004\n- KEI-E2005\n- KEI-E2006\n- KEI-E3001\n- KEI-E3002\n- KEI-E4001\n- KEI-E4002\n",
         "type": "text"
       }
     ],

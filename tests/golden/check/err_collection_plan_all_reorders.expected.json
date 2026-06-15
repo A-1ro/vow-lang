@@ -1,0 +1,90 @@
+[
+  {
+    "code": "KEI-E1002",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Define or import 'List'"
+      }
+    ],
+    "message": "undefined type 'List'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 45,
+        "line": 22
+      },
+      "file": "tests/golden/check/err_collection_plan_all_reorders.kei",
+      "start": {
+        "col": 32,
+        "line": 22
+      }
+    }
+  },
+  {
+    "code": "KEI-E1002",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Define or import 'List'"
+      }
+    ],
+    "message": "undefined type 'List'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 85,
+        "line": 22
+      },
+      "file": "tests/golden/check/err_collection_plan_all_reorders.kei",
+      "start": {
+        "col": 68,
+        "line": 22
+      }
+    }
+  },
+  {
+    "code": "KEI-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Call 'needsReorder(...)'"
+      }
+    ],
+    "message": "function 'needsReorder' must be called; functions are not values in v0.1",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 38,
+        "line": 25
+      },
+      "file": "tests/golden/check/err_collection_plan_all_reorders.kei",
+      "start": {
+        "col": 26,
+        "line": 25
+      }
+    }
+  },
+  {
+    "code": "KEI-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Call 'toReorderPlan(...)'"
+      }
+    ],
+    "message": "function 'toReorderPlan' must be called; functions are not values in v0.1",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 57,
+        "line": 25
+      },
+      "file": "tests/golden/check/err_collection_plan_all_reorders.kei",
+      "start": {
+        "col": 44,
+        "line": 25
+      }
+    }
+  }
+]
