@@ -48,10 +48,12 @@ pub fn unknown_tool(name: &str) -> ToolOutcome {
 
 /// 仕様セクション・エラーコード解説の即引き。
 ///
-/// - 空 topic … 索引(セクション番号・エラーコード一覧)
+/// - 空 topic … 索引(セクション番号・追加ドラフト・エラーコード一覧)
 /// - `KEI-Exxxx` … `spec/errors/{code}.md`
 /// - `"diagnostic"` を含む … diagnostic スキーマ
-/// - それ以外 … 本文のレベル2セクションを番号・見出しキーワードで照合
+/// - 本文のレベル2セクション … 番号・見出しキーワードで照合(MAIN_SPEC)
+/// - 追加仕様ドラフト … MAIN_SPEC 以外の spec/*.md をファイル名 stem のキーワードで照合
+///   (例: topic `"collections"` → `kei-spec-v0.3-collections.md` 全文)
 pub fn run_spec(topic: &str) -> ToolOutcome {
     let t = topic.trim();
     if t.is_empty() {
@@ -74,11 +76,22 @@ pub fn run_spec(topic: &str) -> ToolOutcome {
         }
     }
 
+    let needle = normalize_topic(&lower);
+
     if let Some(main) = embedded::spec_file(MAIN_SPEC) {
-        let needle = normalize_topic(&lower);
         for (num, title, body) in sections(main) {
             if needle == num || title.to_lowercase().contains(&needle) {
                 return ToolOutcome::ok(body);
+            }
+        }
+    }
+
+    // MAIN_SPEC 以外の追加ドラフト(v0.3 collections 等)はファイル名 stem で引く。
+    // 短い数値 topic がセクション番号と取り違えられないよう 3 文字以上に限る。
+    if needle.len() >= 3 {
+        for (stem, content) in extra_spec_docs() {
+            if stem.to_lowercase().contains(needle.as_str()) {
+                return ToolOutcome::ok(content.to_string());
             }
         }
     }
@@ -87,6 +100,22 @@ pub fn run_spec(topic: &str) -> ToolOutcome {
         "No spec section matched '{t}'.\n\n{}",
         spec_index()
     ))
+}
+
+/// MAIN_SPEC・diagnostic-schema・errors/ 以外の spec ドキュメントを
+/// `(ファイル名 stem, 内容)` で返す。build.rs が spec/**/*.md を全て埋め込むため、
+/// 追加ドラフト(例: kei-spec-v0.3-collections.md)は自動で kei_spec の経路に乗る。
+fn extra_spec_docs() -> Vec<(&'static str, &'static str)> {
+    let mut out = Vec::new();
+    for &(rel, content) in embedded::spec_files() {
+        if rel == MAIN_SPEC || rel == DIAGNOSTIC_SCHEMA || rel.starts_with("errors/") {
+            continue;
+        }
+        if let Some(stem) = rel.strip_suffix(".md") {
+            out.push((stem, content));
+        }
+    }
+    out
 }
 
 /// topic を見出し照合用に正規化する(先頭の `§`/`#` と前後空白、末尾の `.` を除去)。
@@ -140,6 +169,14 @@ fn spec_index() -> String {
     if let Some(main) = embedded::spec_file(MAIN_SPEC) {
         for (num, title, _) in sections(main) {
             s.push_str(&format!("- {num}. {title}\n"));
+        }
+    }
+    let extra = extra_spec_docs();
+    if !extra.is_empty() {
+        s.push_str("\n## 追加仕様ドラフト (spec/)\n\n");
+        for (stem, _) in &extra {
+            let topic = stem.rsplit('-').next().unwrap_or(stem);
+            s.push_str(&format!("- {stem}.md (topic: \"{topic}\")\n"));
         }
     }
     s.push_str("\n## Diagnostic スキーマ\n\n- diagnostic-schema (topic: \"diagnostic\")\n");
