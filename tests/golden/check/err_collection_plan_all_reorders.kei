@@ -1,0 +1,26 @@
+module collections.plan_all_reorders
+
+record Product {
+  id: String
+  quantity: Int
+  reorderLevel: Int
+}
+
+record ReorderPlan {
+  product: String
+  orderQuantity: Int
+}
+
+func needsReorder(product: Product) -> Bool {
+  return product.quantity < product.reorderLevel
+}
+
+func toReorderPlan(product: Product) -> ReorderPlan {
+  return ReorderPlan { product: product.id, orderQuantity: product.reorderLevel - product.quantity }
+}
+
+func planAllReorders(products: List<Product>, targetLevel: Int) -> List<ReorderPlan>
+  ensures result.length <= products.length
+{
+  return products.filter(needsReorder).map(toReorderPlan)
+}
