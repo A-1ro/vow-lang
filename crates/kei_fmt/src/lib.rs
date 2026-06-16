@@ -165,10 +165,16 @@ fn func_text(func: &FuncDecl) -> String {
         s.push_str(&format!("\n{INDENT}uses {}", effects.join(", ")));
     }
     for expr in &func.requires {
-        s.push_str(&format!("\n{INDENT}requires {}", expr_text(expr, 0, false)));
+        s.push_str(&format!(
+            "\n{INDENT}requires {}",
+            expr_text(expr, 0, false, 1)
+        ));
     }
     for expr in &func.ensures {
-        s.push_str(&format!("\n{INDENT}ensures {}", expr_text(expr, 0, false)));
+        s.push_str(&format!(
+            "\n{INDENT}ensures {}",
+            expr_text(expr, 0, false, 1)
+        ));
     }
 
     // 契約節があれば `{` は独立行、なければシグネチャ行に続ける。
@@ -196,27 +202,27 @@ fn block_text(block: &Block, level: usize) -> String {
 
 fn stmt_text(stmt: &Stmt, level: usize) -> String {
     match stmt {
-        Stmt::Let(stmt) => let_text(stmt),
+        Stmt::Let(stmt) => let_text(stmt, level),
         Stmt::If(stmt) => if_text(stmt, level),
         Stmt::Return(stmt) => match &stmt.value {
-            Some(expr) => format!("return {}", expr_text(expr, 0, false)),
+            Some(expr) => format!("return {}", expr_text(expr, 0, false, level)),
             None => "return".to_string(),
         },
-        Stmt::Expr(stmt) => expr_text(&stmt.expr, 0, false),
+        Stmt::Expr(stmt) => expr_text(&stmt.expr, 0, false, level),
     }
 }
 
-fn let_text(stmt: &LetStmt) -> String {
+fn let_text(stmt: &LetStmt, level: usize) -> String {
     let mut s = format!("let {}", stmt.name.name);
     if let Some(ty) = &stmt.ty {
         s.push_str(": ");
         s.push_str(&type_text(ty));
     }
     s.push_str(" = ");
-    s.push_str(&expr_text(&stmt.value, 0, false));
+    s.push_str(&expr_text(&stmt.value, 0, false, level));
     if let Some(fail) = &stmt.else_fail {
         s.push_str(" else fail ");
-        s.push_str(&expr_text(fail, 0, false));
+        s.push_str(&expr_text(fail, 0, false, level));
     }
     s
 }
@@ -225,7 +231,7 @@ fn if_text(stmt: &IfStmt, level: usize) -> String {
     // if 条件はパーサが record リテラルを禁止する文脈(no_struct)。
     let mut s = format!(
         "if {} {}",
-        expr_text(&stmt.cond, 0, true),
+        expr_text(&stmt.cond, 0, true, level),
         block_text(&stmt.then_block, level)
     );
     match &stmt.else_branch {
@@ -275,17 +281,22 @@ fn prec(expr: &Expr) -> u8 {
         Expr::Binary { op, .. } => bin_prec(*op),
         Expr::Unary { .. } => 5,
         Expr::Field { .. } | Expr::Call { .. } | Expr::RecordLit { .. } => 6,
-        Expr::Int { .. } | Expr::Str { .. } | Expr::Bool { .. } | Expr::Name { .. } => 7,
+        Expr::Int { .. }
+        | Expr::Str { .. }
+        | Expr::Bool { .. }
+        | Expr::Name { .. }
+        | Expr::Match { .. } => 7,
     }
 }
 
 /// `min_prec` 未満の結合強度なら括弧で包む。`no_struct` は if 条件と同じ
 /// 「record リテラル禁止」文脈の伝播(括弧・引数・フィールド値で解除)。
-fn expr_text(expr: &Expr, min_prec: u8, no_struct: bool) -> String {
+/// `level` は式が始まる行のインデント段数(`match` の複数行展開に使う)。
+fn expr_text(expr: &Expr, min_prec: u8, no_struct: bool, level: usize) -> String {
     let needs_paren =
         prec(expr) < min_prec || (no_struct && matches!(expr, Expr::RecordLit { .. }));
     if needs_paren {
-        return format!("({})", expr_text(expr, 0, false));
+        return format!("({})", expr_text(expr, 0, false, level));
     }
     match expr {
         Expr::Int { value, .. } => value.to_string(),
@@ -293,18 +304,22 @@ fn expr_text(expr: &Expr, min_prec: u8, no_struct: bool) -> String {
         Expr::Bool { value, .. } => value.to_string(),
         Expr::Name { name, .. } => name.clone(),
         Expr::Field { base, name, .. } => {
-            format!("{}.{}", expr_text(base, 6, no_struct), name.name)
+            format!("{}.{}", expr_text(base, 6, no_struct, level), name.name)
         }
         Expr::Call { callee, args, .. } => {
-            let args: Vec<String> = args.iter().map(|a| expr_text(a, 0, false)).collect();
-            format!("{}({})", expr_text(callee, 6, no_struct), args.join(", "))
+            let args: Vec<String> = args.iter().map(|a| expr_text(a, 0, false, level)).collect();
+            format!(
+                "{}({})",
+                expr_text(callee, 6, no_struct, level),
+                args.join(", ")
+            )
         }
         Expr::Unary { op, expr, .. } => {
             let op = match op {
                 UnaryOp::Neg => "-",
                 UnaryOp::Not => "!",
             };
-            format!("{}{}", op, expr_text(expr, 5, no_struct))
+            format!("{}{}", op, expr_text(expr, 5, no_struct, level))
         }
         Expr::Binary { op, lhs, rhs, .. } => {
             let p = bin_prec(*op);
@@ -316,9 +331,9 @@ fn expr_text(expr: &Expr, min_prec: u8, no_struct: bool) -> String {
             };
             format!(
                 "{} {} {}",
-                expr_text(lhs, lhs_min, no_struct),
+                expr_text(lhs, lhs_min, no_struct, level),
                 bin_op_text(*op),
-                expr_text(rhs, rhs_min, no_struct)
+                expr_text(rhs, rhs_min, no_struct, level)
             )
         }
         Expr::RecordLit { path, fields, .. } => {
@@ -329,11 +344,50 @@ fn expr_text(expr: &Expr, min_prec: u8, no_struct: bool) -> String {
             let fields: Vec<String> = fields
                 .iter()
                 .map(|f| match &f.value {
-                    Some(value) => format!("{}: {}", f.name.name, expr_text(value, 0, false)),
+                    Some(value) => {
+                        format!("{}: {}", f.name.name, expr_text(value, 0, false, level))
+                    }
                     None => f.name.name.clone(),
                 })
                 .collect();
             format!("{} {{ {} }}", head, fields.join(", "))
+        }
+        Expr::Match {
+            scrutinee, arms, ..
+        } => {
+            // scrutinee はパーサが record リテラルを禁止する文脈(no_struct)。
+            let mut s = format!("match {} {{\n", expr_text(scrutinee, 0, true, level));
+            for arm in arms {
+                s.push_str(&INDENT.repeat(level + 1));
+                s.push_str(&match_arm_text(arm, level + 1));
+                s.push('\n');
+            }
+            s.push_str(&INDENT.repeat(level));
+            s.push('}');
+            s
+        }
+    }
+}
+
+fn match_arm_text(arm: &MatchArm, level: usize) -> String {
+    format!(
+        "{} => {}",
+        pattern_text(&arm.pattern),
+        expr_text(&arm.body, 0, false, level)
+    )
+}
+
+fn pattern_text(pat: &Pattern) -> String {
+    let head = path_text(&pat.path);
+    match &pat.payload {
+        PatternPayload::Unit => head,
+        PatternPayload::Tuple { bindings } => {
+            let bs: Vec<&str> = bindings.iter().map(|i| i.name.as_str()).collect();
+            format!("{head}({})", bs.join(", "))
+        }
+        PatternPayload::Record { fields } => {
+            let fs: Vec<&str> = fields.iter().map(|i| i.name.as_str()).collect();
+            format!("{head} {{ {} }}", fs.join(", "))
         }
     }
 }

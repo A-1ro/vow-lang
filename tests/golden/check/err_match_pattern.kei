@@ -1,0 +1,8 @@
+module check.match_pattern
+
+func bad(daysLeft: Option<Int>) -> Int {
+  return match daysLeft {
+    Some(x, y) => x
+    None => 0
+  }
+}

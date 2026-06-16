@@ -1,0 +1,76 @@
+[
+  {
+    "code": "KEI-E0103",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": "}",
+            "span": {
+              "end": {
+                "col": 1,
+                "line": 5
+              },
+              "file": "tests/golden/syntax/err_match_unclosed.kei",
+              "start": {
+                "col": 1,
+                "line": 5
+              }
+            }
+          }
+        ],
+        "title": "Insert '}'"
+      }
+    ],
+    "message": "unclosed '{': missing '}' before end of file",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 39,
+        "line": 1
+      },
+      "file": "tests/golden/syntax/err_match_unclosed.kei",
+      "start": {
+        "col": 38,
+        "line": 1
+      }
+    }
+  },
+  {
+    "code": "KEI-E0103",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": "}",
+            "span": {
+              "end": {
+                "col": 1,
+                "line": 5
+              },
+              "file": "tests/golden/syntax/err_match_unclosed.kei",
+              "start": {
+                "col": 1,
+                "line": 5
+              }
+            }
+          }
+        ],
+        "title": "Insert '}'"
+      }
+    ],
+    "message": "unclosed '{': missing '}' before end of file",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 19,
+        "line": 2
+      },
+      "file": "tests/golden/syntax/err_match_unclosed.kei",
+      "start": {
+        "col": 18,
+        "line": 2
+      }
+    }
+  }
+]

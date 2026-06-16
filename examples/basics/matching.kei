@@ -1,0 +1,29 @@
+module basics.matching
+
+enum Light {
+  Red
+  Yellow
+  Green
+}
+
+func isOverdue(daysLeft: Option<Int>) -> Option<Bool> {
+  return match daysLeft {
+    Some(d) => Some(d < 0)
+    None => None()
+  }
+}
+
+func describe(outcome: Result<Int, String>) -> String {
+  return match outcome {
+    Ok(n) => "ok"
+    Err(e) => e
+  }
+}
+
+func canGo(light: Light) -> Bool {
+  return match light {
+    Light.Red => false
+    Light.Yellow => false
+    Light.Green => true
+  }
+}

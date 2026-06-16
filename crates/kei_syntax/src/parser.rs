@@ -1236,9 +1236,143 @@ impl Parser {
         })
     }
 
+    // ---- match 式 ----
+
+    fn parse_match(&mut self) -> Option<Expr> {
+        let kw = self.bump(); // 'match'
+                              // scrutinee は if 条件と同じく record リテラル禁止文脈で読む
+                              // (`match foo { ... }` の `foo {` をリテラルにしないため)。
+        let scrutinee = self.parse_expr(true)?;
+        if !self.at(T::LBrace) {
+            let tok = self.cur().clone();
+            self.error(
+                codes::UNEXPECTED_TOKEN,
+                format!(
+                    "expected '{{' to start the match arms, found {}",
+                    tok.found_label()
+                ),
+                tok.span,
+                FixHint::replace("Insert '{'", Span::point(tok.span.start), "{"),
+            );
+            return None;
+        }
+        let open = self.bump();
+        let mut arms = Vec::new();
+        let end;
+        loop {
+            self.skip_newlines();
+            if self.at(T::RBrace) {
+                end = self.bump().span;
+                break;
+            }
+            if self.at(T::Eof) {
+                self.unclosed_delimiter("{", open.span, "}");
+                end = self.cur().span;
+                break;
+            }
+            match self.parse_match_arm() {
+                Some(arm) => {
+                    arms.push(arm);
+                    self.eat(T::Comma);
+                }
+                None => {
+                    self.recover_in_braces();
+                    self.eat(T::Comma);
+                }
+            }
+        }
+        Some(Expr::Match {
+            scrutinee: Box::new(scrutinee),
+            arms,
+            span: kw.span.to(end),
+        })
+    }
+
+    fn parse_match_arm(&mut self) -> Option<MatchArm> {
+        let pattern = self.parse_pattern()?;
+        self.expect(T::FatArrow);
+        let body = self.parse_expr(false)?;
+        let span = pattern.span.to(body.span());
+        Some(MatchArm {
+            pattern,
+            body,
+            span,
+        })
+    }
+
+    /// 1 段のコンストラクタパターン(`Some(x)` / `None` / `E.V { a, b }` 等)。
+    fn parse_pattern(&mut self) -> Option<Pattern> {
+        let first = self.expect_ident("a pattern constructor")?;
+        let start = first.span;
+        let mut path = vec![first];
+        while self.eat(T::Dot) {
+            path.push(self.expect_ident("a variant name")?);
+        }
+        let mut end = path.last().expect("path is non-empty").span;
+        let payload = if self.at(T::LParen) {
+            let open = self.bump();
+            let mut bindings = Vec::new();
+            loop {
+                self.skip_newlines();
+                if self.at(T::RParen) {
+                    break;
+                }
+                if self.at(T::Eof) {
+                    self.unclosed_delimiter("(", open.span, ")");
+                    break;
+                }
+                match self.expect_ident("a binding name") {
+                    Some(b) => bindings.push(b),
+                    None => {
+                        self.recover_in_parens();
+                        break;
+                    }
+                }
+                if !self.eat(T::Comma) {
+                    break;
+                }
+            }
+            end = self.cur().span;
+            self.expect(T::RParen);
+            PatternPayload::Tuple { bindings }
+        } else if self.at(T::LBrace) {
+            let open = self.bump();
+            let mut fields = Vec::new();
+            loop {
+                self.skip_newlines();
+                if self.at(T::RBrace) {
+                    break;
+                }
+                if self.at(T::Eof) {
+                    self.unclosed_delimiter("{", open.span, "}");
+                    break;
+                }
+                match self.expect_ident("a field name") {
+                    Some(f) => fields.push(f),
+                    None => {
+                        self.recover_in_braces();
+                    }
+                }
+                self.eat(T::Comma);
+                self.skip_newlines();
+            }
+            end = self.cur().span;
+            self.expect(T::RBrace);
+            PatternPayload::Record { fields }
+        } else {
+            PatternPayload::Unit
+        };
+        Some(Pattern {
+            path,
+            payload,
+            span: start.to(end),
+        })
+    }
+
     fn parse_primary(&mut self) -> Option<Expr> {
         let tok = self.cur().clone();
         match tok.kind {
+            T::Match => self.parse_match(),
             T::Int => {
                 self.bump();
                 Some(Expr::Int {
@@ -1321,7 +1455,7 @@ impl Parser {
 fn is_expr_start(kind: T) -> bool {
     matches!(
         kind,
-        T::Ident | T::Int | T::Str | T::True | T::False | T::LParen | T::Minus | T::Bang
+        T::Ident | T::Int | T::Str | T::True | T::False | T::LParen | T::Minus | T::Bang | T::Match
     )
 }
 

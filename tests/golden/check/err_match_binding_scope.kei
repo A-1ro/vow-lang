@@ -1,0 +1,8 @@
+module check.match_binding_scope
+
+func bad(outcome: Result<Int, String>) -> Int {
+  return match outcome {
+    Ok(n) => n
+    Err(e) => n
+  }
+}

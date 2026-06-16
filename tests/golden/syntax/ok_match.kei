@@ -1,0 +1,13 @@
+enum Shape {
+  Dot
+  Line(Int)
+  Rect { w: Int, h: Int }
+}
+
+func area(s: Shape) -> Int {
+  return match s {
+    Shape.Dot => 0
+    Shape.Line(n) => n
+    Shape.Rect { w, h } => w * h
+  }
+}

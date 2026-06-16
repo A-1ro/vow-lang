@@ -206,6 +206,10 @@ impl Lexer {
                 self.bump();
                 TokenKind::EqEq
             }
+            '=' if two('>', self) => {
+                self.bump();
+                TokenKind::FatArrow
+            }
             '!' if two('=', self) => {
                 self.bump();
                 TokenKind::NotEq

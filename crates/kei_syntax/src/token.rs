@@ -29,6 +29,7 @@ pub enum TokenKind {
     True,
     False,
     Implies,
+    Match,
     // デリミタ・区切り
     LParen,
     RParen,
@@ -40,6 +41,7 @@ pub enum TokenKind {
     Colon,
     Dot,
     Arrow,
+    FatArrow,
     // 演算子
     Eq,
     EqEq,
@@ -80,6 +82,7 @@ impl TokenKind {
             "true" => TokenKind::True,
             "false" => TokenKind::False,
             "implies" => TokenKind::Implies,
+            "match" => TokenKind::Match,
             _ => return None,
         })
     }
@@ -106,6 +109,7 @@ impl TokenKind {
                 | TokenKind::True
                 | TokenKind::False
                 | TokenKind::Implies
+                | TokenKind::Match
         )
     }
 
@@ -122,6 +126,7 @@ impl TokenKind {
             TokenKind::Colon => ":",
             TokenKind::Dot => ".",
             TokenKind::Arrow => "->",
+            TokenKind::FatArrow => "=>",
             TokenKind::Eq => "=",
             TokenKind::EqEq => "==",
             TokenKind::NotEq => "!=",
@@ -153,6 +158,7 @@ impl TokenKind {
             TokenKind::True => "true",
             TokenKind::False => "false",
             TokenKind::Implies => "implies",
+            TokenKind::Match => "match",
             _ => return None,
         })
     }

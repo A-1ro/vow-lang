@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Make every arm produce the same type"
+      }
+    ],
+    "message": "match arms have incompatible types: expected 'Int', found 'String'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 19,
+        "line": 6
+      },
+      "file": "tests/golden/check/err_match_arm_type.kei",
+      "start": {
+        "col": 13,
+        "line": 6
+      }
+    }
+  }
+]

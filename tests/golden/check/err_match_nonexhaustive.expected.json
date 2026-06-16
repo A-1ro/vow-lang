@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E2007",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Add an arm for each of: None"
+      }
+    ],
+    "message": "match is not exhaustive: missing arm(s) for 'None'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 4,
+        "line": 6
+      },
+      "file": "tests/golden/check/err_match_nonexhaustive.kei",
+      "start": {
+        "col": 10,
+        "line": 4
+      }
+    }
+  }
+]

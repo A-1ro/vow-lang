@@ -1,0 +1,15 @@
+module check.match_option
+
+func isOverdue(daysLeft: Option<Int>) -> Option<Bool> {
+  return match daysLeft {
+    Some(d) => Some(d < 0)
+    None => None()
+  }
+}
+
+func describe(outcome: Result<Int, String>) -> String {
+  return match outcome {
+    Ok(n) => "ok"
+    Err(e) => e
+  }
+}

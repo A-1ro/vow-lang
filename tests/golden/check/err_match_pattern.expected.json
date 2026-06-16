@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E2009",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Write 'Some(x)'"
+      }
+    ],
+    "message": "'Some' binds exactly 1 value(s), found 2",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 15,
+        "line": 5
+      },
+      "file": "tests/golden/check/err_match_pattern.kei",
+      "start": {
+        "col": 5,
+        "line": 5
+      }
+    }
+  }
+]

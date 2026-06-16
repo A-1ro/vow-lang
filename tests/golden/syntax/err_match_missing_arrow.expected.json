@@ -1,0 +1,39 @@
+[
+  {
+    "code": "KEI-E0101",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": "=>",
+            "span": {
+              "end": {
+                "col": 13,
+                "line": 3
+              },
+              "file": "tests/golden/syntax/err_match_missing_arrow.kei",
+              "start": {
+                "col": 13,
+                "line": 3
+              }
+            }
+          }
+        ],
+        "title": "Insert '=>'"
+      }
+    ],
+    "message": "expected '=>', found identifier 'x'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 14,
+        "line": 3
+      },
+      "file": "tests/golden/syntax/err_match_missing_arrow.kei",
+      "start": {
+        "col": 13,
+        "line": 3
+      }
+    }
+  }
+]

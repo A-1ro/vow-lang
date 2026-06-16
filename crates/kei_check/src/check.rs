@@ -27,6 +27,9 @@ mod codes {
     pub const RECORD_LITERAL: &str = "KEI-E2004";
     pub const TAGGED_CONFUSION: &str = "KEI-E2005";
     pub const TYPE_ARITY: &str = "KEI-E2006";
+    pub const MATCH_NOT_EXHAUSTIVE: &str = "KEI-E2007";
+    pub const MATCH_UNREACHABLE_ARM: &str = "KEI-E2008";
+    pub const MATCH_PATTERN: &str = "KEI-E2009";
     pub const EFFECT_UNDECLARED: &str = "KEI-E3001";
     pub const UNKNOWN_EFFECT: &str = "KEI-E3002";
     pub const IMPURE_CONTRACT: &str = "KEI-E4001";
@@ -80,6 +83,20 @@ enum VariantDef {
     Unit,
     Tuple(Vec<Ty>),
     Record(Vec<(String, Ty)>),
+}
+
+/// `match` の被検査対象の構造。スクルティニの型から導出する。
+enum MatchShape {
+    /// `Option<T>`(内側 T)
+    Option(Ty),
+    /// `Result<T, E>`
+    Result(Ty, Ty),
+    /// ユーザー enum(名前 + バリアント定義)
+    Enum(String, Vec<(String, VariantDef)>),
+    /// import 由来など解決不能。網羅性検査は行わない(寛容)
+    Unknown,
+    /// `Int` / `String` 等、match できない具体型
+    NonMatchable(Ty),
 }
 
 #[derive(Debug, Clone)]
@@ -873,6 +890,11 @@ impl FnChecker<'_> {
             ast::Expr::RecordLit { path, fields, span } => {
                 self.infer_record_lit(path, fields, *span)
             }
+            ast::Expr::Match {
+                scrutinee,
+                arms,
+                span,
+            } => self.infer_match(scrutinee, arms, *span),
         }
     }
 
@@ -1639,6 +1661,404 @@ impl FnChecker<'_> {
                 format!("missing field(s) {} in '{owner}' literal", list.join(", ")),
                 span,
                 vec![direction("Add the missing field(s)")],
+            );
+        }
+    }
+
+    // -- match 式 ----------------------------------------------------------
+
+    fn infer_match(&mut self, scrutinee: &ast::Expr, arms: &[ast::MatchArm], span: SynSpan) -> Ty {
+        let scrut_ty = self.infer(scrutinee);
+        let shape = self.match_shape(&scrut_ty);
+
+        if let MatchShape::NonMatchable(t) = &shape {
+            let t = t.clone();
+            self.push(
+                codes::MATCH_PATTERN,
+                format!(
+                    "cannot match on type '{t}'; match works on Option, Result, or enum values"
+                ),
+                scrutinee.span(),
+                vec![direction("Match on an Option, Result, or enum value")],
+            );
+            // 本体の式は型検査だけしておく(カスケード防止)。
+            for arm in arms {
+                self.scopes.push(HashMap::new());
+                self.infer(&arm.body);
+                self.scopes.pop();
+            }
+            return Ty::Unknown;
+        }
+
+        let mut seen: Vec<String> = Vec::new();
+        let mut result_ty = Ty::Unknown;
+        let mut have_result = false;
+
+        for arm in arms {
+            let (key, bindings) = self.check_pattern(&arm.pattern, &shape);
+            if let Some(k) = &key {
+                if seen.contains(k) {
+                    self.push(
+                        codes::MATCH_UNREACHABLE_ARM,
+                        format!("unreachable match arm: '{k}' is already covered above"),
+                        arm.pattern.span,
+                        vec![direction("Remove the duplicate arm")],
+                    );
+                } else {
+                    seen.push(k.clone());
+                }
+            }
+            self.scopes.push(bindings);
+            let body_ty = self.infer(&arm.body);
+            self.scopes.pop();
+            if !have_result {
+                result_ty = body_ty;
+                have_result = true;
+            } else if !body_ty.compatible(&result_ty) {
+                self.push(
+                    codes::TYPE_MISMATCH,
+                    format!(
+                        "match arms have incompatible types: expected '{result_ty}', found '{body_ty}'"
+                    ),
+                    arm.body.span(),
+                    vec![direction("Make every arm produce the same type")],
+                );
+            } else if matches!(result_ty, Ty::Unknown) {
+                result_ty = body_ty;
+            }
+        }
+
+        self.check_exhaustiveness(&shape, &seen, span);
+        result_ty
+    }
+
+    fn match_shape(&self, scrut: &Ty) -> MatchShape {
+        match scrut {
+            Ty::Option(t) => MatchShape::Option((**t).clone()),
+            Ty::Result(t, e) => MatchShape::Result((**t).clone(), (**e).clone()),
+            Ty::Enum(name) => match self.env.enums.get(name) {
+                Some(variants) => MatchShape::Enum(name.clone(), variants.clone()),
+                None => MatchShape::Unknown,
+            },
+            Ty::Tagged { underlying, .. } => self.match_shape(underlying),
+            Ty::Unknown => MatchShape::Unknown,
+            other => MatchShape::NonMatchable(other.clone()),
+        }
+    }
+
+    /// パターンを `shape` に照合し、(網羅キー, 束縛) を返す。
+    /// 不適合は KEI-E2009 を積み、束縛は付くだけ付ける(カスケード防止)。
+    fn check_pattern(
+        &mut self,
+        pat: &ast::Pattern,
+        shape: &MatchShape,
+    ) -> (Option<String>, HashMap<String, Ty>) {
+        let ctor: Vec<&str> = pat.path.iter().map(|i| i.name.as_str()).collect();
+        match shape {
+            MatchShape::Option(inner) => match ctor.as_slice() {
+                ["Some"] => {
+                    let b = self.bind_ctor_payload(pat, "Some", std::slice::from_ref(inner));
+                    (Some("Some".to_string()), b)
+                }
+                ["None"] => {
+                    self.expect_unit_payload(pat, "None");
+                    (Some("None".to_string()), HashMap::new())
+                }
+                _ => {
+                    self.bad_pattern(pat, "Some(x)' or 'None");
+                    (None, self.loose_bindings(pat))
+                }
+            },
+            MatchShape::Result(ok, err) => match ctor.as_slice() {
+                ["Ok"] => {
+                    let b = self.bind_ctor_payload(pat, "Ok", std::slice::from_ref(ok));
+                    (Some("Ok".to_string()), b)
+                }
+                ["Err"] => {
+                    let b = self.bind_ctor_payload(pat, "Err", std::slice::from_ref(err));
+                    (Some("Err".to_string()), b)
+                }
+                _ => {
+                    self.bad_pattern(pat, "Ok(x)' or 'Err(e)");
+                    (None, self.loose_bindings(pat))
+                }
+            },
+            MatchShape::Enum(name, variants) => self.check_enum_pattern(pat, name, variants),
+            MatchShape::Unknown => {
+                // 解決不能なスクルティニ: 束縛だけ付けて寛容に通す。
+                let key = ctor.join(".");
+                (Some(key), self.loose_bindings(pat))
+            }
+            MatchShape::NonMatchable(_) => (None, self.loose_bindings(pat)),
+        }
+    }
+
+    fn check_enum_pattern(
+        &mut self,
+        pat: &ast::Pattern,
+        enum_name: &str,
+        variants: &[(String, VariantDef)],
+    ) -> (Option<String>, HashMap<String, Ty>) {
+        let ctor: Vec<&str> = pat.path.iter().map(|i| i.name.as_str()).collect();
+        // enum パターンは `Enum.Variant` の 2 段形を要求する(構築形と対称)。
+        let vname = match ctor.as_slice() {
+            [e, v] if *e == enum_name => *v,
+            _ => {
+                self.push(
+                    codes::MATCH_PATTERN,
+                    format!(
+                        "pattern '{}' does not match scrutinee of type '{enum_name}'; use '{enum_name}.Variant'",
+                        ctor.join(".")
+                    ),
+                    pat.span,
+                    vec![direction(format!("Write a '{enum_name}.Variant' pattern"))],
+                );
+                return (None, self.loose_bindings(pat));
+            }
+        };
+        let Some((_, def)) = variants.iter().find(|(n, _)| n == vname) else {
+            let names: Vec<&str> = variants.iter().map(|(n, _)| n.as_str()).collect();
+            let fix = match suggestion(vname, names.iter().copied()) {
+                Some(s) => {
+                    self.env
+                        .replace_fix(format!("Did you mean '{s}'?"), pat.path[1].span, &s)
+                }
+                None => direction(format!("Use one of the variants of '{enum_name}'")),
+            };
+            self.push(
+                codes::MATCH_PATTERN,
+                format!("no variant '{vname}' on enum '{enum_name}'"),
+                pat.span,
+                vec![fix],
+            );
+            return (None, self.loose_bindings(pat));
+        };
+        let bindings = match (def, &pat.payload) {
+            (VariantDef::Unit, ast::PatternPayload::Unit) => HashMap::new(),
+            (VariantDef::Tuple(tys), ast::PatternPayload::Tuple { bindings }) => {
+                if bindings.len() != tys.len() {
+                    self.push(
+                        codes::MATCH_PATTERN,
+                        format!(
+                            "variant '{vname}' of '{enum_name}' binds {} value(s), found {}",
+                            tys.len(),
+                            bindings.len()
+                        ),
+                        pat.span,
+                        vec![direction("Match the number of bound values")],
+                    );
+                }
+                self.bind_tuple(pat, bindings, tys)
+            }
+            (VariantDef::Record(fields), ast::PatternPayload::Record { fields: pat_fields }) => {
+                self.bind_record(pat, pat_fields, fields, enum_name, vname)
+            }
+            _ => {
+                let want = match def {
+                    VariantDef::Unit => format!("'{enum_name}.{vname}'"),
+                    VariantDef::Tuple(_) => format!("'{enum_name}.{vname}(...)'"),
+                    VariantDef::Record(_) => format!("'{enum_name}.{vname} {{ ... }}'"),
+                };
+                self.push(
+                    codes::MATCH_PATTERN,
+                    format!("variant '{vname}' of '{enum_name}' must be matched as {want}"),
+                    pat.span,
+                    vec![direction(format!("Write the pattern as {want}"))],
+                );
+                self.loose_bindings(pat)
+            }
+        };
+        (Some(vname.to_string()), bindings)
+    }
+
+    /// 組み込みコンストラクタ(`Some` / `Ok` / `Err`)のペイロード束縛。
+    /// 位置束縛を要求し、個数が合わなければ KEI-E2009。
+    fn bind_ctor_payload(
+        &mut self,
+        pat: &ast::Pattern,
+        name: &str,
+        tys: &[Ty],
+    ) -> HashMap<String, Ty> {
+        match &pat.payload {
+            ast::PatternPayload::Tuple { bindings } => {
+                if bindings.len() != tys.len() {
+                    self.push(
+                        codes::MATCH_PATTERN,
+                        format!(
+                            "'{name}' binds exactly {} value(s), found {}",
+                            tys.len(),
+                            bindings.len()
+                        ),
+                        pat.span,
+                        vec![direction(format!("Write '{name}(x)'"))],
+                    );
+                }
+                self.bind_tuple(pat, bindings, tys)
+            }
+            _ => {
+                self.push(
+                    codes::MATCH_PATTERN,
+                    format!("'{name}' binds its payload; write '{name}(x)'"),
+                    pat.span,
+                    vec![direction(format!("Write '{name}(x)'"))],
+                );
+                self.loose_bindings(pat)
+            }
+        }
+    }
+
+    fn expect_unit_payload(&mut self, pat: &ast::Pattern, name: &str) {
+        if !matches!(pat.payload, ast::PatternPayload::Unit) {
+            self.push(
+                codes::MATCH_PATTERN,
+                format!("'{name}' takes no payload; write '{name}'"),
+                pat.span,
+                vec![direction(format!("Write '{name}'"))],
+            );
+        }
+    }
+
+    /// 位置束縛(`Some(x)` / `E.V(a, b)`)を型に対応づける。
+    fn bind_tuple(
+        &mut self,
+        pat: &ast::Pattern,
+        bindings: &[ast::Ident],
+        tys: &[Ty],
+    ) -> HashMap<String, Ty> {
+        let mut out = HashMap::new();
+        for (i, b) in bindings.iter().enumerate() {
+            let ty = tys.get(i).cloned().unwrap_or(Ty::Unknown);
+            self.insert_binding(&mut out, b, ty, pat);
+        }
+        out
+    }
+
+    /// 名前付き束縛(`E.V { a, b }`)。全フィールドの列挙を要求する。
+    fn bind_record(
+        &mut self,
+        pat: &ast::Pattern,
+        pat_fields: &[ast::Ident],
+        def_fields: &[(String, Ty)],
+        enum_name: &str,
+        vname: &str,
+    ) -> HashMap<String, Ty> {
+        let mut out = HashMap::new();
+        let mut listed: HashSet<String> = HashSet::new();
+        for f in pat_fields {
+            listed.insert(f.name.clone());
+            match def_fields.iter().find(|(n, _)| n == &f.name) {
+                Some((_, ty)) => self.insert_binding(&mut out, f, ty.clone(), pat),
+                None => {
+                    let names: Vec<&str> = def_fields.iter().map(|(n, _)| n.as_str()).collect();
+                    let fix = match suggestion(&f.name, names.iter().copied()) {
+                        Some(s) => self
+                            .env
+                            .replace_fix(format!("Did you mean '{s}'?"), f.span, &s),
+                        None => {
+                            direction(format!("Use one of the fields of '{enum_name}.{vname}'"))
+                        }
+                    };
+                    self.push(
+                        codes::MATCH_PATTERN,
+                        format!("no field '{}' on '{enum_name}.{vname}'", f.name),
+                        f.span,
+                        vec![fix],
+                    );
+                }
+            }
+        }
+        let missing: Vec<&str> = def_fields
+            .iter()
+            .map(|(n, _)| n.as_str())
+            .filter(|n| !listed.contains(*n))
+            .collect();
+        if !missing.is_empty() {
+            let list: Vec<String> = missing.iter().map(|n| format!("'{n}'")).collect();
+            self.push(
+                codes::MATCH_PATTERN,
+                format!(
+                    "match pattern for '{enum_name}.{vname}' must bind all field(s); missing {}",
+                    list.join(", ")
+                ),
+                pat.span,
+                vec![direction("Bind every field of the variant")],
+            );
+        }
+        out
+    }
+
+    fn insert_binding(
+        &mut self,
+        out: &mut HashMap<String, Ty>,
+        name: &ast::Ident,
+        ty: Ty,
+        _pat: &ast::Pattern,
+    ) {
+        if out.contains_key(&name.name) {
+            self.push(
+                codes::DUPLICATE_DEF,
+                format!("duplicate binding '{}' in this pattern", name.name),
+                name.span,
+                vec![direction("Rename one of the bound variables")],
+            );
+        } else {
+            out.insert(name.name.clone(), ty);
+        }
+    }
+
+    /// 不適合パターンでも、束縛名は Unknown 型で導入しておく(本体の検査を続ける)。
+    fn loose_bindings(&self, pat: &ast::Pattern) -> HashMap<String, Ty> {
+        let mut out = HashMap::new();
+        match &pat.payload {
+            ast::PatternPayload::Unit => {}
+            ast::PatternPayload::Tuple { bindings } => {
+                for b in bindings {
+                    out.insert(b.name.clone(), Ty::Unknown);
+                }
+            }
+            ast::PatternPayload::Record { fields } => {
+                for f in fields {
+                    out.insert(f.name.clone(), Ty::Unknown);
+                }
+            }
+        }
+        out
+    }
+
+    fn bad_pattern(&mut self, pat: &ast::Pattern, expected: &str) {
+        let ctor: Vec<&str> = pat.path.iter().map(|i| i.name.as_str()).collect();
+        self.push(
+            codes::MATCH_PATTERN,
+            format!(
+                "pattern '{}' does not match the scrutinee; expected '{expected}'",
+                ctor.join(".")
+            ),
+            pat.span,
+            vec![direction(format!("Write a '{expected}' pattern"))],
+        );
+    }
+
+    fn check_exhaustiveness(&mut self, shape: &MatchShape, seen: &[String], span: SynSpan) {
+        let required: Vec<String> = match shape {
+            MatchShape::Option(_) => vec!["Some".to_string(), "None".to_string()],
+            MatchShape::Result(..) => vec!["Ok".to_string(), "Err".to_string()],
+            MatchShape::Enum(_, variants) => variants.iter().map(|(n, _)| n.clone()).collect(),
+            MatchShape::Unknown | MatchShape::NonMatchable(_) => return,
+        };
+        let missing: Vec<String> = required.into_iter().filter(|r| !seen.contains(r)).collect();
+        if !missing.is_empty() {
+            let list: Vec<String> = missing.iter().map(|m| format!("'{m}'")).collect();
+            self.push(
+                codes::MATCH_NOT_EXHAUSTIVE,
+                format!(
+                    "match is not exhaustive: missing arm(s) for {}",
+                    list.join(", ")
+                ),
+                span,
+                vec![direction(format!(
+                    "Add an arm for each of: {}",
+                    missing.join(", ")
+                ))],
             );
         }
     }

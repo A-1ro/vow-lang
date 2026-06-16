@@ -380,6 +380,52 @@ func balanceOf(account: Int, amount: Int) -> Result<Int, WithdrawError>
 - `Result` のメンバは `.isOk` / `.isErr`、`Option` のメンバは `.isSome` / `.isNone` のみ。
 - `Result<T, E>` と `Option<T>` は混同不可(`KEI-E2001`)。中身を裸で返すのも型不一致 → `Ok(...)` / `Some(...)` で包む(`return Ok(x)` であって `return x` ではない)。
 
+### `match` で中身を取り出す(純粋文脈でも使える / v0.2)
+
+`else fail` は **Result を返す関数**でしか使えない(失敗時に `Err` で脱出するため)。
+**純粋関数の内部で Option / Result / enum を開く**なら `match` 式を使う。`match` は **式**で、
+各腕の式の型が一致し、その型が全体の型になる。
+
+```kei
+module match.basics
+
+func isOverdue(daysLeft: Option<Int>) -> Option<Bool> {
+  return match daysLeft {
+    Some(d) => Some(d < 0)
+    None => None()
+  }
+}
+```
+
+- パターンは 1 段:`Option` は `Some(x)` / `None`、`Result` は `Ok(x)` / `Err(e)`、
+  enum は `Enum.V` / `Enum.V(a, b)` / `Enum.V { a, b }`(**構築形と対称**。`Color.Red` のように enum 名を付ける)。
+- 名前付きフィールドは**全フィールドを列挙**する(`Rect { w, h }`)。束縛変数は**その腕の中だけ**で有効。
+- **網羅性は必須。** 全バリアントの腕を書く(`_` ワイルドカードは無い)。漏れると `KEI-E2007`。
+  これにより enum にバリアントを足すと既存の `match` が必ずエラーになり、追従漏れを防げる。
+- 腕の区切りは改行(`kei fmt` が正規化)。腕の本体は式のみ(文ブロック不可)。
+
+```kei
+module match.enum
+
+enum Light {
+  Red
+  Yellow
+  Green
+}
+
+func canGo(light: Light) -> Bool {
+  return match light {
+    Light.Red => false
+    Light.Yellow => false
+    Light.Green => true
+  }
+}
+```
+
+`match` のエラー: `KEI-E2007`(網羅漏れ)/ `KEI-E2008`(到達不能な重複腕)/
+`KEI-E2009`(パターンが型に不適合 — 型と違うコンストラクタ族・存在しないバリアント・束縛形違い)/
+`KEI-E2001`(腕の式の型不一致)。詳細は `spec/errors/<code>.md` と `spec/kei-spec-v0.2.md` §1。
+
 ---
 
 ## 6. イディオム集(実ファイルから)
@@ -390,6 +436,7 @@ func balanceOf(account: Int, amount: Int) -> Result<Int, WithdrawError>
 - **Option の分岐** — `examples/basics/options.kei`(`Some` / `None()` の返し分け)
 - **enum と tagged 型** — `examples/basics/enums.kei`(unit / 位置 / 名前付きバリアント、`type X = String tagged "X"`)
 - **契約と数量保存** — `examples/contracts/counter.kei`(`requires` / `ensures` / `old` / `result`)
+- **match で網羅分解** — `examples/basics/matching.kei`(Option / Result / enum を `match` で開く。純粋文脈で Option を分解)
 - **エフェクト + Result + else fail** — `examples/contracts/withdraw.kei`、`examples/effects/transfer.kei`(`uses` 複数、`Audit.Log.record(...)`、`Err(... { ... })` 構築)
 
 `transfer.kei` の本体は「取得 → 早期脱出 → 検査 → 副作用 → 監査 → `Ok` 返却」という実務の定型:
@@ -537,7 +584,7 @@ tagged 型と基底型、または別の tagged 型を混同した。`type Accou
 
 ### KEI-E0102 reserved keyword as identifier
 
-予約語を識別子に使った。予約語: `module import as type record enum func uses requires ensures let if else fail return tagged true false implies`。
+予約語を識別子に使った。予約語: `module import as type record enum func uses requires ensures let if else fail return tagged true false implies match`。
 
 ✗: `let type = 1` → ✓: 別名にする(`let kind = 1`)。`.` の後ろのメンバ名は同綴りでも可(`Audit.Log.record`)。
 
@@ -611,6 +658,7 @@ tagged 型と基底型、または別の tagged 型を混同した。`type Accou
 ## 参照
 
 - `spec/kei-spec-v0.1.md` — 言語仕様(source of truth)
+- `spec/kei-spec-v0.2.md` — v0.2 差分章(`match` / `extern` / 検証レベル / 数量契約イディオム)
 - `spec/diagnostic-schema.md` — Diagnostic の確定スキーマ
 - `spec/errors/<code>.md` — 各エラーコードの解説
 - `examples/` — check-clean な実例(basics / contracts / effects)

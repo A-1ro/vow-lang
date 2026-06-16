@@ -1,0 +1,12 @@
+module fmt.matching
+
+enum Shape {
+  Dot
+  Line(Int)
+}
+
+func area(s: Shape, o: Option<Int>) -> Int {
+  let a = match s { Shape.Dot => 0, Shape.Line(n) => n }
+  let b = match o { Some(x) => x, None => 0 }
+  return a + b
+}

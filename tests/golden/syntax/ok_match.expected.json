@@ -1,0 +1,253 @@
+{
+  "decl": null,
+  "imports": [],
+  "items": [
+    {
+      "kind": "Enum",
+      "name": {
+        "name": "Shape",
+        "span": "1:6-1:11"
+      },
+      "span": "1:1-5:2",
+      "variants": [
+        {
+          "name": {
+            "name": "Dot",
+            "span": "2:3-2:6"
+          },
+          "payload": {
+            "kind": "Unit"
+          },
+          "span": "2:3-2:6"
+        },
+        {
+          "name": {
+            "name": "Line",
+            "span": "3:3-3:7"
+          },
+          "payload": {
+            "kind": "Tuple",
+            "types": [
+              {
+                "args": [],
+                "path": [
+                  {
+                    "name": "Int",
+                    "span": "3:8-3:11"
+                  }
+                ],
+                "span": "3:8-3:11"
+              }
+            ]
+          },
+          "span": "3:3-3:12"
+        },
+        {
+          "name": {
+            "name": "Rect",
+            "span": "4:3-4:7"
+          },
+          "payload": {
+            "fields": [
+              {
+                "name": {
+                  "name": "w",
+                  "span": "4:10-4:11"
+                },
+                "span": "4:10-4:16",
+                "ty": {
+                  "args": [],
+                  "path": [
+                    {
+                      "name": "Int",
+                      "span": "4:13-4:16"
+                    }
+                  ],
+                  "span": "4:13-4:16"
+                }
+              },
+              {
+                "name": {
+                  "name": "h",
+                  "span": "4:18-4:19"
+                },
+                "span": "4:18-4:24",
+                "ty": {
+                  "args": [],
+                  "path": [
+                    {
+                      "name": "Int",
+                      "span": "4:21-4:24"
+                    }
+                  ],
+                  "span": "4:21-4:24"
+                }
+              }
+            ],
+            "kind": "Record"
+          },
+          "span": "4:3-4:26"
+        }
+      ]
+    },
+    {
+      "body": {
+        "span": "7:28-13:2",
+        "stmts": [
+          {
+            "kind": "Return",
+            "span": "8:3-12:4",
+            "value": {
+              "arms": [
+                {
+                  "body": {
+                    "kind": "Int",
+                    "span": "9:18-9:19",
+                    "value": 0
+                  },
+                  "pattern": {
+                    "path": [
+                      {
+                        "name": "Shape",
+                        "span": "9:5-9:10"
+                      },
+                      {
+                        "name": "Dot",
+                        "span": "9:11-9:14"
+                      }
+                    ],
+                    "payload": {
+                      "kind": "Unit"
+                    },
+                    "span": "9:5-9:14"
+                  },
+                  "span": "9:5-9:19"
+                },
+                {
+                  "body": {
+                    "kind": "Name",
+                    "name": "n",
+                    "span": "10:22-10:23"
+                  },
+                  "pattern": {
+                    "path": [
+                      {
+                        "name": "Shape",
+                        "span": "10:5-10:10"
+                      },
+                      {
+                        "name": "Line",
+                        "span": "10:11-10:15"
+                      }
+                    ],
+                    "payload": {
+                      "bindings": [
+                        {
+                          "name": "n",
+                          "span": "10:16-10:17"
+                        }
+                      ],
+                      "kind": "Tuple"
+                    },
+                    "span": "10:5-10:18"
+                  },
+                  "span": "10:5-10:23"
+                },
+                {
+                  "body": {
+                    "kind": "Binary",
+                    "lhs": {
+                      "kind": "Name",
+                      "name": "w",
+                      "span": "11:28-11:29"
+                    },
+                    "op": "Mul",
+                    "rhs": {
+                      "kind": "Name",
+                      "name": "h",
+                      "span": "11:32-11:33"
+                    },
+                    "span": "11:28-11:33"
+                  },
+                  "pattern": {
+                    "path": [
+                      {
+                        "name": "Shape",
+                        "span": "11:5-11:10"
+                      },
+                      {
+                        "name": "Rect",
+                        "span": "11:11-11:15"
+                      }
+                    ],
+                    "payload": {
+                      "fields": [
+                        {
+                          "name": "w",
+                          "span": "11:18-11:19"
+                        },
+                        {
+                          "name": "h",
+                          "span": "11:21-11:22"
+                        }
+                      ],
+                      "kind": "Record"
+                    },
+                    "span": "11:5-11:24"
+                  },
+                  "span": "11:5-11:33"
+                }
+              ],
+              "kind": "Match",
+              "scrutinee": {
+                "kind": "Name",
+                "name": "s",
+                "span": "8:16-8:17"
+              },
+              "span": "8:10-12:4"
+            }
+          }
+        ]
+      },
+      "ensures": [],
+      "kind": "Func",
+      "name": {
+        "name": "area",
+        "span": "7:6-7:10"
+      },
+      "params": [
+        {
+          "name": {
+            "name": "s",
+            "span": "7:11-7:12"
+          },
+          "span": "7:11-7:19",
+          "ty": {
+            "args": [],
+            "path": [
+              {
+                "name": "Shape",
+                "span": "7:14-7:19"
+              }
+            ],
+            "span": "7:14-7:19"
+          }
+        }
+      ],
+      "requires": [],
+      "ret": {
+        "args": [],
+        "path": [
+          {
+            "name": "Int",
+            "span": "7:24-7:27"
+          }
+        ],
+        "span": "7:24-7:27"
+      },
+      "span": "7:1-13:2",
+      "uses": []
+    }
+  ],
+  "span": "1:1-14:1"
+}

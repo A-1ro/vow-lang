@@ -1,0 +1,8 @@
+module check.match_arm_type
+
+func bad(daysLeft: Option<Int>) -> Int {
+  return match daysLeft {
+    Some(x) => x
+    None => "zero"
+  }
+}

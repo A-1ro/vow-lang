@@ -24,6 +24,7 @@ pub fn emit_checked(file: &str, source: &str, module: &ast::Module) -> EmitOutpu
         out: Out::default(),
         old_counter: 0,
         in_ensures: false,
+        match_counter: 0,
     };
     e.emit_module();
     let mut ts = e.out.buf;
@@ -247,6 +248,14 @@ impl RuntimeUses {
                     }
                 }
             }
+            ast::Expr::Match {
+                scrutinee, arms, ..
+            } => {
+                self.expr(scrutinee);
+                for arm in arms {
+                    self.expr(&arm.body);
+                }
+            }
         }
     }
 }
@@ -303,6 +312,8 @@ struct Emitter<'a> {
     /// ensures 内 `old(...)` の通し番号。事前キャプチャと同じ走査順で消費する。
     old_counter: usize,
     in_ensures: bool,
+    /// match 式ごとに一意なスクルティニ変数名(`kei$m0`, `kei$m1`, ...)を割り当てる。
+    match_counter: usize,
 }
 
 impl Emitter<'_> {
@@ -831,6 +842,89 @@ impl Emitter<'_> {
                 }
                 self.out.frag(" })");
             }
+            ast::Expr::Match {
+                scrutinee, arms, ..
+            } => self.emit_match(scrutinee, arms),
+        }
+    }
+
+    /// `match` を即時実行アロー関数(IIFE)に展開する。各腕は判別子で分岐する
+    /// `if` ガードに落ち、束縛は腕の冒頭で `const` する。網羅性はチェッカが
+    /// 保証するため、末尾の `throw` は到達不能(opaque な import 値の防御)。
+    fn emit_match(&mut self, scrutinee: &ast::Expr, arms: &[ast::MatchArm]) {
+        let id = self.match_counter;
+        self.match_counter += 1;
+        let var = format!("kei$m{id}");
+        self.out.frag("(() => {");
+        self.out.newline();
+        self.out.indent += 1;
+        self.out.start_line();
+        self.out.map(scrutinee.span());
+        self.out.frag(&format!("const {var} = "));
+        self.emit_expr(scrutinee, Prec::Or);
+        self.out.frag(";");
+        self.out.newline();
+        for arm in arms {
+            self.emit_match_arm(&var, arm);
+        }
+        self.out.line("throw new Error(\"non-exhaustive match\");");
+        self.out.indent -= 1;
+        self.out.start_line();
+        self.out.frag("})()");
+    }
+
+    fn emit_match_arm(&mut self, var: &str, arm: &ast::MatchArm) {
+        let ctor: Vec<&str> = arm.pattern.path.iter().map(|i| i.name.as_str()).collect();
+        let cond = match ctor.as_slice() {
+            ["Some"] | ["Ok"] => format!("{var}.ok"),
+            ["None"] | ["Err"] => format!("!{var}.ok"),
+            _ => {
+                let v = ctor.last().copied().unwrap_or("");
+                format!("{var}.kind === {}", ts_string(v))
+            }
+        };
+        self.out.start_line();
+        self.out.map(arm.pattern.span);
+        self.out.frag(&format!("if ({cond}) {{"));
+        self.out.newline();
+        self.out.indent += 1;
+        self.emit_pattern_bindings(var, &arm.pattern);
+        self.out.start_line();
+        self.out.map(arm.body.span());
+        self.out.frag("return ");
+        self.emit_expr(&arm.body, Prec::Or);
+        self.out.frag(";");
+        self.out.newline();
+        self.out.indent -= 1;
+        self.out.line("}");
+    }
+
+    fn emit_pattern_bindings(&mut self, var: &str, pat: &ast::Pattern) {
+        let ctor: Vec<&str> = pat.path.iter().map(|i| i.name.as_str()).collect();
+        match (&ctor[..], &pat.payload) {
+            (["Some"] | ["Ok"], ast::PatternPayload::Tuple { bindings }) => {
+                if let Some(b) = bindings.first() {
+                    self.out.line(&format!("const {} = {var}.value;", b.name));
+                }
+            }
+            (["Err"], ast::PatternPayload::Tuple { bindings }) => {
+                if let Some(b) = bindings.first() {
+                    self.out.line(&format!("const {} = {var}.error;", b.name));
+                }
+            }
+            (_, ast::PatternPayload::Tuple { bindings }) => {
+                for (i, b) in bindings.iter().enumerate() {
+                    self.out
+                        .line(&format!("const {} = {var}.values[{i}];", b.name));
+                }
+            }
+            (_, ast::PatternPayload::Record { fields }) => {
+                for f in fields {
+                    self.out
+                        .line(&format!("const {} = {var}.fields.{};", f.name, f.name));
+                }
+            }
+            (_, ast::PatternPayload::Unit) => {}
         }
     }
 
@@ -931,6 +1025,14 @@ fn collect_old_exprs(ensures: &[ast::Expr]) -> Vec<&ast::Expr> {
                     }
                 }
             }
+            ast::Expr::Match {
+                scrutinee, arms, ..
+            } => {
+                walk(scrutinee, out);
+                for arm in arms {
+                    walk(&arm.body, out);
+                }
+            }
             _ => {}
         }
     }
@@ -1017,6 +1119,42 @@ fn kei_expr_text(e: &ast::Expr) -> String {
                 })
                 .collect();
             format!("{} {{ {} }}", parts.join("."), fs.join(", "))
+        }
+        ast::Expr::Match {
+            scrutinee, arms, ..
+        } => {
+            let arms: Vec<String> = arms
+                .iter()
+                .map(|a| {
+                    format!(
+                        "{} => {}",
+                        kei_pattern_text(&a.pattern),
+                        kei_expr_text(&a.body)
+                    )
+                })
+                .collect();
+            format!(
+                "match {} {{ {} }}",
+                kei_expr_text(scrutinee),
+                arms.join(", ")
+            )
+        }
+    }
+}
+
+/// パターンの Kei ソース表記(契約条件文字列・doc コメント用)。
+fn kei_pattern_text(pat: &ast::Pattern) -> String {
+    let path: Vec<&str> = pat.path.iter().map(|i| i.name.as_str()).collect();
+    let head = path.join(".");
+    match &pat.payload {
+        ast::PatternPayload::Unit => head,
+        ast::PatternPayload::Tuple { bindings } => {
+            let bs: Vec<&str> = bindings.iter().map(|i| i.name.as_str()).collect();
+            format!("{head}({})", bs.join(", "))
+        }
+        ast::PatternPayload::Record { fields } => {
+            let fs: Vec<&str> = fields.iter().map(|i| i.name.as_str()).collect();
+            format!("{head} {{ {} }}", fs.join(", "))
         }
     }
 }

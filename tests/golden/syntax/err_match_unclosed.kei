@@ -1,0 +1,4 @@
+func classify(o: Option<Int>) -> Int {
+  return match o {
+    Some(x) => x
+    None => 0

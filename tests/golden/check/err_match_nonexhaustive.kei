@@ -1,0 +1,7 @@
+module check.match_nonexhaustive
+
+func bad(daysLeft: Option<Int>) -> Int {
+  return match daysLeft {
+    Some(x) => x
+  }
+}
