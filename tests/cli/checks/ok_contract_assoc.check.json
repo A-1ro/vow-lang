@@ -1,0 +1,39 @@
+{
+  "diagnostics": [],
+  "contracts": [
+    {
+      "func": "chained",
+      "kind": "requires",
+      "expr": "(a implies b) implies c",
+      "verification": "runtime",
+      "span": {
+        "file": "tests/cli/checks/ok_contract_assoc.kei",
+        "start": {
+          "line": 4,
+          "col": 13
+        },
+        "end": {
+          "line": 4,
+          "col": 35
+        }
+      }
+    },
+    {
+      "func": "subtract",
+      "kind": "ensures",
+      "expr": "result == x - (y - z)",
+      "verification": "runtime",
+      "span": {
+        "file": "tests/cli/checks/ok_contract_assoc.kei",
+        "start": {
+          "line": 10,
+          "col": 11
+        },
+        "end": {
+          "line": 10,
+          "col": 31
+        }
+      }
+    }
+  ]
+}

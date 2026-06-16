@@ -1,0 +1,3 @@
+verification:
+  chained requires (a implies b) implies c  [runtime]
+  subtract ensures result == x - (y - z)  [runtime]

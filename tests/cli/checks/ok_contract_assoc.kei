@@ -1,0 +1,13 @@
+module cli.ok_contract_assoc
+
+func chained(a: Bool, b: Bool, c: Bool) -> Bool
+  requires (a implies b) implies c
+{
+  return c
+}
+
+func subtract(x: Int, y: Int, z: Int) -> Int
+  ensures result == x - (y - z)
+{
+  return x - y + z
+}

@@ -1076,9 +1076,14 @@ fn kei_bin_op(op: BinOp) -> &'static str {
 }
 
 fn kei_expr_text(e: &ast::Expr) -> String {
-    fn child(e: &ast::Expr, parent: Prec) -> String {
+    // `tight` は同優先度の子も括弧で包むか。左結合の右オペランド・
+    // 右結合(implies)の左オペランドで真にし、結合方向の取り違えを防ぐ。
+    fn child(e: &ast::Expr, parent: Prec, tight: bool) -> String {
         let needs_paren = match e {
-            ast::Expr::Binary { op, .. } => bin_prec(*op) < parent,
+            ast::Expr::Binary { op, .. } => {
+                let cp = bin_prec(*op);
+                cp < parent || (tight && cp == parent)
+            }
             _ => false,
         };
         let text = kei_expr_text(e);
@@ -1094,26 +1099,36 @@ fn kei_expr_text(e: &ast::Expr) -> String {
         ast::Expr::Bool { value, .. } => if *value { "true" } else { "false" }.to_string(),
         ast::Expr::Name { name, .. } => name.clone(),
         ast::Expr::Field { base, name, .. } => {
-            format!("{}.{}", child(base, Prec::Postfix), name.name)
+            format!("{}.{}", child(base, Prec::Postfix, false), name.name)
         }
         ast::Expr::Call { callee, args, .. } => {
             let args: Vec<String> = args.iter().map(kei_expr_text).collect();
-            format!("{}({})", child(callee, Prec::Postfix), args.join(", "))
+            format!(
+                "{}({})",
+                child(callee, Prec::Postfix, false),
+                args.join(", ")
+            )
         }
         ast::Expr::Unary { op, expr, .. } => {
             let sym = match op {
                 UnaryOp::Neg => "-",
                 UnaryOp::Not => "!",
             };
-            format!("{sym}{}", child(expr, Prec::Unary))
+            format!("{sym}{}", child(expr, Prec::Unary, false))
         }
         ast::Expr::Binary { op, lhs, rhs, .. } => {
             let prec = bin_prec(*op);
+            // implies は右結合、他は左結合(parser::parse_implies)。
+            let (lhs_tight, rhs_tight) = if *op == BinOp::Implies {
+                (true, false)
+            } else {
+                (false, true)
+            };
             format!(
                 "{} {} {}",
-                child(lhs, prec),
+                child(lhs, prec, lhs_tight),
                 kei_bin_op(*op),
-                child(rhs, prec)
+                child(rhs, prec, rhs_tight)
             )
         }
         ast::Expr::RecordLit { path, fields, .. } => {

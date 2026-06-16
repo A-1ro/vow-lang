@@ -2487,7 +2487,19 @@ fn contract_expr_text(e: &ast::Expr) -> String {
         }
         ast::Expr::Binary { op, lhs, rhs, .. } => {
             let p = bin_prec(*op);
-            format!("{} {} {}", child(lhs, p), bin_op_text(*op), child(rhs, p))
+            // implies は右結合、他は左結合(parser::parse_implies)。同優先度の子は
+            // 結合方向に応じて括弧を保つ(`(a implies b) implies c` / `a - (b - c)`)。
+            let (lhs_min, rhs_min) = if matches!(op, ast::BinOp::Implies) {
+                (p + 1, p)
+            } else {
+                (p, p + 1)
+            };
+            format!(
+                "{} {} {}",
+                child(lhs, lhs_min),
+                bin_op_text(*op),
+                child(rhs, rhs_min)
+            )
         }
         ast::Expr::RecordLit { path, fields, .. } => {
             let head: Vec<&str> = path.iter().map(|i| i.name.as_str()).collect();
