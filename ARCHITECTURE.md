@@ -30,8 +30,9 @@ kei-lang/
 │
 ├── spec/                     # 言語仕様(source of truth)
 │   ├── kei-spec-v0.1.md
+│   ├── kei-spec-v0.2.md      # v0.2差分章(match / extern / 検証レベル / 数量契約イディオム, M10–M13)
 │   ├── kei-spec-v0.3-collections.md  # コレクション型(立場B / List 段階導入, Draft, #25)
-│   ├── diagnostic-schema.md  # Diagnosticスキーマ定義(M0で確定)
+│   ├── diagnostic-schema.md  # Diagnosticスキーマ定義(M0で確定 + v0.2 CheckReport拡張)
 │   ├── grammar.md            # 文法リファレンス(kei_specツールの配信元)
 │   └── errors/               # エラーコード別解説
 │       └── KEI-E3042.md     # 1コード1ファイル
@@ -60,7 +61,8 @@ kei-lang/
 │
 ├── docs/                     # ロードマップ・設計メモ
 │   ├── kei-roadmap-goals.md          # v0.1(M0–M7)+ 提案中の M8/M9
-│   └── kei-roadmap-v0.2.md           # v0.2(M10–M13: 健全性・契約表現力)
+│   ├── kei-roadmap-v0.2.md           # v0.2(M10–M13: 健全性・契約表現力)
+│   └── effect-postconditions-memo.md # エフェクト事後条件の言語拡張比較メモ(#21, v0.3+送り)
 │
 ├── assets/                    # ブランド資産(README等で参照)
 │   ├── bow-kun.png           # マスコット bow-kun(契約書を咥えた柴犬, 1024px 原寸)

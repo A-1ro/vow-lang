@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Kei は「AIが書き、人間が承認し、コンパイラが履行を保証する」ことを前提に設計されたプログラミング言語。TypeScript へトランスパイルされる(ターゲット: V8 / Cloudflare Workers / Node)。実装は Rust の Cargo ワークスペース、ランタイム(`@kei/runtime`)のみ TS の npm パッケージ。
 
-**現状: v0.1 実装フェーズ(M0〜M7)完了。** パーサ・意味検査・フォーマッタ・TS トランスパイラ・MCP サーバーが揃い、`kei` CLI の `check` / `fmt` / `build` / `test`(kei_cli)も実装済みで、`cargo test --workspace` が全件パスする。開発は `docs/kei-roadmap-goals.md` の Milestone に沿って /goal 単位で進める。残務はドッグフード実験(人間主導)。
+**現状: v0.1(M0〜M7)+ v0.2(M10〜M13)実装完了。** パーサ・意味検査・フォーマッタ・TS トランスパイラ・MCP サーバーが揃い、`kei` CLI の `check` / `fmt` / `build` / `test`(kei_cli)も実装済みで、`cargo test --workspace` が全件パスする。v0.2 で `match` 式・`extern` 署名・契約の検証レベル報告・数量契約イディオムを追加(`spec/kei-spec-v0.2.md`)。開発は `docs/kei-roadmap-goals.md`(v0.1)・`docs/kei-roadmap-v0.2.md`(v0.2)の Milestone に沿って /goal 単位で進める。
 
 ## Source of Truth(必読)
 
