@@ -12,13 +12,17 @@ tools: Read, Grep, Glob, Bash
 - 最終メッセージは呼び出し元への**構造化レポート**(下記フォーマット)。これがそのまま返り値になる。
 
 ## 監査の進め方
-1. まず変更範囲を特定する。`git status` と `git diff --stat`(未コミットがなければ `git diff --stat main...HEAD`)で、変更されたファイル群を crates / tests / spec / examples / docs に仕分ける。
+1. まず変更範囲を特定する。**staged / unstaged / コミット済みを取りこぼさない**よう次を併用する(`git add` 後に走らせても staged 変更を見落とさないため):
+   - `git status --short` — staged・unstaged・untracked を一覧(全体像)
+   - `git diff --stat HEAD` — 作業ツリーの全変更(staged + unstaged)を HEAD と比較
+   - `git diff --stat $(git merge-base main HEAD)..HEAD` — このブランチがコミット済みで main に加える差分
+   オプション無しの `git diff` / `git diff --stat`(= unstaged のみ)は単独では使わない。これで変更ファイルを crates / tests / spec / examples / docs に仕分ける。
 2. 仕分けに応じて下のチェックリストの該当項目だけを深掘りする。変更が無い領域は監査しない。
 
 ## チェックリスト(不変条件ごと)
 
 ### 1. golden が契約本文(不変条件1 — 最優先)
-- `tests/golden/`・`tests/cli/`・`tests/mcp/` 配下の **expected**(`.json` / `.txt` / 期待 AST ダンプ / 期待 `.ts` / `dist/` ツリー)に変更があるか `git diff --name-only` で確認。
+- `tests/golden/`・`tests/cli/`・`tests/mcp/` 配下の **expected**(`.json` / `.txt` / 期待 AST ダンプ / 期待 `.ts` / `dist/` ツリー)に変更があるか確認する。検出は staged を含めるため `git diff --name-only HEAD`(staged + unstaged)と `git diff --name-only $(git merge-base main HEAD)..HEAD`(コミット済み)を併用し、オプション無しの `git diff --name-only`(unstaged のみ)単独に頼らない。
 - 変更があれば diff を読み、「**新規ケースの追加**」か「**既存 expected の書き換え**」かを判別する。
   - 既存 expected の書き換えは **実装都合で正解を動かした疑い** → 必ず blocker として「**人間レビュー必須**」を明記。
   - とくに同じ diff 内で `crates/` の実装変更と golden 書き換えが同居していたら強い警告。
