@@ -1,0 +1,15 @@
+module fmt.externs
+
+import infra.time as Time
+import infra.database as Database
+
+
+extern Time.now()->Int uses Clock
+
+extern Database.fetchBalance(account: Int) -> Option<Int>  uses  Database.Read
+
+func recordedAt() -> Int
+  uses Clock
+{
+  return Time.now()
+}

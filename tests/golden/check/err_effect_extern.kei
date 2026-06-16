@@ -1,0 +1,11 @@
+module check.effect_extern
+
+import infra.time as Time
+
+extern Time.now() -> Int uses Clock
+
+func recordedAt(reads: Int) -> Int
+  uses Database.Read
+{
+  return Time.now()
+}

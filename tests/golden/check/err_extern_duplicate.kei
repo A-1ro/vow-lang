@@ -1,0 +1,12 @@
+module check.extern_duplicate
+
+import infra.time as Time
+
+extern Time.now() -> Int uses Clock
+extern Time.now() -> Int uses Clock
+
+func recordedAt() -> Int
+  uses Clock
+{
+  return Time.now()
+}

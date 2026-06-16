@@ -195,7 +195,9 @@ impl Parser {
         loop {
             match self.cur().kind {
                 T::Eof => return,
-                T::Module | T::Import | T::Type | T::Record | T::Enum | T::Func if depth == 0 => {
+                T::Module | T::Import | T::Type | T::Record | T::Enum | T::Func | T::Extern
+                    if depth == 0 =>
+                {
                     return;
                 }
                 T::LBrace => {
@@ -292,6 +294,11 @@ impl Parser {
                 T::Func => {
                     if let Some(item) = self.parse_func() {
                         items.push(Item::Func(item));
+                    }
+                }
+                T::Extern => {
+                    if let Some(item) = self.parse_extern() {
+                        items.push(Item::Extern(item));
                     }
                 }
                 T::Module => {
@@ -755,6 +762,63 @@ impl Parser {
         })
     }
 
+    fn parse_extern(&mut self) -> Option<ExternDecl> {
+        let kw = self.bump(); // 'extern'
+                              // 先頭は名前空間(実識別子)、以降のメンバーは式のメンバー
+                              // アクセスと同様に予約語綴りも許す(`Audit.Log.record`)。
+        let first = match self.expect_ident("an external function path") {
+            Some(first) => first,
+            None => {
+                self.recover_to_decl();
+                return None;
+            }
+        };
+        let mut path = vec![first];
+        while self.eat(T::Dot) {
+            match self.expect_member_ident() {
+                Some(seg) => path.push(seg),
+                None => {
+                    self.recover_to_decl();
+                    return None;
+                }
+            }
+        }
+        if !self.expect(T::LParen) {
+            self.recover_to_decl();
+            return None;
+        }
+        let params = self.parse_params();
+        // parse_params は閉じ括弧を消費済み。直前トークンが `)`。
+        let mut end = self.tokens[self.pos.saturating_sub(1)].span;
+        let mut ret = None;
+        if self.at(T::Arrow) {
+            self.bump();
+            ret = self.parse_type();
+            match &ret {
+                Some(t) => end = t.span,
+                None => {
+                    self.recover_to_decl();
+                    return None;
+                }
+            }
+        }
+        let mut uses = Vec::new();
+        if self.at(T::Uses) {
+            self.bump();
+            self.parse_effect_list(&mut uses);
+            if let Some(last) = uses.last() {
+                end = last.span;
+            }
+        }
+        Some(ExternDecl {
+            path,
+            params,
+            ret,
+            uses,
+            span: kw.span.to(end),
+        })
+    }
+
     fn parse_params(&mut self) -> Vec<Param> {
         let open_span = self.tokens[self.pos - 1].span;
         let mut params = Vec::new();
@@ -772,7 +836,7 @@ impl Parser {
             // '(' が閉じられていないとみなして引数並びを打ち切る。
             if matches!(
                 self.cur().kind,
-                T::Module | T::Import | T::Type | T::Record | T::Enum | T::Func
+                T::Module | T::Import | T::Type | T::Record | T::Enum | T::Func | T::Extern
             ) && self.tokens.get(self.pos + 1).map(|t| t.kind) != Some(T::Colon)
             {
                 self.unclosed_delimiter("(", open_span, ")");

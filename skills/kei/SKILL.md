@@ -199,7 +199,8 @@ import infra.database as Database         // 名前空間に別名を付けて i
 - import は**全て明示**。ワイルドカード・再エクスポート禁止。
 - モジュールパスはファイルパスと 1:1(`payments.transfer` ↔ `payments/transfer.kei`)。`module` のパス各セグメントに予約語(`fail` 等)は使えない(`KEI-E0102`)。
 - 暗黙の import は無い。使う外部名は必ず import する。
-- `as` で別名 import した名前空間配下のメンバ呼び出し(`Database.fetchBalance(...)` 等)は **opaque** 扱い。v0.1 の `check` は外部モジュールの実体を解決しないので、戻り型を気にせず呼べて check も通る(本体ロジックは自分で正しく組むこと)。
+- `as` で別名 import した名前空間配下のメンバ呼び出し(`Database.fetchBalance(...)` 等)は、既定では **opaque** 扱い。`check` は外部モジュールの実体を解決しないので、戻り型を気にせず呼べて check も通る(本体ロジックは自分で正しく組むこと)。
+- **境界を検証したいなら `extern` 署名を宣言する(v0.2)。** `extern Time.now() -> Int uses Clock` のように外部関数の戻り型・エフェクトを宣言すると、その呼び出しは opaque でなくなり、戻り型が型検査に伝播し、エフェクトが呼び出し元の `uses` へ推移伝播する(宣言漏れは `KEI-E3001`)。`extern` は import の後・モジュール先頭の宣言群に置く。詳細は §3「外部境界(extern)」と `spec/kei-spec-v0.2.md` §2。
 
 ---
 
@@ -274,6 +275,32 @@ func viaIO(id: Int) -> Bool
 | `Audit.Log` | 監査ログ |
 
 中間ノード(`Network` / `File` / `Database`)も書ける。これ以外を書くと `KEI-E3002 unknown effect`(ユーザー定義エフェクトは v0.2 以降)。
+
+### 外部境界(extern / v0.2)
+
+外部呼び出し(`Database.*` / `Time.now()` 等)は既定で opaque だが、`extern` 署名を宣言すると
+**戻り型とエフェクトが検査される**。境界を合意書に載せたいときに使う。
+
+```kei
+module fx.extern
+
+import infra.time as Time
+
+extern Time.now() -> Int uses Clock
+
+func recordedAt() -> Int
+  uses Clock                  // ← extern が uses Clock を宣言しているので、ここにも要る
+{
+  return Time.now()
+}
+```
+
+- `extern <名前空間パス>(<引数>) [-> <戻り型>] [uses <エフェクト...>]`。import の後に置く。
+- 宣言したエフェクトは呼び出し元の `uses` へ推移伝播する。書き忘れると `KEI-E3001`(↓§7)。
+  ✗ 上記で `uses Clock` を消すと「`Clock` used but not declared ... required by call to 'Time.now'」。
+- 戻り型は型検査に伝播する(`match` / `else fail` で開ける)。取り違えは `KEI-E2001`。
+- opt-in。`extern` の無い外部呼び出しは従来どおり opaque で通る(段階移行)。
+- 重複署名は `KEI-E3003`、`uses` に標準外エフェクトは `KEI-E3002`。
 
 ---
 

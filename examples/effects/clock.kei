@@ -1,0 +1,11 @@
+module effects.clock
+
+import infra.time as Time
+
+extern Time.now() -> Int uses Clock
+
+func currentTimestamp() -> Int
+  uses Clock
+{
+  return Time.now()
+}

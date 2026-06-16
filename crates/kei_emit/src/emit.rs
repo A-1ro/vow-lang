@@ -146,6 +146,8 @@ impl RuntimeUses {
                     }
                     u.block(&f.body);
                 }
+                // extern は型・エフェクトの署名のみ。TS には何も生成しない。
+                ast::Item::Extern(_) => {}
             }
         }
         u
@@ -344,12 +346,17 @@ impl Emitter<'_> {
         }
 
         for item in &self.module.items {
+            // extern は外部境界の署名(検査専用)。TS 出力は持たない。
+            if matches!(item, ast::Item::Extern(_)) {
+                continue;
+            }
             self.out.newline();
             match item {
                 ast::Item::TypeAlias(a) => self.emit_alias(a),
                 ast::Item::Record(r) => self.emit_record(r),
                 ast::Item::Enum(e) => self.emit_enum(e),
                 ast::Item::Func(f) => self.emit_func(f),
+                ast::Item::Extern(_) => unreachable!("extern items are skipped above"),
             }
         }
     }

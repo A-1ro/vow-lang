@@ -30,6 +30,7 @@ pub enum TokenKind {
     False,
     Implies,
     Match,
+    Extern,
     // デリミタ・区切り
     LParen,
     RParen,
@@ -83,6 +84,7 @@ impl TokenKind {
             "false" => TokenKind::False,
             "implies" => TokenKind::Implies,
             "match" => TokenKind::Match,
+            "extern" => TokenKind::Extern,
             _ => return None,
         })
     }
@@ -110,6 +112,7 @@ impl TokenKind {
                 | TokenKind::False
                 | TokenKind::Implies
                 | TokenKind::Match
+                | TokenKind::Extern
         )
     }
 
@@ -159,6 +162,7 @@ impl TokenKind {
             TokenKind::False => "false",
             TokenKind::Implies => "implies",
             TokenKind::Match => "match",
+            TokenKind::Extern => "extern",
             _ => return None,
         })
     }

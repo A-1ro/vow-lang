@@ -1,0 +1,22 @@
+module check.extern_ok
+
+import infra.database as Database
+import infra.time as Time
+
+extern Time.now() -> Int uses Clock
+extern Database.fetchBalance(account: Int) -> Option<Int> uses Database.Read
+
+func recordedAt() -> Int
+  uses Clock
+{
+  return Time.now()
+}
+
+func balanceOr(account: Int, fallback: Int) -> Int
+  uses Database.Read
+{
+  return match Database.fetchBalance(account) {
+    Some(b) => b
+    None => fallback
+  }
+}

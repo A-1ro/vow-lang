@@ -1,0 +1,11 @@
+module check.extern_type
+
+import infra.database as Database
+
+extern Database.fetchBalance(account: Int) -> Option<Int> uses Database.Read
+
+func balance(account: Int) -> Int
+  uses Database.Read
+{
+  return Database.fetchBalance(account)
+}

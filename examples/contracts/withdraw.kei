@@ -3,6 +3,9 @@ module contracts.withdraw
 import core.money { AccountId, Money }
 import infra.database as Database
 
+extern Database.fetchBalance(account: AccountId) -> Option<Money> uses Database.Read
+extern Database.setBalance(account: AccountId, balance: Money) uses Database.Write
+
 enum WithdrawError {
   NotFound(AccountId)
   Overdraft { limit: Money }

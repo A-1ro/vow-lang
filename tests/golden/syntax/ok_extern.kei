@@ -1,0 +1,3 @@
+extern Time.now() -> Int uses Clock
+extern Database.fetchBalance(account: AccountId) -> Option<Money> uses Database.Read
+extern Audit.Log.record(entry: Entry)

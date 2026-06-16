@@ -4,6 +4,10 @@ import core.money { AccountId, Money }
 import infra.audit as Audit
 import infra.database as Database
 
+record Account {
+  balance: Money
+}
+
 record TransferReceipt {
   from: AccountId
   to: AccountId
@@ -14,6 +18,11 @@ enum TransferError {
   NotFound(AccountId)
   InsufficientFunds { needed: Money, had: Money }
 }
+
+extern Database.fetchAccount(account: AccountId) -> Option<Account> uses Database.Read
+extern Database.debit(account: AccountId, amount: Money) uses Database.Write
+extern Database.credit(account: AccountId, amount: Money) uses Database.Write
+extern Audit.Log.record(entry: TransferReceipt) uses Audit.Log
 
 func transferFunds(from: AccountId, to: AccountId, amount: Money) -> Result<TransferReceipt, TransferError>
   uses Database.Read, Database.Write, Audit.Log

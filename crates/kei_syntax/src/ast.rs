@@ -46,6 +46,20 @@ pub enum Item {
     Record(RecordDecl),
     Enum(EnumDecl),
     Func(FuncDecl),
+    Extern(ExternDecl),
+}
+
+/// 外部境界の署名宣言(M11)。
+/// `extern Time.now() -> Int uses Clock` のように、import した名前空間配下の
+/// 外部関数の戻り型・エフェクトを宣言する。本体は持たない。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ExternDecl {
+    /// `[Time, now]` / `[Database, fetchBalance]` / `[Audit, Log, record]`
+    pub path: Vec<Ident>,
+    pub params: Vec<Param>,
+    pub ret: Option<Type>,
+    pub uses: Vec<EffectRef>,
+    pub span: Span,
 }
 
 /// `type AccountId = String tagged "AccountId"`

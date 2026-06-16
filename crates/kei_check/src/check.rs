@@ -32,6 +32,7 @@ mod codes {
     pub const MATCH_PATTERN: &str = "KEI-E2009";
     pub const EFFECT_UNDECLARED: &str = "KEI-E3001";
     pub const UNKNOWN_EFFECT: &str = "KEI-E3002";
+    pub const DUPLICATE_EXTERN: &str = "KEI-E3003";
     pub const IMPURE_CONTRACT: &str = "KEI-E4001";
     pub const CONTRACT_CONSTRUCT: &str = "KEI-E4002";
 }
@@ -109,6 +110,14 @@ struct FuncSig {
     uses_end: Option<SynPosition>,
 }
 
+/// 外部境界の署名(M11)。`extern Time.now() -> Int uses Clock` の登録形。
+#[derive(Debug, Clone)]
+struct ExternSig {
+    params: Vec<(String, Ty)>,
+    ret: Ty,
+    effects: Vec<String>,
+}
+
 struct Env {
     file: String,
     kinds: HashMap<String, NameKind>,
@@ -116,6 +125,8 @@ struct Env {
     enums: HashMap<String, Vec<(String, VariantDef)>>,
     aliases: HashMap<String, Ty>,
     funcs: HashMap<String, FuncSig>,
+    /// 外部関数の署名。フルパス(`"Database.fetchBalance"`)で引く。
+    externs: HashMap<String, ExternSig>,
 }
 
 impl Env {
@@ -131,6 +142,7 @@ impl Env {
             enums: HashMap::new(),
             aliases: HashMap::new(),
             funcs: HashMap::new(),
+            externs: HashMap::new(),
         };
         // 名前 → 最初の定義位置(重複メッセージと「最初の定義のみ有効」の判定)。
         let mut first: HashMap<String, SynSpan> = HashMap::new();
@@ -172,6 +184,8 @@ impl Env {
                 ast::Item::Record(r) => (&r.name, NameKind::Record),
                 ast::Item::Enum(e) => (&e.name, NameKind::Enum),
                 ast::Item::Func(f) => (&f.name, NameKind::Func),
+                // extern はローカル名を導入しない(外部パスの署名のみ)。
+                ast::Item::Extern(_) => continue,
             };
             match (env.kinds.get(&ident.name), first.get(&ident.name)) {
                 (Some(NameKind::Import), Some(_)) => {
@@ -373,6 +387,75 @@ impl Env {
                 env.funcs.insert(f.name.name.clone(), sig.clone());
             }
             fn_sigs.push(Some(sig));
+        }
+
+        // 6) extern 署名の登録(M11)。重複は E3003、未知エフェクトは E3002。
+        for item in &module.items {
+            let ast::Item::Extern(e) = item else { continue };
+            let key = e
+                .path
+                .iter()
+                .map(|i| i.name.as_str())
+                .collect::<Vec<_>>()
+                .join(".");
+            if env.externs.contains_key(&key) {
+                env.push(
+                    diags,
+                    codes::DUPLICATE_EXTERN,
+                    format!("duplicate extern signature for '{key}'"),
+                    e.span,
+                    vec![direction(format!(
+                        "Remove the duplicate extern for '{key}'"
+                    ))],
+                );
+                continue;
+            }
+            let mut params = Vec::new();
+            for p in &e.params {
+                let ty = env.resolve_ty(&p.ty, diags);
+                params.push((p.name.name.clone(), ty));
+            }
+            let ret = e
+                .ret
+                .as_ref()
+                .map(|t| env.resolve_ty(t, diags))
+                .unwrap_or(Ty::Unit);
+            let mut effects = Vec::new();
+            for u in &e.uses {
+                let path = u
+                    .path
+                    .iter()
+                    .map(|i| i.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(".");
+                if effects::is_known(&path) {
+                    if !effects.contains(&path) {
+                        effects.push(path);
+                    }
+                } else {
+                    let fix = match suggestion(&path, effects::STANDARD_EFFECTS.iter().copied()) {
+                        Some(s) => env.replace_fix(format!("Did you mean '{s}'?"), u.span, &s),
+                        None => direction(
+                            "Use a standard effect (IO, Network.*, File.*, Database.*, Clock, Random, Audit.Log)",
+                        ),
+                    };
+                    env.push(
+                        diags,
+                        codes::UNKNOWN_EFFECT,
+                        format!("unknown effect '{path}'"),
+                        u.span,
+                        vec![fix],
+                    );
+                }
+            }
+            env.externs.insert(
+                key,
+                ExternSig {
+                    params,
+                    ret,
+                    effects,
+                },
+            );
         }
 
         (env, fn_sigs)
@@ -1133,6 +1216,18 @@ impl FnChecker<'_> {
                         return self.call_variant(&root.clone(), vname, args, span);
                     }
                 }
+                // 外部境界(import した名前空間配下)の呼び出しで extern 署名が
+                // あれば照合する。無ければ従来どおり opaque(M11 段階移行)。
+                if let Some(path) = field_path(callee) {
+                    if self.lookup_scope(&path[0]).is_none()
+                        && self.env.kinds.get(&path[0]) == Some(&NameKind::Import)
+                    {
+                        let key = path.join(".");
+                        if let Some(sig) = self.env.externs.get(&key).cloned() {
+                            return self.call_extern(&key, &sig, args, span);
+                        }
+                    }
+                }
                 let callee_ty = self.infer(callee);
                 self.call_value(&callee_ty, args, span)
             }
@@ -1317,10 +1412,43 @@ impl FnChecker<'_> {
             self.infer(arg);
         }
 
+        self.check_call_effects(&callee.effects, name, span);
+        callee.ret
+    }
+
+    /// 外部境界の呼び出し(M11)。extern 署名と引数を照合し、戻り型を返し、
+    /// 宣言エフェクトを呼び出し元の uses へ推移伝播する(境界越しの E3001)。
+    fn call_extern(&mut self, key: &str, sig: &ExternSig, args: &[ast::Expr], span: SynSpan) -> Ty {
+        if args.len() != sig.params.len() {
+            self.push(
+                codes::TYPE_MISMATCH,
+                format!(
+                    "external function '{key}' takes {} argument(s), found {}",
+                    sig.params.len(),
+                    args.len()
+                ),
+                span,
+                vec![direction("Adjust the arguments")],
+            );
+        }
+        for (arg, (_, pty)) in args.iter().zip(&sig.params) {
+            let at = self.infer(arg);
+            self.check_assign(&pty.clone(), &at, arg.span());
+        }
+        for arg in args.iter().skip(sig.params.len()) {
+            self.infer(arg);
+        }
+        self.check_call_effects(&sig.effects, key, span);
+        sig.ret.clone()
+    }
+
+    /// 呼び出し先(ローカル関数 / extern)の宣言エフェクトを呼び出し元の uses に
+    /// 照合する。本体では未宣言を E3001、契約式では副作用を E4001。
+    fn check_call_effects(&mut self, effects: &[String], callee: &str, span: SynSpan) {
         if self.mode == Mode::Body {
-            // エフェクト検査: 呼び出し先の宣言エフェクトが呼び出し元の uses に
-            // 包含されているか(推移的伝播 + 階層包含判定)。
-            for eff in &callee.effects {
+            // 呼び出し先の宣言エフェクトが呼び出し元の uses に包含されているか
+            // (推移的伝播 + 階層包含判定)。
+            for eff in effects {
                 if self.sig.effects.iter().any(|d| effects::covers(d, eff)) {
                     continue;
                 }
@@ -1339,25 +1467,24 @@ impl FnChecker<'_> {
                     self.diags,
                     codes::EFFECT_UNDECLARED,
                     format!(
-                        "effect '{eff}' used but not declared in 'uses' clause of '{caller}' (required by call to '{name}')"
+                        "effect '{eff}' used but not declared in 'uses' clause of '{caller}' (required by call to '{callee}')"
                     ),
                     span,
                     vec![fix],
                 );
             }
-        } else if !callee.effects.is_empty() {
-            // 契約純粋性検査: 契約式の中ではエフェクトを持つ関数を呼べない(spec §4)。
+        } else if !effects.is_empty() {
+            // 契約純粋性検査: 契約式の中ではエフェクトを持つ呼び出しを禁止(spec §4)。
             self.push(
                 codes::IMPURE_CONTRACT,
                 format!(
-                    "call to '{name}' (uses {}) is not allowed in a contract; contract expressions must be pure",
-                    callee.effects.join(", ")
+                    "call to '{callee}' (uses {}) is not allowed in a contract; contract expressions must be pure",
+                    effects.join(", ")
                 ),
                 span,
                 vec![direction("Move the effectful call into the function body")],
             );
         }
-        callee.ret
     }
 
     fn call_variant(
@@ -2197,6 +2324,20 @@ fn direction(title: impl Into<String>) -> Fix {
     Fix {
         title: title.into(),
         edits: vec![],
+    }
+}
+
+/// `Database.fetchBalance` のような Name/Field 連鎖をドット区切りのパスに戻す。
+/// extern 署名の照合に使う(それ以外の式なら `None`)。
+fn field_path(expr: &ast::Expr) -> Option<Vec<String>> {
+    match expr {
+        ast::Expr::Name { name, .. } => Some(vec![name.clone()]),
+        ast::Expr::Field { base, name, .. } => {
+            let mut path = field_path(base)?;
+            path.push(name.name.clone());
+            Some(path)
+        }
+        _ => None,
     }
 }
 

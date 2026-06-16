@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Change the expression to type 'Int'"
+      }
+    ],
+    "message": "expected 'Int', found 'Option<Int>'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 40,
+        "line": 10
+      },
+      "file": "tests/golden/check/err_extern_type.kei",
+      "start": {
+        "col": 10,
+        "line": 10
+      }
+    }
+  }
+]

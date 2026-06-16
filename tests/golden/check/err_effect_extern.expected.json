@@ -1,0 +1,39 @@
+[
+  {
+    "code": "KEI-E3001",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": ", Clock",
+            "span": {
+              "end": {
+                "col": 21,
+                "line": 8
+              },
+              "file": "tests/golden/check/err_effect_extern.kei",
+              "start": {
+                "col": 21,
+                "line": 8
+              }
+            }
+          }
+        ],
+        "title": "Add 'Clock' to uses clause"
+      }
+    ],
+    "message": "effect 'Clock' used but not declared in 'uses' clause of 'recordedAt' (required by call to 'Time.now')",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 20,
+        "line": 10
+      },
+      "file": "tests/golden/check/err_effect_extern.kei",
+      "start": {
+        "col": 10,
+        "line": 10
+      }
+    }
+  }
+]

@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E3002",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Use a standard effect (IO, Network.*, File.*, Database.*, Clock, Random, Audit.Log)"
+      }
+    ],
+    "message": "unknown effect 'Wallclock'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 40,
+        "line": 5
+      },
+      "file": "tests/golden/check/err_extern_unknown_effect.kei",
+      "start": {
+        "col": 31,
+        "line": 5
+      }
+    }
+  }
+]

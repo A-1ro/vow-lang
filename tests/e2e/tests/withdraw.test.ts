@@ -63,7 +63,7 @@ describe("contracts/withdraw", () => {
     expect(violation.func).toBe("withdraw");
     expect(violation.condition).toBe("amount > Money.zero");
     expect(violation.file).toBe("examples/contracts/withdraw.kei");
-    expect(violation.line).toBe(13);
+    expect(violation.line).toBe(16);
     // 構造化データとして JSON 化できる(診断は JSON が正、散文は派生)。
     expect(violation.toJSON()).toEqual({
       name: "KeiContractViolation",
@@ -71,7 +71,7 @@ describe("contracts/withdraw", () => {
       func: "withdraw",
       condition: "amount > Money.zero",
       file: "examples/contracts/withdraw.kei",
-      line: 13,
+      line: 16,
       col: violation.col,
     });
     // requires 違反時は本体が実行されない(残高不変)。

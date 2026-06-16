@@ -1,0 +1,5 @@
+module check.extern_unknown_effect
+
+import infra.time as Time
+
+extern Time.now() -> Int uses Wallclock

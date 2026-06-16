@@ -88,3 +88,54 @@ func isOverdue(daysLeft: Option<Int>) -> Option<Bool> {
 | `None` 腕 | `if (!m.ok) { ... }` |
 | `Enum.V(a, b)` 腕 | `if (m.kind === "V") { const a = m.values[0]; const b = m.values[1]; ... }` |
 | `Enum.V { f }` 腕 | `if (m.kind === "V") { const f = m.fields.f; ... }` |
+
+## 2. `extern` 署名 — 外部境界の検証(M11 / #22)
+
+v0.1 では `import infra.database as Database` 配下の呼び出し(`Database.fetchBalance(...)`
+/ `Time.now()`)が **opaque** で、戻り型もエフェクトも検査対象外だった。`Time.now()` を
+呼びながら `uses Clock` を宣言し忘れても検出されない——「曖昧さゼロ・暗黙なし」を掲げる
+言語の**境界部分でだけ合意書の担保が外れていた**。`extern` 署名はこの穴を塞ぐ。
+
+### 2.1 構文
+
+```kei
+import infra.time as Time
+import infra.database as Database
+
+extern Time.now() -> Int uses Clock
+extern Database.fetchBalance(account: AccountId) -> Option<Money> uses Database.Read
+extern Database.setBalance(account: AccountId, balance: Money) uses Database.Write
+extern Audit.Log.record(entry: TransferReceipt) uses Audit.Log
+```
+
+- `extern <名前空間パス>(<パラメータ>) [-> <戻り型>] [uses <エフェクト...>]`。
+- モジュール先頭の宣言群(import の後)に置く。本体は持たない。
+- パスは import した名前空間配下のメンバー(`Time.now` / `Audit.Log.record`)。
+- 戻り型・`uses` は省略可(省略時はそれぞれ Unit / エフェクトなし)。
+- `extern` は **検査専用**。TS には何も出力しない(呼び出し側は従来どおり対応する
+  TS 呼び出し/import に素直に写る)。
+
+### 2.2 意味論
+
+`extern` 署名が宣言された外部呼び出しは、もはや opaque ではない:
+
+1. **戻り型が型検査に伝播する。** `Database.fetchBalance(account)` は `Option<Money>` を返す
+   値として扱われ、`match` で分解したり `else fail` で開いたりできる。型を取り違えると
+   `KEI-E2001`。
+2. **エフェクトが呼び出し元の `uses` へ推移伝播する。** ローカル関数呼び出しと同じ規則。
+   宣言漏れは**境界越しで `KEI-E3001`** として落ちる(#22 の「`uses Clock` 書き忘れ」が
+   正しくエラーになる)。
+3. **引数の個数・型を照合する**(`KEI-E2001`)。
+4. `uses` に書けるのは標準エフェクト階層のノードのみ(`KEI-E3002`)。同じ外部パスへの
+   重複宣言は `KEI-E3003`。
+
+### 2.3 移行戦略(段階移行 / gradual)
+
+v0.2 は **opt-in**。`extern` を宣言した呼び出しだけが照合される。署名の無い外部呼び出しは
+**従来どおり opaque**(check を通る)で、既存コードを壊さない。これは #22 の事前合意の
+(a)「段階移行」に対応する第一段階で、境界を 1 つずつ合意書に載せていける。
+
+> **未宣言呼び出しの扱いの将来:** 「extern 未宣言の外部呼び出し」を warning/error として
+> 検出する厳格モードは v0.3+ の段階で導入する(v0.1 の `ok_*` 検査群が外部呼び出しを
+> 別目的で多用しており、一括 flag-day 移行は時期尚早。HANDOFF の「スコープ発散が死因」と
+> #22 の P3 位置づけに従い、まず enforcement-when-declared を確立する)。

@@ -21,8 +21,20 @@ pub fn format_module(module: &Module) -> String {
         let lines: Vec<String> = module.imports.iter().map(import_text).collect();
         chunks.push(lines.join("\n"));
     }
-    for item in &module.items {
-        chunks.push(item_text(item));
+    // 連続する extern 宣言は import と同様に 1 ブロックへまとめる(空行で割らない)。
+    let mut i = 0;
+    while i < module.items.len() {
+        if matches!(module.items[i], Item::Extern(_)) {
+            let mut group = Vec::new();
+            while let Some(Item::Extern(e)) = module.items.get(i) {
+                group.push(extern_text(e));
+                i += 1;
+            }
+            chunks.push(group.join("\n"));
+        } else {
+            chunks.push(item_text(&module.items[i]));
+            i += 1;
+        }
     }
     if chunks.is_empty() {
         return String::new();
@@ -71,7 +83,27 @@ fn item_text(item: &Item) -> String {
         Item::Record(record) => record_text(record),
         Item::Enum(decl) => enum_text(decl),
         Item::Func(func) => func_text(func),
+        Item::Extern(decl) => extern_text(decl),
     }
+}
+
+fn extern_text(decl: &ExternDecl) -> String {
+    let params: Vec<String> = decl
+        .params
+        .iter()
+        .map(|p| format!("{}: {}", p.name.name, type_text(&p.ty)))
+        .collect();
+    let mut s = format!("extern {}({})", path_text(&decl.path), params.join(", "));
+    if let Some(ret) = &decl.ret {
+        s.push_str(" -> ");
+        s.push_str(&type_text(ret));
+    }
+    if !decl.uses.is_empty() {
+        let effects: Vec<String> = decl.uses.iter().map(|e| path_text(&e.path)).collect();
+        s.push_str(" uses ");
+        s.push_str(&effects.join(", "));
+    }
+    s
 }
 
 fn type_alias_text(alias: &TypeAlias) -> String {

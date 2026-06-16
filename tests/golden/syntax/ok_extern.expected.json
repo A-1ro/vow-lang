@@ -1,0 +1,151 @@
+{
+  "decl": null,
+  "imports": [],
+  "items": [
+    {
+      "kind": "Extern",
+      "params": [],
+      "path": [
+        {
+          "name": "Time",
+          "span": "1:8-1:12"
+        },
+        {
+          "name": "now",
+          "span": "1:13-1:16"
+        }
+      ],
+      "ret": {
+        "args": [],
+        "path": [
+          {
+            "name": "Int",
+            "span": "1:22-1:25"
+          }
+        ],
+        "span": "1:22-1:25"
+      },
+      "span": "1:1-1:36",
+      "uses": [
+        {
+          "path": [
+            {
+              "name": "Clock",
+              "span": "1:31-1:36"
+            }
+          ],
+          "span": "1:31-1:36"
+        }
+      ]
+    },
+    {
+      "kind": "Extern",
+      "params": [
+        {
+          "name": {
+            "name": "account",
+            "span": "2:30-2:37"
+          },
+          "span": "2:30-2:48",
+          "ty": {
+            "args": [],
+            "path": [
+              {
+                "name": "AccountId",
+                "span": "2:39-2:48"
+              }
+            ],
+            "span": "2:39-2:48"
+          }
+        }
+      ],
+      "path": [
+        {
+          "name": "Database",
+          "span": "2:8-2:16"
+        },
+        {
+          "name": "fetchBalance",
+          "span": "2:17-2:29"
+        }
+      ],
+      "ret": {
+        "args": [
+          {
+            "args": [],
+            "path": [
+              {
+                "name": "Money",
+                "span": "2:60-2:65"
+              }
+            ],
+            "span": "2:60-2:65"
+          }
+        ],
+        "path": [
+          {
+            "name": "Option",
+            "span": "2:53-2:59"
+          }
+        ],
+        "span": "2:53-2:66"
+      },
+      "span": "2:1-2:85",
+      "uses": [
+        {
+          "path": [
+            {
+              "name": "Database",
+              "span": "2:72-2:80"
+            },
+            {
+              "name": "Read",
+              "span": "2:81-2:85"
+            }
+          ],
+          "span": "2:72-2:85"
+        }
+      ]
+    },
+    {
+      "kind": "Extern",
+      "params": [
+        {
+          "name": {
+            "name": "entry",
+            "span": "3:25-3:30"
+          },
+          "span": "3:25-3:37",
+          "ty": {
+            "args": [],
+            "path": [
+              {
+                "name": "Entry",
+                "span": "3:32-3:37"
+              }
+            ],
+            "span": "3:32-3:37"
+          }
+        }
+      ],
+      "path": [
+        {
+          "name": "Audit",
+          "span": "3:8-3:13"
+        },
+        {
+          "name": "Log",
+          "span": "3:14-3:17"
+        },
+        {
+          "name": "record",
+          "span": "3:18-3:24"
+        }
+      ],
+      "ret": null,
+      "span": "3:1-3:38",
+      "uses": []
+    }
+  ],
+  "span": "1:1-4:1"
+}
