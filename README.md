@@ -120,7 +120,7 @@ cd runtime && npm install && npm run build
 
 CI(`.github/workflows/ci.yml`)は **fmt / clippy / test** の 3 ジョブ。test ジョブは Node 22 をセットアップする(e2e が npm/npx を使うため)。
 
-テスト規模(現状): golden — syntax 18 / check 17 / fmt 8 ペア、MCP 16 ペア。e2e vitest 5 本。エラーコード解説 22 本。
+テスト規模(現状): golden — syntax 18 / check 19 / fmt 8 ペア、MCP 17 ペア。e2e vitest 5 本。エラーコード解説 22 本。
 
 ---
 
