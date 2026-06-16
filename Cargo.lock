@@ -177,7 +177,7 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "kei_check"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "kei_syntax",
  "serde",
@@ -186,7 +186,7 @@ dependencies = [
 
 [[package]]
 name = "kei_cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "kei_check",
  "kei_emit",
@@ -197,7 +197,7 @@ dependencies = [
 
 [[package]]
 name = "kei_emit"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "kei_check",
  "kei_syntax",
@@ -206,7 +206,7 @@ dependencies = [
 
 [[package]]
 name = "kei_fmt"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "kei_syntax",
  "proptest",
@@ -215,7 +215,7 @@ dependencies = [
 
 [[package]]
 name = "kei_lsp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "kei_check",
  "kei_fmt",
@@ -228,7 +228,7 @@ dependencies = [
 
 [[package]]
 name = "kei_mcp"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "kei_check",
  "kei_fmt",
@@ -238,7 +238,7 @@ dependencies = [
 
 [[package]]
 name = "kei_syntax"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde",
 ]
