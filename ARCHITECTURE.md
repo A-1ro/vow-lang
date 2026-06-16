@@ -59,7 +59,8 @@ kei-lang/
 │           └── broken/       # 検査エラーを含むall-or-nothing検証用(dist は git管理外)
 │
 ├── docs/                     # ロードマップ・設計メモ
-│   └── kei-roadmap-goals.md
+│   ├── kei-roadmap-goals.md          # v0.1(M0–M7)+ 提案中の M8/M9
+│   └── kei-roadmap-v0.2.md           # v0.2(M10–M13: 健全性・契約表現力)
 │
 ├── assets/                    # ブランド資産(README等で参照)
 │   ├── bow-kun.png           # マスコット bow-kun(契約書を咥えた柴犬, 1024px 原寸)
