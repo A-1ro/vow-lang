@@ -12,6 +12,7 @@ kei-lang/
 ├── rust-toolchain.toml       # ツールチェイン固定
 ├── ARCHITECTURE.md           # 本ファイル
 ├── CLAUDE.md                 # Claude Code向けプロジェクトコンテキスト
+├── HANDOFF.md                # 設計判断の経緯(なぜ今こうなっているか)
 ├── install.sh                # `kei` CLIのビルド済みバイナリ導入スクリプト(curl|sh)
 │
 ├── crates/

@@ -207,6 +207,7 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"kei_spec",
 - [`skills/kei/SKILL.md`](skills/kei/SKILL.md) — Claude Code 向けの Kei 取説スキル(配布可能プラグインとして同梱)
 - [`docs/kei-roadmap-goals.md`](docs/kei-roadmap-goals.md) — Milestone 別の /goal 契約書集
 - [`CLAUDE.md`](CLAUDE.md) — Claude Code 向けの作業ガイド
+- [`HANDOFF.md`](HANDOFF.md) — 設計判断の経緯(なぜこの設計を選んだか・踏んだ地雷)。目的は intent-align、手段は DDD、結果は TDD
 
 ## ライセンス
 
