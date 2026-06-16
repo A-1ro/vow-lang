@@ -14,7 +14,26 @@
 //!    = fix: <fix title>
 //! ```
 
-use kei_check::{Diagnostic, Severity};
+use kei_check::{ContractInfo, Diagnostic, Severity};
+
+/// 契約の検証レベル要約(散文)。`--json` の `contracts` の派生表示。
+/// 契約が無ければ空文字列。各行は `<func> <kind> <expr>  [<level>]`。
+pub fn contracts(infos: &[ContractInfo]) -> String {
+    if infos.is_empty() {
+        return String::new();
+    }
+    let mut out = String::from("verification:\n");
+    for c in infos {
+        out.push_str(&format!(
+            "  {} {} {}  [{}]\n",
+            c.func,
+            c.kind.as_str(),
+            c.expr,
+            c.verification.as_str()
+        ));
+    }
+    out
+}
 
 /// Diagnostic 列を散文に整形する。`source` はキャレット下線のためのソース全文。
 /// 各 Diagnostic ブロックは空行で区切り、全体は改行で終わる。空列は空文字列。

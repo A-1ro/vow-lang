@@ -1,0 +1,4 @@
+verification:
+  increment requires step > 0  [runtime]
+  increment requires true  [static]
+  increment ensures result == old(count) + step  [runtime]

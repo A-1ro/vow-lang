@@ -1,0 +1,9 @@
+module cli.ok_contract
+
+func increment(count: Int, step: Int) -> Int
+  requires step > 0
+  requires true
+  ensures result == old(count) + step
+{
+  return count + step
+}

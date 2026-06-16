@@ -194,16 +194,23 @@ fn spec_index() -> String {
 
 // ---- kei_check ----
 
-/// 構文+意味検査。Diagnostic[] の整形 JSON を返す(検査成功は is_error=false。
-/// Diagnostic はエラーではなくデータとして返す)。
+/// 構文+意味検査。`CheckReport`(`{ diagnostics, contracts }`)の整形 JSON を返す
+/// (検査成功は is_error=false。Diagnostic はエラーではなくデータとして返す)。
+/// 契約には達成検証レベル(static / runtime / …)が載る(M12)。
 pub fn run_check(source: &str) -> ToolOutcome {
     let parsed = kei_syntax::parse_module(source);
-    let mut diags = kei_check::syntax_diagnostics(SYNTHETIC_FILE, &parsed.errors);
     // 構文エラーがあるときは壊れた AST に意味検査をかけない(golden_check と同方針)。
-    if parsed.errors.is_empty() {
-        diags.extend(kei_check::check_module(SYNTHETIC_FILE, &parsed.module));
-    }
-    ToolOutcome::ok(diagnostics_json(&diags))
+    let report = if parsed.errors.is_empty() {
+        kei_check::check_module_report(SYNTHETIC_FILE, &parsed.module)
+    } else {
+        kei_check::CheckReport {
+            diagnostics: kei_check::syntax_diagnostics(SYNTHETIC_FILE, &parsed.errors),
+            contracts: Vec::new(),
+        }
+    };
+    let json = serde_json::to_string_pretty(&report)
+        .unwrap_or_else(|_| "{ \"diagnostics\": [], \"contracts\": [] }".to_string());
+    ToolOutcome::ok(json)
 }
 
 // ---- kei_fmt ----

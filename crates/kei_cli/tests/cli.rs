@@ -232,15 +232,18 @@ fn fmt_golden() {
 
 #[test]
 fn check_exit_codes_and_json_shape() {
-    // クリーンファイル: exit 0、散文は無出力、--json は "[]"。
+    // クリーンで契約なしのファイル: exit 0、散文は無出力、--json は空レポート。
     let ok = run_kei(&["check", "tests/cli/checks/ok_options.kei"]);
     assert_eq!(ok.code, 0);
     assert_eq!(ok.stdout, "");
     let ok_json = run_kei(&["check", "--json", "tests/cli/checks/ok_options.kei"]);
     assert_eq!(ok_json.code, 0);
-    assert_eq!(ok_json.stdout, "[]\n");
+    let ok_parsed: serde_json::Value =
+        serde_json::from_str(&ok_json.stdout).expect("--json emits valid JSON");
+    assert_eq!(ok_parsed["diagnostics"].as_array().unwrap().len(), 0);
+    assert_eq!(ok_parsed["contracts"].as_array().unwrap().len(), 0);
 
-    // エラーありファイル: exit 1。--json は構造化 Diagnostic[](パース可能)。
+    // エラーありファイル: exit 1。--json は CheckReport(diagnostics に Diagnostic[])。
     let err = run_kei(&["check", "tests/cli/checks/err_effect.kei"]);
     assert_eq!(err.code, 1);
     assert!(err.stdout.contains("error[KEI-E3001]"));
@@ -248,10 +251,25 @@ fn check_exit_codes_and_json_shape() {
     assert_eq!(err_json.code, 1);
     let parsed: serde_json::Value =
         serde_json::from_str(&err_json.stdout).expect("--json emits valid JSON");
-    let arr = parsed.as_array().expect("Diagnostic[] is a JSON array");
+    let arr = parsed["diagnostics"]
+        .as_array()
+        .expect("diagnostics is a JSON array");
     assert!(!arr.is_empty());
     assert_eq!(arr[0]["code"], "KEI-E3001");
     assert_eq!(arr[0]["severity"], "error");
+
+    // 契約付きファイル: --json の contracts に検証レベルが載る。
+    let c_json = run_kei(&["check", "--json", "tests/cli/checks/ok_contract.kei"]);
+    assert_eq!(c_json.code, 0);
+    let c_parsed: serde_json::Value =
+        serde_json::from_str(&c_json.stdout).expect("--json emits valid JSON");
+    let contracts = c_parsed["contracts"]
+        .as_array()
+        .expect("contracts is a JSON array");
+    assert!(!contracts.is_empty());
+    assert!(contracts
+        .iter()
+        .all(|c| c["verification"].is_string() && c["expr"].is_string()));
 }
 
 #[test]

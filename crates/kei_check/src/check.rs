@@ -13,6 +13,7 @@ use kei_syntax::ast;
 use kei_syntax::{Position as SynPosition, Span as SynSpan};
 
 use crate::effects;
+use crate::report::{CheckReport, ContractInfo, ContractKind, Verification};
 use crate::types::Ty;
 use crate::{Diagnostic, Fix, Position, Severity, Span, TextEdit};
 
@@ -64,6 +65,106 @@ pub fn check_module(file: &str, module: &ast::Module) -> Vec<Diagnostic> {
         ))
     });
     diags
+}
+
+/// 検査結果(診断)に加えて、各契約の達成検証レベルを併せて返す(M12)。
+/// `kei check --json` が出力する構造化レポート。
+pub fn check_module_report(file: &str, module: &ast::Module) -> CheckReport {
+    let diagnostics = check_module(file, module);
+    let contracts = collect_contracts(file, module);
+    CheckReport {
+        diagnostics,
+        contracts,
+    }
+}
+
+/// 各関数の requires / ensures を走査し、検証レベルを判定して報告を組む。
+fn collect_contracts(file: &str, module: &ast::Module) -> Vec<ContractInfo> {
+    let mut out = Vec::new();
+    for item in &module.items {
+        let ast::Item::Func(f) = item else { continue };
+        for c in &f.requires {
+            out.push(contract_info(file, &f.name.name, ContractKind::Requires, c));
+        }
+        for c in &f.ensures {
+            out.push(contract_info(file, &f.name.name, ContractKind::Ensures, c));
+        }
+    }
+    out
+}
+
+fn contract_info(file: &str, func: &str, kind: ContractKind, expr: &ast::Expr) -> ContractInfo {
+    let s = expr.span();
+    ContractInfo {
+        func: func.to_string(),
+        kind,
+        expr: contract_expr_text(expr),
+        verification: verification_of(expr),
+        span: Span {
+            file: file.to_string(),
+            start: Position {
+                line: s.start.line,
+                col: s.start.col,
+            },
+            end: Position {
+                line: s.end.line,
+                col: s.end.col,
+            },
+        },
+    }
+}
+
+/// v0.2 の検証レベル判定(最小実装)。純粋・定数評価可能で**真**に畳める契約は
+/// コンパイル時に成立が確定するため `static`。それ以外は実行時アサーションの
+/// `runtime`(spec/kei-spec-v0.2.md §3)。SMT による本格 static は v1.0 送り。
+fn verification_of(expr: &ast::Expr) -> Verification {
+    match const_eval(expr) {
+        Some(ConstVal::Bool(true)) => Verification::Static,
+        _ => Verification::Runtime,
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ConstVal {
+    Int(i64),
+    Bool(bool),
+}
+
+/// 変数を含まない純粋な式を定数畳み込みする。畳めなければ `None`。
+fn const_eval(expr: &ast::Expr) -> Option<ConstVal> {
+    use ast::{BinOp::*, UnaryOp};
+    match expr {
+        ast::Expr::Int { value, .. } => Some(ConstVal::Int(*value)),
+        ast::Expr::Bool { value, .. } => Some(ConstVal::Bool(*value)),
+        ast::Expr::Unary { op, expr, .. } => match (op, const_eval(expr)?) {
+            (UnaryOp::Neg, ConstVal::Int(n)) => Some(ConstVal::Int(n.checked_neg()?)),
+            (UnaryOp::Not, ConstVal::Bool(b)) => Some(ConstVal::Bool(!b)),
+            _ => None,
+        },
+        ast::Expr::Binary { op, lhs, rhs, .. } => {
+            let l = const_eval(lhs)?;
+            let r = const_eval(rhs)?;
+            match (op, l, r) {
+                (Add, ConstVal::Int(a), ConstVal::Int(b)) => Some(ConstVal::Int(a.checked_add(b)?)),
+                (Sub, ConstVal::Int(a), ConstVal::Int(b)) => Some(ConstVal::Int(a.checked_sub(b)?)),
+                (Mul, ConstVal::Int(a), ConstVal::Int(b)) => Some(ConstVal::Int(a.checked_mul(b)?)),
+                (Div, ConstVal::Int(a), ConstVal::Int(b)) if b != 0 => {
+                    Some(ConstVal::Int(a.checked_div(b)?))
+                }
+                (Eq, ConstVal::Int(a), ConstVal::Int(b)) => Some(ConstVal::Bool(a == b)),
+                (Ne, ConstVal::Int(a), ConstVal::Int(b)) => Some(ConstVal::Bool(a != b)),
+                (Lt, ConstVal::Int(a), ConstVal::Int(b)) => Some(ConstVal::Bool(a < b)),
+                (Gt, ConstVal::Int(a), ConstVal::Int(b)) => Some(ConstVal::Bool(a > b)),
+                (Le, ConstVal::Int(a), ConstVal::Int(b)) => Some(ConstVal::Bool(a <= b)),
+                (Ge, ConstVal::Int(a), ConstVal::Int(b)) => Some(ConstVal::Bool(a >= b)),
+                (Eq, ConstVal::Bool(a), ConstVal::Bool(b)) => Some(ConstVal::Bool(a == b)),
+                (Ne, ConstVal::Bool(a), ConstVal::Bool(b)) => Some(ConstVal::Bool(a != b)),
+                (Implies, ConstVal::Bool(a), ConstVal::Bool(b)) => Some(ConstVal::Bool(!a || b)),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -2325,6 +2426,133 @@ fn direction(title: impl Into<String>) -> Fix {
         title: title.into(),
         edits: vec![],
     }
+}
+
+/// 契約式の Kei ソース表記。`kei_emit` の `kei_expr_text` と同じ優先順位規則で
+/// 整形し、`KeiContractViolation.condition` と一致させる(検証レポートの `expr`)。
+fn contract_expr_text(e: &ast::Expr) -> String {
+    // kei_emit と同じ優先順位(Equality < Relational)。括弧を最小化する。
+    fn bin_prec(op: ast::BinOp) -> u8 {
+        use ast::BinOp::*;
+        match op {
+            Implies => 0,
+            Eq | Ne => 1,
+            Lt | Gt | Le | Ge => 2,
+            Add | Sub => 3,
+            Mul | Div => 4,
+        }
+    }
+    fn bin_op_text(op: ast::BinOp) -> &'static str {
+        use ast::BinOp::*;
+        match op {
+            Eq => "==",
+            Ne => "!=",
+            Lt => "<",
+            Gt => ">",
+            Le => "<=",
+            Ge => ">=",
+            Add => "+",
+            Sub => "-",
+            Mul => "*",
+            Div => "/",
+            Implies => "implies",
+        }
+    }
+    // 子が二項式で親より弱く結合するときだけ括弧で包む。Postfix は 6 相当。
+    fn child(e: &ast::Expr, parent: u8) -> String {
+        let needs_paren = matches!(e, ast::Expr::Binary { op, .. } if bin_prec(*op) < parent);
+        let text = contract_expr_text(e);
+        if needs_paren {
+            format!("({text})")
+        } else {
+            text
+        }
+    }
+    match e {
+        ast::Expr::Int { value, .. } => value.to_string(),
+        ast::Expr::Str { value, .. } => contract_string_literal(value),
+        ast::Expr::Bool { value, .. } => value.to_string(),
+        ast::Expr::Name { name, .. } => name.clone(),
+        ast::Expr::Field { base, name, .. } => format!("{}.{}", child(base, 6), name.name),
+        ast::Expr::Call { callee, args, .. } => {
+            let args: Vec<String> = args.iter().map(contract_expr_text).collect();
+            format!("{}({})", child(callee, 6), args.join(", "))
+        }
+        ast::Expr::Unary { op, expr, .. } => {
+            let sym = match op {
+                ast::UnaryOp::Neg => "-",
+                ast::UnaryOp::Not => "!",
+            };
+            format!("{sym}{}", child(expr, 5))
+        }
+        ast::Expr::Binary { op, lhs, rhs, .. } => {
+            let p = bin_prec(*op);
+            format!("{} {} {}", child(lhs, p), bin_op_text(*op), child(rhs, p))
+        }
+        ast::Expr::RecordLit { path, fields, .. } => {
+            let head: Vec<&str> = path.iter().map(|i| i.name.as_str()).collect();
+            let fs: Vec<String> = fields
+                .iter()
+                .map(|f| match &f.value {
+                    None => f.name.name.clone(),
+                    Some(v) => format!("{}: {}", f.name.name, contract_expr_text(v)),
+                })
+                .collect();
+            format!("{} {{ {} }}", head.join("."), fs.join(", "))
+        }
+        ast::Expr::Match {
+            scrutinee, arms, ..
+        } => {
+            let arms: Vec<String> = arms
+                .iter()
+                .map(|arm| {
+                    format!(
+                        "{} => {}",
+                        contract_pattern_text(&arm.pattern),
+                        contract_expr_text(&arm.body)
+                    )
+                })
+                .collect();
+            format!(
+                "match {} {{ {} }}",
+                contract_expr_text(scrutinee),
+                arms.join(", ")
+            )
+        }
+    }
+}
+
+fn contract_pattern_text(pat: &ast::Pattern) -> String {
+    let head: Vec<&str> = pat.path.iter().map(|i| i.name.as_str()).collect();
+    let head = head.join(".");
+    match &pat.payload {
+        ast::PatternPayload::Unit => head,
+        ast::PatternPayload::Tuple { bindings } => {
+            let bs: Vec<&str> = bindings.iter().map(|i| i.name.as_str()).collect();
+            format!("{head}({})", bs.join(", "))
+        }
+        ast::PatternPayload::Record { fields } => {
+            let fs: Vec<&str> = fields.iter().map(|i| i.name.as_str()).collect();
+            format!("{head} {{ {} }}", fs.join(", "))
+        }
+    }
+}
+
+fn contract_string_literal(value: &str) -> String {
+    let mut s = String::with_capacity(value.len() + 2);
+    s.push('"');
+    for c in value.chars() {
+        match c {
+            '"' => s.push_str("\\\""),
+            '\\' => s.push_str("\\\\"),
+            '\n' => s.push_str("\\n"),
+            '\t' => s.push_str("\\t"),
+            '\r' => s.push_str("\\r"),
+            _ => s.push(c),
+        }
+    }
+    s.push('"');
+    s
 }
 
 /// `Database.fetchBalance` のような Name/Field 連鎖をドット区切りのパスに戻す。

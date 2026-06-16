@@ -1,0 +1,11 @@
+{
+  "jsonrpc": "2.0",
+  "id": 9,
+  "method": "tools/call",
+  "params": {
+    "name": "kei_check",
+    "arguments": {
+      "source": "module demo\n\nfunc increment(count: Int, step: Int) -> Int\n  requires step > 0\n  requires true\n  ensures result == old(count) + step\n{\n  return count + step\n}\n"
+    }
+  }
+}

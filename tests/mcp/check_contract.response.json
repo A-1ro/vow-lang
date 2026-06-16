@@ -1,0 +1,13 @@
+{
+  "id": 9,
+  "jsonrpc": "2.0",
+  "result": {
+    "content": [
+      {
+        "text": "{\n  \"diagnostics\": [],\n  \"contracts\": [\n    {\n      \"func\": \"increment\",\n      \"kind\": \"requires\",\n      \"expr\": \"step > 0\",\n      \"verification\": \"runtime\",\n      \"span\": {\n        \"file\": \"source.kei\",\n        \"start\": {\n          \"line\": 4,\n          \"col\": 12\n        },\n        \"end\": {\n          \"line\": 4,\n          \"col\": 20\n        }\n      }\n    },\n    {\n      \"func\": \"increment\",\n      \"kind\": \"requires\",\n      \"expr\": \"true\",\n      \"verification\": \"static\",\n      \"span\": {\n        \"file\": \"source.kei\",\n        \"start\": {\n          \"line\": 5,\n          \"col\": 12\n        },\n        \"end\": {\n          \"line\": 5,\n          \"col\": 16\n        }\n      }\n    },\n    {\n      \"func\": \"increment\",\n      \"kind\": \"ensures\",\n      \"expr\": \"result == old(count) + step\",\n      \"verification\": \"runtime\",\n      \"span\": {\n        \"file\": \"source.kei\",\n        \"start\": {\n          \"line\": 6,\n          \"col\": 11\n        },\n        \"end\": {\n          \"line\": 6,\n          \"col\": 38\n        }\n      }\n    }\n  ]\n}",
+        "type": "text"
+      }
+    ],
+    "isError": false
+  }
+}

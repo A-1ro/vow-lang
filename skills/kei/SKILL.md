@@ -628,7 +628,11 @@ tagged 型と基底型、または別の tagged 型を混同した。`type Accou
 
 ## 8. 検証ループの回し方
 
-1. `kei check <file> --json` を実行し、`Diagnostic[]` を得る。
+1. `kei check <file> --json` を実行し、`CheckReport`(`{ "diagnostics": Diagnostic[], "contracts": ContractInfo[] }`)を得る。
+   - `diagnostics` … 従来の Diagnostic 配列(これを読んで直す)。
+   - `contracts` … 各 requires / ensures の**達成検証レベル**(v0.2 / M12)。`{ func, kind, expr, verification, span }`。
+     `verification` は `static`(コンパイル時に成立確定)/ `runtime`(実行時アサーション。大半はこれ)/ `trusted` / `unchecked`。
+     **「契約が書かれた」と「機械検証された」は別物**で、これはその到達度の報告。検証レベルはソース構文には書かない(`spec/kei-spec-v0.2.md` §3)。
 2. 各 Diagnostic を読む。構造は:
 
    | フィールド | 内容 |
@@ -674,7 +678,7 @@ tagged 型と基底型、または別の tagged 型を混同した。`type Accou
 ]
 ```
 
-`--json` を付けない既定出力は同じ情報の散文(`error[KEI-E3001]: ...` と `--> file:line:col`、`= fix: ...`)。機械処理は `--json`、目視は既定で。
+`--json` を付けない既定出力は同じ情報の散文(`error[KEI-E3001]: ...` と `--> file:line:col`、`= fix: ...`)。契約があれば末尾に `verification:` ブロック(`<func> <kind> <expr> [<level>]`)も出る。機械処理は `--json`、目視は既定で。
 
 ### 整形
 

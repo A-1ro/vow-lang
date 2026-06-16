@@ -98,9 +98,66 @@
 }
 ```
 
+## CheckReport(v0.2: `kei check --json` のルート)
+
+> v0.2(M12 / #23)で `kei check --json` の出力は `Diagnostic[]` から **CheckReport
+> オブジェクト**へ拡張された。診断に加えて、各契約の**達成検証レベル**を併せて運ぶ。
+> 「契約が書かれていること」と「機械検証されたこと」は別物であり、検証レベルは
+> **ソース構文に書き分けず**この構造化出力に載せる(`kei-spec-v0.2.md` §3)。
+
+### CheckReport(ルートオブジェクト)
+
+| フィールド | 型 | 必須 | 説明 |
+|---|---|---|---|
+| `diagnostics` | Diagnostic[] | ✓ | 従来の診断配列(空でも `[]`) |
+| `contracts` | ContractInfo[] | ✓ | 各 requires / ensures の検証レベル(契約が無ければ `[]`) |
+
+### ContractInfo
+
+| フィールド | 型 | 必須 | 説明 |
+|---|---|---|---|
+| `func` | string | ✓ | 契約を宣言している関数名 |
+| `kind` | `"requires" \| "ensures"` | ✓ | 契約節の種別 |
+| `expr` | string | ✓ | 契約式の Kei ソース表記(`KeiContractViolation.condition` と一致) |
+| `verification` | Verification | ✓ | 処理系が達成できた検証レベル(書き手の選択ではない) |
+| `span` | Span | ✓ | 契約式の位置 |
+
+### Verification
+
+`"static" | "runtime" | "trusted" | "unchecked"` の小文字文字列。
+
+| 値 | 意味 |
+|---|---|
+| `static` | コンパイル時に成立が判定済み(v0.2 は定数畳み込みで真になる契約) |
+| `runtime` | 実行時アサーションへ展開(v0.1 既定。大半はこれ) |
+| `trusted` | 外部・人間レビュー・テストで保証(検証器の管轄外。v0.2 では未産出) |
+| `unchecked` | 明示的に未検証(v0.2 では未産出) |
+
+### CheckReport JSON 例
+
+```json
+{
+  "diagnostics": [],
+  "contracts": [
+    {
+      "func": "increment",
+      "kind": "requires",
+      "expr": "step > 0",
+      "verification": "runtime",
+      "span": {
+        "file": "demo.kei",
+        "start": { "line": 4, "col": 12 },
+        "end": { "line": 4, "col": 20 }
+      }
+    }
+  ]
+}
+```
+
 ## シリアライズ規約
 
 - フィールド名は snake_case(serde デフォルトのまま)。
-- enum 値(severity)は小文字文字列。
+- enum 値(severity / kind / verification)は小文字文字列。
 - 未知フィールドは前方互換のため読み捨て可。出力側は本スキーマ外のフィールドを追加しない。
-- `kei check --json` は Diagnostic の配列(`Diagnostic[]`)を出力する。
+- `kei check --json` は **CheckReport** オブジェクトを出力する(v0.1 の `Diagnostic[]` から拡張)。
+  単独の Diagnostic / Diagnostic[] のスキーマは上記のまま不変で、`CheckReport.diagnostics` に入る。

@@ -1,39 +1,42 @@
-[
-  {
-    "severity": "error",
-    "code": "KEI-E0104",
-    "message": "unknown clause 'use': contract clauses are 'uses', 'requires', and 'ensures'",
-    "span": {
-      "file": "tests/cli/checks/err_syntax.kei",
-      "start": {
-        "line": 4,
-        "col": 3
+{
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "KEI-E0104",
+      "message": "unknown clause 'use': contract clauses are 'uses', 'requires', and 'ensures'",
+      "span": {
+        "file": "tests/cli/checks/err_syntax.kei",
+        "start": {
+          "line": 4,
+          "col": 3
+        },
+        "end": {
+          "line": 4,
+          "col": 6
+        }
       },
-      "end": {
-        "line": 4,
-        "col": 6
-      }
-    },
-    "fixes": [
-      {
-        "title": "Replace 'use' with 'uses'",
-        "edits": [
-          {
-            "span": {
-              "file": "tests/cli/checks/err_syntax.kei",
-              "start": {
-                "line": 4,
-                "col": 3
+      "fixes": [
+        {
+          "title": "Replace 'use' with 'uses'",
+          "edits": [
+            {
+              "span": {
+                "file": "tests/cli/checks/err_syntax.kei",
+                "start": {
+                  "line": 4,
+                  "col": 3
+                },
+                "end": {
+                  "line": 4,
+                  "col": 6
+                }
               },
-              "end": {
-                "line": 4,
-                "col": 6
-              }
-            },
-            "new_text": "uses"
-          }
-        ]
-      }
-    ]
-  }
-]
+              "new_text": "uses"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "contracts": []
+}

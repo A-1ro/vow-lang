@@ -1,24 +1,27 @@
-[
-  {
-    "severity": "error",
-    "code": "KEI-E3001",
-    "message": "effect 'Database.Write' used but not declared in 'uses' clause of 'save' (required by call to 'writeRow')",
-    "span": {
-      "file": "tests/cli/checks/err_effect.kei",
-      "start": {
-        "line": 10,
-        "col": 10
+{
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "KEI-E3001",
+      "message": "effect 'Database.Write' used but not declared in 'uses' clause of 'save' (required by call to 'writeRow')",
+      "span": {
+        "file": "tests/cli/checks/err_effect.kei",
+        "start": {
+          "line": 10,
+          "col": 10
+        },
+        "end": {
+          "line": 10,
+          "col": 22
+        }
       },
-      "end": {
-        "line": 10,
-        "col": 22
-      }
-    },
-    "fixes": [
-      {
-        "title": "Add 'uses Database.Write' to 'save'",
-        "edits": []
-      }
-    ]
-  }
-]
+      "fixes": [
+        {
+          "title": "Add 'uses Database.Write' to 'save'",
+          "edits": []
+        }
+      ]
+    }
+  ],
+  "contracts": []
+}
