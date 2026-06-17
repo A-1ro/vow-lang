@@ -25,7 +25,7 @@ kei_syntax ←─ kei_fmt
      ↑
 kei_check  ←─ kei_emit
      ↑              ↑
-     └── kei_cli ──┘
+     └── kei_cli ──┘   (→ kei_mcp: `kei mcp` で起動を委譲。循環なし)
      └── kei_mcp ──┘
 ```
 
@@ -34,7 +34,7 @@ kei_check  ←─ kei_emit
 - `kei_fmt` — 正規形フォーマッタ(AST の意味的変更禁止)
 - `kei_emit` — TS トランスパイラ+source map(検査の再実装禁止)
 - `kei_cli` / `kei_mcp` — 言語処理ロジックを持たない。CLI は Diagnostic の散文整形、MCP は spec/・examples/ のビルド時埋め込み配信
-  - `kei_mcp` は実装済み(4 ツール: kei_spec / kei_check / kei_fmt / kei_examples)。`kei_cli` は **check / fmt / build / test 実装済み**(M6・M7)。`build` はディレクトリ単位の kei_emit 委譲、`test` は dev ビルド後にプロジェクトの `npm test` を起動する薄いラッパー(ランナーの知識を持たない)
+  - `kei_mcp` は実装済み(4 ツール: kei_spec / kei_check / kei_fmt / kei_examples)。stdio 起動は lib の `run_stdio` が単一エントリで、`kei-mcp` バイナリと `kei mcp` サブコマンドが共有する。`kei_cli` は **check / fmt / build / test / mcp 実装済み**(M6・M7)。`build` はディレクトリ単位の kei_emit 委譲、`test` は dev ビルド後にプロジェクトの `npm test` を起動する薄いラッパー(ランナーの知識を持たない)、`mcp` は `kei_mcp::run_stdio` への委譲(配布物を `kei` 1 バイナリに統合するための辺)
 
 ## 不変条件
 
@@ -49,12 +49,13 @@ kei_check  ←─ kei_emit
 - `cargo test --workspace` — 全テスト。各 Milestone の完了条件(e2e は Node が必要)
 - `cargo clippy --workspace --all-targets -- -D warnings` — 警告ゼロが必須
 - `cargo fmt --all -- --check` — 整形チェック(CI の fmt ジョブと同じ)
-- `cargo run -p kei_mcp --bin kei-mcp` — MCP サーバー起動(stdin から改行区切り JSON-RPC を読む)
+- `cargo run -p kei_mcp --bin kei-mcp` — MCP サーバー起動(stdin から改行区切り JSON-RPC を読む。開発用。配布版は `kei mcp`)
 - `cargo run -p kei_emit --example transpile -- <input.kei> [output.ts]` — 単一 .kei を TS 化(検査 NG は Diagnostic を出して exit 1)。デバッグ用の最小トランスパイラ(ディレクトリ単位は `kei build`)
 - `cargo run -p kei_cli --bin kei -- check <file> [--json]` — 意味検査(既定は散文 Diagnostic、`--json` で `Diagnostic[]`)。エラーありで exit 1
 - `cargo run -p kei_cli --bin kei -- fmt <file> [--check | --write]` — 正規形整形(既定は stdout、`--check` で未整形を exit 1 検出、`--write` で上書き)
 - `cargo run -p kei_cli --bin kei -- build <dir> [--out-dir <dir>] [--no-source-map]` — `<dir>` 配下の全 .kei を検査し、エラーゼロのとき out-dir(既定 `<dir>/dist/`)に TS + source map を `ts_path` 通り配置。1 件でもエラーなら何も書かず exit 1
 - `cargo run -p kei_cli --bin kei -- test [<dir>]` — dev ビルド(契約 on)後、プロジェクトの `npm test` に委譲(Node 必須)。契約違反は `KeiContractViolation` として非ゼロ終了に伝播
+- `cargo run -p kei_cli --bin kei -- mcp` — MCP サーバーを stdio で起動(`kei_mcp::run_stdio` へ委譲)。配布物 `kei` 1 バイナリで取説サーバーを起動する経路
 
 CI(`.github/workflows/ci.yml`)は fmt / clippy / test の 3 ジョブ。test ジョブのみ Node 22 をセットアップする(e2e が npm/npx を使うため)。
 

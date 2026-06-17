@@ -23,6 +23,8 @@ pub enum Command {
     },
     /// `kei test [<dir>]`。省略時はカレントディレクトリ。
     Test { dir: PathBuf },
+    /// `kei mcp`。MCP サーバーを stdio で起動する(引数なし)。
+    Mcp,
     /// `kei help` / `--help` / `-h`。使い方を stdout に出して終了コード 0。
     Help,
     /// `kei version` / `--version` / `-V`。
@@ -63,6 +65,7 @@ pub fn parse(args: Vec<String>) -> Result<Command, UsageError> {
         "fmt" => parse_fmt(it),
         "build" => parse_build(it),
         "test" => parse_test(it),
+        "mcp" => parse_mcp(it),
         other => Err(UsageError::new(format!("unknown subcommand '{other}'"))),
     }
 }
@@ -183,6 +186,17 @@ fn parse_test(it: impl Iterator<Item = String>) -> Result<Command, UsageError> {
     })
 }
 
+/// `kei mcp` は引数を取らない(stdio で JSON-RPC を待つ)。余分な引数は使用法エラー。
+fn parse_mcp(mut it: impl Iterator<Item = String>) -> Result<Command, UsageError> {
+    match it.next() {
+        None => Ok(Command::Mcp),
+        Some(arg) if arg == "--help" || arg == "-h" => Ok(Command::Help),
+        Some(other) => Err(UsageError::new(format!(
+            "mcp takes no arguments (got '{other}')"
+        ))),
+    }
+}
+
 /// `--check` と `--write` は排他。既に別モードが立っていれば使用法エラー。
 fn set_mode(slot: &mut Option<FmtMode>, mode: FmtMode) -> Result<(), UsageError> {
     match slot {
@@ -213,6 +227,7 @@ USAGE:
                                  <dir> 配下の全 .kei を検査し TS + source map を出力
                                  (既定の出力先は <dir>/dist/。1 件でもエラーなら何も書かない)
     kei test [<dir>]             dev ビルド(契約 on)後、プロジェクトの `npm test` を起動
+    kei mcp                      MCP サーバーを stdio で起動(spec/examples を引く取説サーバー)
     kei help | --help | -h       この使い方を表示
     kei version | --version | -V バージョンを表示
 
@@ -306,6 +321,14 @@ mod tests {
                 dir: PathBuf::from("."),
             })
         );
+    }
+
+    #[test]
+    fn mcp_takes_no_args() {
+        assert_eq!(parse_args(&["mcp"]), Ok(Command::Mcp));
+        assert_eq!(parse_args(&["mcp", "--help"]), Ok(Command::Help));
+        assert!(parse_args(&["mcp", "foo"]).is_err());
+        assert!(parse_args(&["mcp", "--bogus"]).is_err());
     }
 
     #[test]

@@ -1,9 +1,10 @@
-//! `kei` CLI のエントリポイント。check / fmt / build / test サブコマンドを提供する。
+//! `kei` CLI のエントリポイント。check / fmt / build / test / mcp サブコマンドを提供する。
 //!
 //! ARCHITECTURE.md(kei_cli 行): 言語処理ロジックは持たず、引数解釈・
 //! ファイル IO・Diagnostic の散文整形だけを担い、検査・整形・トランスパイルは
 //! kei_check / kei_fmt / kei_syntax / kei_emit に委譲する。`test` は dev ビルド後に
 //! プロジェクトの `npm test` へ委譲する薄いラッパーで、テストランナーの知識を持たない。
+//! `mcp` は MCP サーバーの起動を kei_mcp へ委譲する(プロトコル処理は持たない)。
 //!
 //! 終了コード規約(M6 事前合意・全サブコマンド共通):
 //! - `0` 成功(検査エラーなし / 整形済み / ビルド成功 / テスト全件パス)
@@ -17,6 +18,7 @@ mod build;
 mod check;
 mod cli;
 mod fmt;
+mod mcp;
 mod render;
 mod test;
 
@@ -43,6 +45,7 @@ fn main() -> ExitCode {
             source_map,
         }) => dispatch(build::run(&dir, out_dir.as_deref(), source_map)),
         Ok(Command::Test { dir }) => dispatch(test::run(&dir)),
+        Ok(Command::Mcp) => mcp::run(),
         Err(UsageError(msg)) => {
             eprintln!("kei: {msg}\n\n{USAGE}");
             EXIT_USAGE

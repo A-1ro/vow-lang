@@ -1,7 +1,7 @@
 {
   "name": "kei",
-  "description": "Kei 言語を学習なしで正しく書くためのスキル。func/契約/エフェクト/型/失敗処理の最小十分セットと、kei check による検証ループを提供する。",
-  "version": "0.1.0",
+  "description": "Kei 言語を学習なしで正しく書くためのスキル。func/契約/エフェクト/型/失敗処理の最小十分セットと、kei check による検証ループを提供する(v0.2: match / extern / 検証レベル / 数量契約イディオム対応)。",
+  "version": "0.2.0",
   "author": {
     "name": "Eiichiro Iriguchi"
   },

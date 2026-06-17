@@ -20,8 +20,8 @@ kei-lang/
 │   ├── kei_check/           # 名前解決 + 型 + エフェクト + 契約検査 / Diagnostic型
 │   ├── kei_fmt/             # 正規形フォーマッタ
 │   ├── kei_emit/            # TSトランスパイラ + source map
-│   ├── kei_cli/             # `kei` バイナリ(check/fmt/build/test)
-│   ├── kei_mcp/             # MCPサーバーバイナリ
+│   ├── kei_cli/             # `kei` バイナリ(check/fmt/build/test/mcp)
+│   ├── kei_mcp/             # MCPサーバー(lib: run_stdio / Server)+ kei-mcp バイナリ
 │   └── kei_lsp/             # LSPサーバーバイナリ(kei-lsp)
 │
 ├── runtime/                  # @kei/runtime (npmパッケージ, TS実装)
@@ -85,10 +85,14 @@ kei_syntax ←─ kei_fmt
      ↑
 kei_check  ←─ kei_emit
      ↑              ↑
-     ├── kei_cli ──┘
+     ├── kei_cli ──┘   (→ kei_mcp も: `kei mcp` でサーバー起動を委譲)
      ├── kei_mcp
      └── kei_lsp   (→ kei_check / kei_syntax / kei_fmt)
 ```
+
+`kei_cli → kei_mcp` は一方向の辺で循環しない(kei_mcp は kei_cli を知らない)。`kei mcp` は
+`kei_mcp::run_stdio` を呼ぶだけで、MCP プロトコル処理は kei_mcp が一手に担う(配布物を `kei`
+1 バイナリに統合するための辺。経緯は HANDOFF.md)。
 
 | クレート | 責務 | してはいけないこと |
 |---|---|---|
@@ -96,8 +100,8 @@ kei_check  ←─ kei_emit
 | kei_check | 意味検査全般。**Diagnostic型の定義元** | 出力形式(散文/JSON)の整形 |
 | kei_fmt | AST→正規形テキスト | ASTの意味的変更 |
 | kei_emit | 検査済みAST→TS+source map | 検査の再実装 |
-| kei_cli | 引数解釈・ファイルIO・Diagnosticの散文整形・ディレクトリ走査・テストランナー起動 | 言語処理ロジック(検査/整形/トランスパイルは委譲)。`kei test`はランナーの知識を持たず`npm test`へ委譲 |
-| kei_mcp | MCPプロトコル・spec/とexamples/の埋め込み配信 | 言語処理ロジック |
+| kei_cli | 引数解釈・ファイルIO・Diagnosticの散文整形・ディレクトリ走査・テストランナー起動・`kei mcp`でのMCPサーバー起動 | 言語処理ロジック(検査/整形/トランスパイルは委譲)。`kei test`はランナーの知識を持たず`npm test`へ委譲。`kei mcp`はプロトコル処理を持たず`kei_mcp::run_stdio`へ委譲 |
+| kei_mcp | MCPプロトコル・spec/とexamples/の埋め込み配信。stdio起動は`run_stdio`が単一エントリ(`kei-mcp`バイナリと`kei mcp`が共有) | 言語処理ロジック |
 | kei_lsp | LSPプロトコル変換。kei_checkのDiagnostic→LSP Diagnostic、AST→Hover(契約表示)へ写す。同期stdioループ | 言語処理ロジック(検査/整形/パースは委譲)。kei_check/kei_syntax/kei_fmtへ一方向依存のみ |
 
 ### 外部依存の追加記録(M6 事前合意の手続き)
@@ -111,6 +115,10 @@ kei_check  ←─ kei_emit
   で `npm test` を起動するだけ(Node はプロジェクト側の前提。CI の test ジョブと同じ)。
   `kei build` の出力ツリーは `tests/cli/projects/*/expected/` で golden 比較、`kei test` の契約 on 実行
   (`requires` 違反 → `KeiContractViolation` → 非ゼロ終了)は Node 在席時のみ走る統合テストで検証する。
+- `kei mcp`: `kei_cli` に `kei_mcp`(path 依存)を追加。MCP サーバーの起動を `kei_mcp::run_stdio`
+  へ委譲するだけで、新規の外部クレートは増えない。これにより配布物が `kei` 1 バイナリで完結し
+  (`install.sh` / `cargo install kei_cli`)、利用者は `kei mcp` で取説サーバーを起動できる。
+  `kei-mcp` バイナリは開発・後方互換のため残す(両者は同じ `run_stdio` を共有)。
 - `kei_lsp`(M8): `lsp-server`(同期 stdio JSON-RPC スキャフォルド)+ `lsp-types`(LSP 型)+ `serde` /
   `serde_json`。tower-lsp(tokio/async)は採用しない — 本サーバーの実処理は同期関数
   `kei_check::check_module` の呼び出しだけで、非同期ランタイムを持ち込む理由がない(kei_mcp が

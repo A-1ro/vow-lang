@@ -191,6 +191,7 @@ dependencies = [
  "kei_check",
  "kei_emit",
  "kei_fmt",
+ "kei_mcp",
  "kei_syntax",
  "serde_json",
 ]

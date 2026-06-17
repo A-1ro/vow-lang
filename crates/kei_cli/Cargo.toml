@@ -3,7 +3,7 @@ name = "kei_cli"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
-description = "The `kei` CLI: check / fmt / build / test. No language-processing logic."
+description = "The `kei` CLI: check / fmt / build / test / mcp. No language-processing logic."
 
 [[bin]]
 name = "kei"
@@ -13,6 +13,9 @@ path = "src/main.rs"
 kei_check = { path = "../kei_check" }
 kei_emit = { path = "../kei_emit" }
 kei_fmt = { path = "../kei_fmt" }
+# `kei mcp` は MCP サーバーの起動を kei_mcp に委譲する(言語処理は持たない)。
+# 一方向依存: kei_mcp は kei_cli に依存しない(ARCHITECTURE.md 依存図)。
+kei_mcp = { path = "../kei_mcp" }
 kei_syntax = { path = "../kei_syntax" }
 # --json の Diagnostic[] 直列化(構造化出力は serde が正)。
 serde_json = { workspace = true }
