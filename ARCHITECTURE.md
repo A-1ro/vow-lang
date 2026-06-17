@@ -60,9 +60,10 @@ kei-lang/
 │           └── broken/       # 検査エラーを含むall-or-nothing検証用(dist は git管理外)
 │
 ├── docs/                     # ロードマップ・設計メモ
-│   ├── kei-roadmap-goals.md          # v0.1(M0–M7)+ 提案中の M8/M9
+│   ├── kei-roadmap-goals.md          # v0.1(M0–M7)+ 提案中の M8(kei_lsp)
 │   ├── kei-roadmap-v0.2.md           # v0.2(M10–M13: 健全性・契約表現力)
-│   └── effect-postconditions-memo.md # エフェクト事後条件の言語拡張比較メモ(#21, v0.3+送り)
+│   ├── kei-roadmap-v0.3.md           # v0.3(M9 + M14–M18: 射程拡張・契約検証の本丸)
+│   └── effect-postconditions-memo.md # エフェクト事後条件の言語拡張比較メモ(#21→#45, M14)
 │
 ├── assets/                    # ブランド資産(README等で参照)
 │   ├── bow-kun.png           # マスコット bow-kun(契約書を咥えた柴犬, 1024px 原寸)

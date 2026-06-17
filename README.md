@@ -15,7 +15,7 @@ Kei は「**AIが書き、人間が承認し、コンパイラが履行を保証
 
 > ✅ **ステータス: v0.1(M0〜M7)+ v0.2(M10〜M13)実装完了。** 言語処理(パーサ〜トランスパイラ)と MCP サーバーが動作し、`kei` CLI バイナリ(`kei_cli`)は `check` / `fmt` / `build` / `test` が使えます。v0.2 で **`match` 式・`extern` 署名・契約の検証レベル報告・数量契約イディオム**を追加(`spec/kei-spec-v0.2.md`)。`cargo test --workspace` は全件パス。仕様は `spec/kei-spec-v0.1.md` + `spec/kei-spec-v0.2.md`(Draft)が正本です。
 >
-> 🧭 **射程(v0.3 以降): 立場B を採択。** Kei は「1 エンティティ分の純粋コア DSL」から **システム記述言語** へ広げ、`List` を `Result` / `Option` と同格の第三の組み込みジェネリクスとして**段階導入**します(反復・集計・絞り込みにも `uses` と契約を効かせる)。設計は [`spec/kei-spec-v0.3-collections.md`](spec/kei-spec-v0.3-collections.md)(Draft)、刻みは [ロードマップ M9](docs/kei-roadmap-goals.md)、親 issue は [#25](https://github.com/A-1ro/kei-lang/issues/25)。**まだ実装前**(現時点で `List` は未定義型)。
+> 🧭 **射程(v0.3 以降): 立場B を採択。** Kei は「1 エンティティ分の純粋コア DSL」から **システム記述言語** へ広げ、`List` を `Result` / `Option` と同格の第三の組み込みジェネリクスとして**段階導入**します(反復・集計・絞り込みにも `uses` と契約を効かせる)。設計は [`spec/kei-spec-v0.3-collections.md`](spec/kei-spec-v0.3-collections.md)(Draft)、刻みは [v0.3 ロードマップ M9](docs/kei-roadmap-v0.3.md)、親 issue は [#25](https://github.com/A-1ro/kei-lang/issues/25)。**まだ実装前**(現時点で `List` は未定義型)。
 
 ---
 
