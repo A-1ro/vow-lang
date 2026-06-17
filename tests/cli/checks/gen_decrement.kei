@@ -1,0 +1,8 @@
+module cli.gen_decrement
+
+func decrementAvailable(available: Int) -> Int
+  requires available > 0
+  ensures result == old(available) - 1
+{
+  return available - 1
+}

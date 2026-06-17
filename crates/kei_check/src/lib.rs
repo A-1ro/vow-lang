@@ -6,6 +6,7 @@
 pub mod check;
 pub mod diagnostic;
 pub mod effects;
+pub mod pbt;
 pub mod report;
 pub mod syntax;
 pub mod types;

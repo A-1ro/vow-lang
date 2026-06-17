@@ -40,6 +40,7 @@ mod codes {
     pub const CONTRACT_CONSTRUCT: &str = "KEI-E4002";
     pub const CONST_FALSE_CONTRACT: &str = "KEI-E4003";
     pub const NON_QUERY_IN_CONTRACT: &str = "KEI-E4004";
+    pub const GENERATIVE_COUNTEREXAMPLE: &str = "KEI-E4005";
 }
 
 /// 検査オプション(M16 / #44)。既定はすべて off で、`check_module` /
@@ -50,6 +51,10 @@ pub struct CheckOptions {
     /// `extern` 未宣言の外部 namespace 呼び出しを警告する(KEI-E3004)。
     /// 既定 off。`kei check --strict-extern` で on。
     pub strict_extern: bool,
+    /// 契約から property-based test を生成・実行する(M15 / #26)。既定 off。
+    /// `kei check --generative` で on。純粋関数の ensures を generative へ格上げし、
+    /// 反例があれば KEI-E4005 を出す。
+    pub generative: bool,
 }
 
 /// 1 モジュールを検査し、出現位置に対応した順序で Diagnostic を返す(既定オプション)。
@@ -99,12 +104,80 @@ pub fn check_module_report_with(
     module: &ast::Module,
     opts: CheckOptions,
 ) -> CheckReport {
-    let diagnostics = check_module_with(file, module, opts);
-    let contracts = collect_contracts(file, module);
+    let mut diagnostics = check_module_with(file, module, opts);
+    let mut contracts = collect_contracts(file, module);
+
+    // 契約ベース PBT(M15 / #26)。静的検査がクリーンなときだけ走らせる(壊れた AST に
+    // 評価器をかけない)。純粋関数の ensures を全生成入力で検証し、反例ゼロなら generative へ
+    // 格上げ、反例があれば KEI-E4005 を出す。
+    if opts.generative && !diagnostics.iter().any(|d| d.severity == Severity::Error) {
+        apply_generative(file, module, &mut diagnostics, &mut contracts);
+    }
+
     CheckReport {
         diagnostics,
         contracts,
     }
+}
+
+/// PBT の結果を診断・契約レベルに反映する(M15)。生成・判定は kei_check::pbt が担い、
+/// ここは「結果 → 検証レベル格上げ / 反例診断」への写像だけを行う。
+fn apply_generative(
+    file: &str,
+    module: &ast::Module,
+    diagnostics: &mut Vec<Diagnostic>,
+    contracts: &mut [ContractInfo],
+) {
+    for outcome in crate::pbt::run_module(module) {
+        if outcome.passed {
+            // 反例ゼロ: この関数の ensures(runtime 止まり)を generative へ格上げ。
+            for c in contracts.iter_mut() {
+                if c.func == outcome.func
+                    && c.kind == ContractKind::Ensures
+                    && c.verification == Verification::Runtime
+                {
+                    c.verification = Verification::Generative;
+                }
+            }
+        } else if let Some(ce) = &outcome.counterexample {
+            let span = Span {
+                file: file.to_string(),
+                start: Position {
+                    line: ce.clause_span.start.line,
+                    col: ce.clause_span.start.col,
+                },
+                end: Position {
+                    line: ce.clause_span.end.line,
+                    col: ce.clause_span.end.col,
+                },
+            };
+            diagnostics.push(
+                Diagnostic::new(
+                    Severity::Error,
+                    codes::GENERATIVE_COUNTEREXAMPLE,
+                    format!(
+                        "ensures '{}' of '{}' is violated by a generated input ({})",
+                        ce.clause,
+                        outcome.func,
+                        ce.inputs_text()
+                    ),
+                    span,
+                    vec![direction(
+                        "Fix the implementation to satisfy the contract, or correct the contract",
+                    )],
+                )
+                .expect("generative counterexample carries a fix"),
+            );
+        }
+    }
+    // 反例診断を出現位置順に整列(check_module と同じ規約)。
+    diagnostics.sort_by(|a, b| {
+        (a.span.start.line, a.span.start.col, a.code.as_str()).cmp(&(
+            b.span.start.line,
+            b.span.start.col,
+            b.code.as_str(),
+        ))
+    });
 }
 
 /// 各関数の requires / ensures を走査し、検証レベルを判定して報告を組む。

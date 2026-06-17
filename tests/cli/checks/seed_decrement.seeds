@@ -1,0 +1,6 @@
+# シードは「入力」だけを供給する。期待値(expected/output/result)を書く構文は無い。
+# オラクルは契約(ensures)が唯一担う(捏造不能性)。
+seeds for decrementAvailable {
+  input { available: 1 }
+  input { available: 0 }
+}

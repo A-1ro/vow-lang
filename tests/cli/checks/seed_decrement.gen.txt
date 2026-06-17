@@ -1,0 +1,11 @@
+verification:
+  decrementAvailable requires available > 0  [runtime]
+  decrementAvailable ensures result == old(available) - 1  [generative]
+
+error[KEI-E4007]: seed input (available = 0) does not satisfy requires 'available > 0' of 'decrementAvailable'
+ --> tests/cli/checks/seed_decrement.seeds:5:3
+  |
+5 |   input { available: 0 }
+  |   ^
+  = fix: Provide an input that satisfies the function's requires
+
