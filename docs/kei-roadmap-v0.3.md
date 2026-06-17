@@ -23,14 +23,18 @@
 
 ## Milestone 全体像と順序
 
-| M | テーマ | issue | 優先度 | 主な改修クレート |
-|---|---|---|---|---|
-| **M9** | コレクション型 `List` 段階1(不変・opaque + コンビネータ最小集合) | #25 | medium | kei_syntax / kei_check / kei_emit |
-| **M14** | エフェクト事後条件の言語拡張(案1: 論理的読み取り) | #45 | medium | kei_syntax / kei_check / spec |
-| **M15** | 契約ベース PBT 生成(`kei test` generative)段階1+2 | #26 | medium | kei_check / kei_cli / spec |
-| **M16** | `extern` 未宣言呼び出しの strict モード | #44 | low | kei_check / kei_cli / spec |
-| **M17** | 定数恒偽契約(`requires false`)の静的検出 | #35 | low | kei_check |
-| **M18** | Agent Repair Protocol — 構造化修正提案 | #24 | low | kei_check / diagnostic-schema |
+> **ステータス: M9・M14〜M18 すべて実装完了(2026-06-18)。** 各 Milestone の受け入れ条件
+> (golden / example / e2e / spec)を満たし、`cargo test --workspace` 全件パス・clippy 警告ゼロ。
+> 後続段階(#25 リテラル/量化、#26 段階3-4、#45 案2)は本書スコープ外で別途サブ issue 化する。
+
+| M | テーマ | issue | 優先度 | 状態 | 主な改修クレート |
+|---|---|---|---|---|---|
+| **M9** | コレクション型 `List` 段階1(不変・opaque + コンビネータ最小集合) | #25 | medium | ✅ 完了 | kei_syntax / kei_check / kei_emit |
+| **M14** | エフェクト事後条件の言語拡張(案1: 論理的読み取り) | #45 | medium | ✅ 完了 | kei_syntax / kei_check / spec |
+| **M15** | 契約ベース PBT 生成(`kei check --generative`)段階1+2 | #26 | medium | ✅ 完了 | kei_check / kei_cli / spec |
+| **M16** | `extern` 未宣言呼び出しの strict モード | #44 | low | ✅ 完了 | kei_check / kei_cli / spec |
+| **M17** | 定数恒偽契約(`requires false`)の静的検出 | #35 | low | ✅ 完了 | kei_check |
+| **M18** | Agent Repair Protocol — 構造化修正提案 | #24 | low | ✅ 完了 | kei_check / diagnostic-schema |
 
 順序の論拠:
 
