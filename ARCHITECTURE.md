@@ -70,6 +70,7 @@ kei-lang/
 │   └── bow-kun.ico           # favicon(16/32/48 同梱)
 │
 └── .github/
+    ├── dependabot.yml      # 依存自動更新(cargo / github-actions / npm)
     └── workflows/
         ├── ci.yml           # fmt / clippy / test
         └── release.yml      # v*タグでkeiバイナリをビルドしGitHub Releasesへ添付

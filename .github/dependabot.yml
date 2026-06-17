@@ -1,0 +1,64 @@
+# Dependabot 設定。依存の更新 PR を自動で起票する。
+# 対象: Cargo ワークスペース / GitHub Actions / npm パッケージ群。
+# minor・patch はエコシステム単位でまとめ、major は個別 PR にして影響を切り分ける。
+# `@kei/runtime` への `file:` 依存(tests/*, editors/vscode)は Dependabot が自動で無視する。
+version: 2
+
+updates:
+  # --- Rust(Cargo ワークスペースルート)---
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels:
+      - dependencies
+      - rust
+    groups:
+      cargo-minor-patch:
+        update-types:
+          - minor
+          - patch
+
+  # --- GitHub Actions(ci.yml / release.yml)---
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
+    labels:
+      - dependencies
+      - github-actions
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # --- npm(ランタイム・VS Code 拡張・テストフィクスチャ)---
+  - package-ecosystem: npm
+    directories:
+      - "/runtime"
+      - "/editors/vscode"
+      - "/tests/e2e"
+      - "/tests/cli/projects/app"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    labels:
+      - dependencies
+      - javascript
+    groups:
+      npm-minor-patch:
+        update-types:
+          - minor
+          - patch
