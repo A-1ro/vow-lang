@@ -17,6 +17,8 @@ pub enum Command {
         strict_extern: bool,
         /// 契約から property-based test を生成・実行する(M15 / #26)。既定 off。
         generative: bool,
+        /// 構造化修正提案(ContractMissing)を出す(M18 / #24)。既定 off。
+        suggest_contracts: bool,
     },
     /// `kei fmt <file> [--check | --write]`
     Fmt { file: PathBuf, mode: FmtMode },
@@ -82,6 +84,7 @@ fn parse_check(it: impl Iterator<Item = String>) -> Result<Command, UsageError> 
     let mut json = false;
     let mut strict_extern = false;
     let mut generative = false;
+    let mut suggest_contracts = false;
     for arg in it {
         match arg.as_str() {
             "--json" => {
@@ -101,6 +104,12 @@ fn parse_check(it: impl Iterator<Item = String>) -> Result<Command, UsageError> 
                     return Err(UsageError::new("--generative given more than once"));
                 }
                 generative = true;
+            }
+            "--suggest-contracts" => {
+                if suggest_contracts {
+                    return Err(UsageError::new("--suggest-contracts given more than once"));
+                }
+                suggest_contracts = true;
             }
             "--help" | "-h" => return Ok(Command::Help),
             opt if is_option(opt) => {
@@ -122,6 +131,7 @@ fn parse_check(it: impl Iterator<Item = String>) -> Result<Command, UsageError> 
         json,
         strict_extern,
         generative,
+        suggest_contracts,
     })
 }
 
@@ -246,10 +256,11 @@ pub const USAGE: &str = "\
 kei — the Kei toolchain
 
 USAGE:
-    kei check <file> [--json] [--strict-extern] [--generative]
+    kei check <file> [--json] [--strict-extern] [--generative] [--suggest-contracts]
                                  意味検査(既定は散文 Diagnostic、--json で Diagnostic[]。
                                  --strict-extern で extern 未宣言の外部呼び出しを警告、
-                                 --generative で契約から PBT を生成・実行し反例を報告)
+                                 --generative で契約から PBT を生成・実行し反例を報告、
+                                 --suggest-contracts で契約の無い純粋関数に ensures を提案)
     kei fmt <file> [--check | --write]
                                  正規形整形(既定は stdout、--check は検証、--write は上書き)
     kei build <dir> [--out-dir <dir>] [--no-source-map]
@@ -283,6 +294,7 @@ mod tests {
                 json: false,
                 strict_extern: false,
                 generative: false,
+                suggest_contracts: false,
             })
         );
     }
@@ -294,6 +306,7 @@ mod tests {
             json: true,
             strict_extern: false,
             generative: false,
+            suggest_contracts: false,
         });
         assert_eq!(parse_args(&["check", "a.kei", "--json"]), expected);
         assert_eq!(parse_args(&["check", "--json", "a.kei"]), expected);
@@ -306,6 +319,7 @@ mod tests {
             json: false,
             strict_extern: true,
             generative: false,
+            suggest_contracts: false,
         });
         assert_eq!(parse_args(&["check", "a.kei", "--strict-extern"]), expected);
         assert_eq!(parse_args(&["check", "--strict-extern", "a.kei"]), expected);
@@ -317,6 +331,7 @@ mod tests {
                 json: true,
                 strict_extern: true,
                 generative: false,
+                suggest_contracts: false,
             })
         );
         // 二重指定は使用法エラー。
@@ -332,6 +347,7 @@ mod tests {
                 json: false,
                 strict_extern: false,
                 generative: true,
+                suggest_contracts: false,
             })
         );
         // --json と併用可。
@@ -342,9 +358,31 @@ mod tests {
                 json: true,
                 strict_extern: false,
                 generative: true,
+                suggest_contracts: false,
             })
         );
         assert!(parse_args(&["check", "a.kei", "--generative", "--generative"]).is_err());
+    }
+
+    #[test]
+    fn check_suggest_contracts_flag() {
+        assert_eq!(
+            parse_args(&["check", "--suggest-contracts", "a.kei"]),
+            Ok(Command::Check {
+                file: PathBuf::from("a.kei"),
+                json: false,
+                strict_extern: false,
+                generative: false,
+                suggest_contracts: true,
+            })
+        );
+        assert!(parse_args(&[
+            "check",
+            "a.kei",
+            "--suggest-contracts",
+            "--suggest-contracts"
+        ])
+        .is_err());
     }
 
     #[test]

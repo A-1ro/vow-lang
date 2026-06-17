@@ -105,6 +105,7 @@ mod tests {
                 title: "Add 'Database.Write' to uses clause".to_string(),
                 edits: vec![],
             }],
+            suggested_contract: None,
         };
         let lsp = diagnostic_to_lsp(&diag);
         assert_eq!(lsp.severity, Some(DiagnosticSeverity::ERROR));

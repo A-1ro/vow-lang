@@ -18,12 +18,14 @@ pub fn run(
     json: bool,
     strict_extern: bool,
     generative: bool,
+    suggest_contracts: bool,
 ) -> Result<u8, UsageError> {
     let source = crate::read_source(file)?;
     let name = file.to_string_lossy().into_owned();
     let opts = CheckOptions {
         strict_extern,
         generative,
+        suggest_contracts,
     };
 
     // kei_mcp::tools::run_check と同方針: 構文エラーがあるときは壊れた AST に

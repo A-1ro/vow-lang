@@ -15,7 +15,7 @@ use kei_syntax::{Position as SynPosition, Span as SynSpan};
 use crate::effects;
 use crate::report::{CheckReport, ContractInfo, ContractKind, Verification};
 use crate::types::Ty;
-use crate::{Diagnostic, Fix, Position, Severity, Span, TextEdit};
+use crate::{Diagnostic, Fix, Position, Severity, Span, SuggestedContract, TextEdit};
 
 mod codes {
     pub const UNDEFINED_NAME: &str = "KEI-E1001";
@@ -41,6 +41,7 @@ mod codes {
     pub const CONST_FALSE_CONTRACT: &str = "KEI-E4003";
     pub const NON_QUERY_IN_CONTRACT: &str = "KEI-E4004";
     pub const GENERATIVE_COUNTEREXAMPLE: &str = "KEI-E4005";
+    pub const CONTRACT_MISSING: &str = "KEI-E4008";
 }
 
 /// 検査オプション(M16 / #44)。既定はすべて off で、`check_module` /
@@ -55,6 +56,9 @@ pub struct CheckOptions {
     /// `kei check --generative` で on。純粋関数の ensures を generative へ格上げし、
     /// 反例があれば KEI-E4005 を出す。
     pub generative: bool,
+    /// 構造化修正提案(M18 / #24)を出す。既定 off。`kei check --suggest-contracts` で on。
+    /// 契約の無い純粋関数に ContractMissing(KEI-E4008 / suggested_contract)を提案する。
+    pub suggest_contracts: bool,
 }
 
 /// 1 モジュールを検査し、出現位置に対応した順序で Diagnostic を返す(既定オプション)。
@@ -80,6 +84,10 @@ pub fn check_module_with(file: &str, module: &ast::Module, opts: CheckOptions) -
             }
             .check();
         }
+    }
+    // 構造化修正提案(M18 / #24)。opt-in。契約の無い純粋関数に ContractMissing を提案する。
+    if opts.suggest_contracts {
+        suggest_missing_contracts(&env, module, &mut diags);
     }
     // パーサのエラー整列(parse_module)と同じ規約: ソース上の出現位置順。
     diags.sort_by(|a, b| {
@@ -178,6 +186,54 @@ fn apply_generative(
             b.code.as_str(),
         ))
     });
+}
+
+/// 構造化修正提案: ContractMissing(M18 / #24)。契約の無い純粋関数で、本体が単一の
+/// `return <expr>` のものに、本体から導いた `ensures result == <expr>` を提案する。
+/// 提案は機械適用可能(`suggested_contract`)で、適用すると check-clean(`result` は構築上
+/// その式)になり、`--generative` では `generative` まで上がる。warning(opt-in)。
+fn suggest_missing_contracts(env: &Env, module: &ast::Module, diags: &mut Vec<Diagnostic>) {
+    for item in &module.items {
+        let ast::Item::Func(f) = item else { continue };
+        if !f.uses.is_empty() || !f.ensures.is_empty() {
+            continue;
+        }
+        let Some(ret) = &f.ret else { continue };
+        if !is_scalar_type(ret) {
+            continue;
+        }
+        // 本体がちょうど 1 つの `return <expr>` のときだけ、式から事後条件を導ける。
+        let [ast::Stmt::Return(r)] = f.body.stmts.as_slice() else {
+            continue;
+        };
+        let Some(value) = &r.value else { continue };
+        let expr = format!("result == {}", contract_expr_text(value));
+        let diag = Diagnostic::new(
+            Severity::Warning,
+            codes::CONTRACT_MISSING,
+            format!(
+                "function '{}' has no postcondition; an ensures can be derived from its body",
+                f.name.name
+            ),
+            env.span(f.name.span),
+            vec![direction(format!("Add 'ensures {expr}'"))],
+        )
+        .expect("contract-missing diagnostic carries a fix")
+        .with_suggested_contract(SuggestedContract {
+            kind: "ContractMissing".to_string(),
+            function: f.name.name.clone(),
+            clause: "ensures".to_string(),
+            expr,
+        });
+        diags.push(diag);
+    }
+}
+
+/// スカラ組み込み型(`==` で事後条件にしやすい)か。
+fn is_scalar_type(t: &ast::Type) -> bool {
+    t.path.len() == 1
+        && t.args.is_empty()
+        && matches!(t.path[0].name.as_str(), "Int" | "Bool" | "String")
 }
 
 /// 各関数の requires / ensures を走査し、検証レベルを判定して報告を組む。

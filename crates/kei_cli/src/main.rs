@@ -42,7 +42,14 @@ fn main() -> ExitCode {
             json,
             strict_extern,
             generative,
-        }) => dispatch(check::run(&file, json, strict_extern, generative)),
+            suggest_contracts,
+        }) => dispatch(check::run(
+            &file,
+            json,
+            strict_extern,
+            generative,
+            suggest_contracts,
+        )),
         Ok(Command::Fmt { file, mode }) => dispatch(fmt::run(&file, mode)),
         Ok(Command::Build {
             dir,
