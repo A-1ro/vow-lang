@@ -23,6 +23,9 @@ pub enum Ty {
     },
     Result(Box<Ty>, Box<Ty>),
     Option(Box<Ty>),
+    /// `List<T>`(不変・opaque な列)。`Result` / `Option` と並ぶ第三の組み込み
+    /// ジェネリクス(spec/kei-spec-v0.3-collections.md / M9)。
+    List(Box<Ty>),
     Unknown,
 }
 
@@ -37,6 +40,7 @@ impl Ty {
             (Tagged { name: a, .. }, Tagged { name: b, .. }) => a == b,
             (Result(o1, e1), Result(o2, e2)) => o1.compatible(o2) && e1.compatible(e2),
             (Option(a), Option(b)) => a.compatible(b),
+            (List(a), List(b)) => a.compatible(b),
             _ => false,
         }
     }
@@ -61,6 +65,7 @@ impl fmt::Display for Ty {
             Ty::Record(n) | Ty::Enum(n) | Ty::Tagged { name: n, .. } => write!(f, "{n}"),
             Ty::Result(t, e) => write!(f, "Result<{t}, {e}>"),
             Ty::Option(t) => write!(f, "Option<{t}>"),
+            Ty::List(t) => write!(f, "List<{t}>"),
             Ty::Unknown => write!(f, "_"),
         }
     }

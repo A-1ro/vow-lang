@@ -1,0 +1,9 @@
+module collections.method
+
+record Item {
+  qty: Int
+}
+
+func bad(items: List<Item>) -> Int {
+  return items.size()
+}

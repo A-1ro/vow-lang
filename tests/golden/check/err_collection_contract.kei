@@ -1,0 +1,21 @@
+module collections.contract
+
+import infra.db as Database
+
+record Item {
+  id: String
+}
+
+extern Database.isActive(item: Item) -> Bool uses Database.Read
+
+func activeCheck(item: Item) -> Bool
+  uses Database.Read
+{
+  return Database.isActive(item)
+}
+
+func process(items: List<Item>) -> Int
+  requires items.all(activeCheck)
+{
+  return items.length
+}

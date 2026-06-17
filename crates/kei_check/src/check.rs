@@ -705,6 +705,13 @@ impl Env {
                 }
                 Ty::Option(Box::new(self.resolve_ty(&t.args[0], diags)))
             }
+            // 第三の組み込みジェネリクス(M9 / spec v0.3-collections §3)。型引数 1。
+            "List" => {
+                if !self.check_type_args(t, 1, diags) {
+                    return Ty::Unknown;
+                }
+                Ty::List(Box::new(self.resolve_ty(&t.args[0], diags)))
+            }
             _ => match self.kinds.get(root) {
                 Some(NameKind::Record) => {
                     self.check_type_args(t, 0, diags);
@@ -735,7 +742,7 @@ impl Env {
                     Ty::Unknown
                 }
                 None => {
-                    let builtins = ["Int", "String", "Bool", "Result", "Option"];
+                    let builtins = ["Int", "String", "Bool", "Result", "Option", "List"];
                     let candidates = self
                         .kinds
                         .iter()
@@ -1309,6 +1316,41 @@ impl FnChecker<'_> {
             }
             Ty::Result(..) => self.builtin_member(base, name, &["isOk", "isErr"]),
             Ty::Option(..) => self.builtin_member(base, name, &["isSome", "isNone"]),
+            // List のプロパティ(引数なし)。メソッド(引数あり)は infer_call で
+            // 処理するため、ここに来るのは呼び出しなしのアクセス(M9)。
+            Ty::List(_) => match name.name.as_str() {
+                "length" => Ty::Int,
+                "isEmpty" => Ty::Bool,
+                "get" | "map" | "filter" | "fold" | "all" | "any" => {
+                    let m = name.name.clone();
+                    self.push(
+                        codes::UNKNOWN_FIELD,
+                        format!("'{m}' is a List method; call it as 'xs.{m}(...)'"),
+                        name.span,
+                        vec![direction(format!("Call the method: 'xs.{m}(...)'"))],
+                    );
+                    Ty::Unknown
+                }
+                _ => {
+                    let members = [
+                        "length", "isEmpty", "get", "map", "filter", "fold", "all", "any",
+                    ];
+                    let fix = match suggestion(&name.name, members.iter().copied()) {
+                        Some(s) => {
+                            self.env
+                                .replace_fix(format!("Did you mean '{s}'?"), name.span, &s)
+                        }
+                        None => direction(format!("Use one of: {}", members.join(", "))),
+                    };
+                    self.push(
+                        codes::UNKNOWN_FIELD,
+                        format!("no member '{}' on 'List'", name.name),
+                        name.span,
+                        vec![fix],
+                    );
+                    Ty::Unknown
+                }
+            },
             other => {
                 let other = other.clone();
                 self.push(
@@ -1434,7 +1476,26 @@ impl FnChecker<'_> {
                         if self.opts.strict_extern {
                             self.warn_undeclared_extern(&key, span);
                         }
+                        // 未宣言の外部呼び出しは opaque: 引数だけ検査して Unknown を返す。
+                        for a in args {
+                            self.infer(a);
+                        }
+                        return Ty::Unknown;
                     }
+                }
+                // List コンビネータのメソッド呼び出し(M9)。レシーバが値のときだけ
+                // 型を推論して List を見分ける(型名・未定義名の従来のエラー経路を保つ)。
+                let base_is_value = match base.as_ref() {
+                    ast::Expr::Name { name, .. } => self.lookup_scope(name).is_some(),
+                    _ => true,
+                };
+                if base_is_value {
+                    let base_ty = self.infer(base);
+                    if let Ty::List(elem) = base_ty.clone() {
+                        return self.list_method(&elem, vname, args, span);
+                    }
+                    let callee_ty = self.field_on(&base_ty, vname);
+                    return self.call_value(&callee_ty, args, span);
                 }
                 let callee_ty = self.infer(callee);
                 self.call_value(&callee_ty, args, span)
@@ -1460,6 +1521,238 @@ impl FnChecker<'_> {
             );
         }
         Ty::Unknown
+    }
+
+    /// List コンビネータのメソッド呼び出し(M9 / spec v0.3-collections §4)。
+    /// `elem` は要素型 T。関数引数は名前付き関数参照のみ許す(案2、§4.1)。
+    fn list_method(
+        &mut self,
+        elem: &Ty,
+        method: &ast::Ident,
+        args: &[ast::Expr],
+        span: SynSpan,
+    ) -> Ty {
+        match method.name.as_str() {
+            // get(index: Int) -> Option<T>(範囲外は None)。
+            "get" => {
+                self.expect_arity(&method.name, 1, args, span);
+                if let Some(a) = args.first() {
+                    let at = self.infer(a);
+                    self.check_assign(&Ty::Int, &at, a.span());
+                }
+                for a in args.iter().skip(1) {
+                    self.infer(a);
+                }
+                Ty::Option(Box::new(elem.clone()))
+            }
+            // map(f: (T) -> U) -> List<U>。U は f の戻り型。
+            "map" => {
+                if !self.expect_arity(&method.name, 1, args, span) {
+                    for a in args {
+                        self.infer(a);
+                    }
+                    return Ty::List(Box::new(Ty::Unknown));
+                }
+                let u = self.check_combinator_fn_arg(
+                    &args[0],
+                    std::slice::from_ref(elem),
+                    None,
+                    "map",
+                    span,
+                );
+                Ty::List(Box::new(u))
+            }
+            // filter(pred: (T) -> Bool) -> List<T>。
+            "filter" => {
+                if self.expect_arity(&method.name, 1, args, span) {
+                    self.check_combinator_fn_arg(
+                        &args[0],
+                        std::slice::from_ref(elem),
+                        Some(&Ty::Bool),
+                        "filter",
+                        span,
+                    );
+                }
+                Ty::List(Box::new(elem.clone()))
+            }
+            // fold(init: U, f: (U, T) -> U) -> U。U は init の型。
+            "fold" => {
+                if !self.expect_arity(&method.name, 2, args, span) {
+                    for a in args {
+                        self.infer(a);
+                    }
+                    return Ty::Unknown;
+                }
+                let u = self.infer(&args[0]);
+                self.check_combinator_fn_arg(
+                    &args[1],
+                    &[u.clone(), elem.clone()],
+                    Some(&u),
+                    "fold",
+                    span,
+                );
+                u
+            }
+            // all / any(pred: (T) -> Bool) -> Bool。段階1の「量化子の代わり」。
+            "all" | "any" => {
+                if self.expect_arity(&method.name, 1, args, span) {
+                    self.check_combinator_fn_arg(
+                        &args[0],
+                        std::slice::from_ref(elem),
+                        Some(&Ty::Bool),
+                        &method.name,
+                        span,
+                    );
+                }
+                Ty::Bool
+            }
+            // プロパティ(引数なし)を呼び出し形で書いた。
+            "length" | "isEmpty" => {
+                let m = &method.name;
+                self.push(
+                    codes::TYPE_MISMATCH,
+                    format!("'{m}' is a List property; write 'xs.{m}' without arguments"),
+                    span,
+                    vec![direction(format!("Remove the call: 'xs.{m}'"))],
+                );
+                for a in args {
+                    self.infer(a);
+                }
+                if m == "length" {
+                    Ty::Int
+                } else {
+                    Ty::Bool
+                }
+            }
+            other => {
+                let members = [
+                    "length", "isEmpty", "get", "map", "filter", "fold", "all", "any",
+                ];
+                let fix = match suggestion(other, members.iter().copied()) {
+                    Some(s) => {
+                        self.env
+                            .replace_fix(format!("Did you mean '{s}'?"), method.span, &s)
+                    }
+                    None => direction(format!("Use one of: {}", members.join(", "))),
+                };
+                self.push(
+                    codes::UNKNOWN_FIELD,
+                    format!("no method '{other}' on 'List'"),
+                    method.span,
+                    vec![fix],
+                );
+                for a in args {
+                    self.infer(a);
+                }
+                Ty::Unknown
+            }
+        }
+    }
+
+    /// 引数の個数を検査する。合っていれば true。
+    fn expect_arity(
+        &mut self,
+        name: &str,
+        expected: usize,
+        args: &[ast::Expr],
+        span: SynSpan,
+    ) -> bool {
+        if args.len() == expected {
+            return true;
+        }
+        self.push(
+            codes::TYPE_MISMATCH,
+            format!(
+                "'{name}' takes {expected} argument(s), found {}",
+                args.len()
+            ),
+            span,
+            vec![direction("Adjust the arguments")],
+        );
+        false
+    }
+
+    /// コンビネータ引数の関数参照(案2 / spec v0.3-collections §4.1)。第一級関数値は
+    /// 導入せず、トップレベル/同一モジュールの**純粋関数名**だけを引数位置で許す。
+    /// 期待シグネチャ(params -> ret)と照合し、関数のエフェクトを呼び出し元へ
+    /// 推移伝播する(契約式なら副作用は KEI-E4001)。戻り型を返す(map / fold の U 決定用)。
+    fn check_combinator_fn_arg(
+        &mut self,
+        arg: &ast::Expr,
+        params: &[Ty],
+        ret: Option<&Ty>,
+        method: &str,
+        span: SynSpan,
+    ) -> Ty {
+        let ast::Expr::Name { name, span: nspan } = arg else {
+            self.infer(arg);
+            self.push(
+                codes::TYPE_MISMATCH,
+                format!(
+                    "'{method}' expects a named function reference here; functions are not first-class values in Kei"
+                ),
+                arg.span(),
+                vec![direction("Pass a top-level function name, e.g. 'xs.map(toItem)'")],
+            );
+            return Ty::Unknown;
+        };
+        // スコープ変数は関数参照になれない(関数は値ではない)。
+        if self.lookup_scope(name).is_some() || self.env.kinds.get(name) != Some(&NameKind::Func) {
+            self.push(
+                codes::TYPE_MISMATCH,
+                format!("'{name}' is not a function; '{method}' takes a named function reference"),
+                *nspan,
+                vec![direction("Reference a top-level function by name")],
+            );
+            return Ty::Unknown;
+        }
+        let sig = self
+            .env
+            .funcs
+            .get(name)
+            .cloned()
+            .expect("Func kind implies a registered signature");
+        if sig.params.len() != params.len() {
+            self.push(
+                codes::TYPE_MISMATCH,
+                format!(
+                    "function '{name}' takes {} parameter(s), but '{method}' passes {}",
+                    sig.params.len(),
+                    params.len()
+                ),
+                *nspan,
+                vec![direction("Use a function with the expected parameters")],
+            );
+            return sig.ret.clone();
+        }
+        for ((pname, pty), expected) in sig.params.iter().zip(params) {
+            if !pty.compatible(expected) {
+                self.push(
+                    codes::TYPE_MISMATCH,
+                    format!(
+                        "'{method}' passes '{expected}' to parameter '{pname}' of '{name}', which expects '{pty}'"
+                    ),
+                    *nspan,
+                    vec![direction(format!("Make '{name}' accept '{expected}'"))],
+                );
+            }
+        }
+        if let Some(expected_ret) = ret {
+            if !sig.ret.compatible(expected_ret) {
+                self.push(
+                    codes::TYPE_MISMATCH,
+                    format!(
+                        "'{method}' expects the function to return '{expected_ret}', but '{name}' returns '{}'",
+                        sig.ret
+                    ),
+                    *nspan,
+                    vec![direction(format!("Make '{name}' return '{expected_ret}'"))],
+                );
+            }
+        }
+        // 関数のエフェクトを呼び出し元へ推移伝播(§8.1。契約式なら KEI-E4001)。
+        self.check_call_effects(&sig.effects, name, span);
+        sig.ret.clone()
     }
 
     fn call_named(&mut self, name: &str, nspan: SynSpan, args: &[ast::Expr], span: SynSpan) -> Ty {

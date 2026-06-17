@@ -1,0 +1,49 @@
+module collections.combinators
+
+record Item {
+  id: String
+  qty: Int
+}
+
+func isPositive(item: Item) -> Bool {
+  return item.qty > 0
+}
+
+func addQty(acc: Int, item: Item) -> Int {
+  return acc + item.qty
+}
+
+func double(item: Item) -> Item {
+  return Item { id: item.id, qty: item.qty * 2 }
+}
+
+func totalQty(items: List<Item>) -> Int
+  requires items.all(isPositive)
+  ensures result >= 0
+{
+  return items.fold(0, addQty)
+}
+
+func count(items: List<Item>) -> Int {
+  return items.length
+}
+
+func firstItem(items: List<Item>) -> Option<Item> {
+  return items.get(0)
+}
+
+func noneLeft(items: List<Item>) -> Bool {
+  return items.isEmpty
+}
+
+func positives(items: List<Item>) -> List<Item> {
+  return items.filter(isPositive)
+}
+
+func doubled(items: List<Item>) -> List<Item> {
+  return items.map(double)
+}
+
+func hasPositive(items: List<Item>) -> Bool {
+  return items.any(isPositive)
+}

@@ -1,0 +1,13 @@
+module collections.fn_signature
+
+record Item {
+  qty: Int
+}
+
+func needsTwo(a: Int, b: Int) -> Int {
+  return a + b
+}
+
+func bad(items: List<Item>) -> List<Int> {
+  return items.map(needsTwo)
+}

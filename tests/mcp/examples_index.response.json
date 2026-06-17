@@ -4,7 +4,7 @@
   "result": {
     "content": [
       {
-        "text": "# Kei examples\n\n`kei_examples` の `query` にキーワードを渡すと該当する例を返す\n(パス・本文を部分一致で検索)。query を空にするとこの一覧を返す。\n\n- examples/basics/enums.kei\n- examples/basics/matching.kei\n- examples/basics/options.kei\n- examples/basics/records.kei\n- examples/contracts/borrow.kei\n- examples/contracts/counter.kei\n- examples/contracts/withdraw.kei\n- examples/effects/clock.kei\n- examples/effects/transfer.kei\n",
+        "text": "# Kei examples\n\n`kei_examples` の `query` にキーワードを渡すと該当する例を返す\n(パス・本文を部分一致で検索)。query を空にするとこの一覧を返す。\n\n- examples/basics/enums.kei\n- examples/basics/matching.kei\n- examples/basics/options.kei\n- examples/basics/records.kei\n- examples/collections/inventory.kei\n- examples/contracts/borrow.kei\n- examples/contracts/counter.kei\n- examples/contracts/withdraw.kei\n- examples/effects/clock.kei\n- examples/effects/transfer.kei\n",
         "type": "text"
       }
     ],

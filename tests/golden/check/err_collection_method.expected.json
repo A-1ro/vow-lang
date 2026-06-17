@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E2002",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Use one of: length, isEmpty, get, map, filter, fold, all, any"
+      }
+    ],
+    "message": "no method 'size' on 'List'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 20,
+        "line": 8
+      },
+      "file": "tests/golden/check/err_collection_method.kei",
+      "start": {
+        "col": 16,
+        "line": 8
+      }
+    }
+  }
+]

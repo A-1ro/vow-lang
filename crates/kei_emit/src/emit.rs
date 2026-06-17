@@ -233,6 +233,12 @@ impl RuntimeUses {
                         _ => {}
                     }
                 } else {
+                    // List.get(i) は範囲外 None を返すランタイムヘルパーへ写す(M9)。
+                    if let ast::Expr::Field { name, .. } = callee.as_ref() {
+                        if name.name == "get" && args.len() == 1 {
+                            self.names.insert("keiListGet");
+                        }
+                    }
                     self.expr(callee);
                 }
                 for a in args {
@@ -421,11 +427,24 @@ impl Emitter<'_> {
                 self.ts_type(&t.args[1])
             ),
             "Option" => format!("Option<{}>", self.ts_type(&t.args[0])),
+            // List<T> → 不変配列 readonly T[](spec v0.3-collections §9)。
+            "List" => format!("readonly {}[]", self.ts_type_paren_for_array(&t.args[0])),
             _ if t.args.is_empty() => name.to_string(),
             _ => {
                 let args: Vec<String> = t.args.iter().map(|a| self.ts_type(a)).collect();
                 format!("{name}<{}>", args.join(", "))
             }
+        }
+    }
+
+    /// 配列要素型の TS 表記。要素がさらに List(配列)なら括弧で包む
+    /// (`readonly (readonly U[])[]`。`readonly readonly U[][]` は不正)。
+    fn ts_type_paren_for_array(&self, t: &ast::Type) -> String {
+        let inner = self.ts_type(t);
+        if t.path.len() == 1 && t.path[0].name == "List" {
+            format!("({inner})")
+        } else {
+            inner
         }
     }
 
@@ -814,8 +833,22 @@ impl Emitter<'_> {
                 }
             }
             ast::Expr::Field { base, name, .. } => {
-                self.emit_expr(base, Prec::Postfix);
-                self.out.frag(&format!(".{}", name.name));
+                // List.isEmpty(プロパティ)→ `.length === 0`(spec v0.3-collections §9)。
+                // 検査済みなので名前で写す(length はそのまま `.length`)。
+                if name.name == "isEmpty" {
+                    let needs_paren = parent > Prec::Equality;
+                    if needs_paren {
+                        self.out.frag("(");
+                    }
+                    self.emit_expr(base, Prec::Postfix);
+                    self.out.frag(".length === 0");
+                    if needs_paren {
+                        self.out.frag(")");
+                    }
+                } else {
+                    self.emit_expr(base, Prec::Postfix);
+                    self.out.frag(&format!(".{}", name.name));
+                }
             }
             ast::Expr::Call { callee, args, .. } => self.emit_call(callee, args),
             ast::Expr::Unary { op, expr, .. } => {
@@ -944,6 +977,46 @@ impl Emitter<'_> {
                 self.old_counter += 1;
                 self.out.frag(&format!("kei$old${i}"));
                 return;
+            }
+        }
+        // List コンビネータのメソッド呼び出し(M9 / spec v0.3-collections §9)。
+        // 検査済みなので `xs.<method>(...)` の <method> 名で配列メソッドへ写す。
+        if let ast::Expr::Field { base, name, .. } = callee {
+            match name.name.as_str() {
+                // get(i) は範囲外 None を返すランタイムヘルパーへ。
+                "get" if args.len() == 1 => {
+                    self.out.frag("keiListGet(");
+                    self.emit_expr(base, Prec::Or);
+                    self.out.frag(", ");
+                    self.emit_expr(&args[0], Prec::Or);
+                    self.out.frag(")");
+                    return;
+                }
+                // fold(init, f) → reduce(f, init)(引数順が逆)。
+                "fold" if args.len() == 2 => {
+                    self.emit_expr(base, Prec::Postfix);
+                    self.out.frag(".reduce(");
+                    self.emit_expr(&args[1], Prec::Or);
+                    self.out.frag(", ");
+                    self.emit_expr(&args[0], Prec::Or);
+                    self.out.frag(")");
+                    return;
+                }
+                // all/any → every/some。map/filter は同名の配列メソッドへ素通り。
+                "all" | "any" => {
+                    let js = if name.name == "all" { "every" } else { "some" };
+                    self.emit_expr(base, Prec::Postfix);
+                    self.out.frag(&format!(".{js}("));
+                    for (i, a) in args.iter().enumerate() {
+                        if i > 0 {
+                            self.out.frag(", ");
+                        }
+                        self.emit_expr(a, Prec::Or);
+                    }
+                    self.out.frag(")");
+                    return;
+                }
+                _ => {}
             }
         }
         self.emit_expr(callee, Prec::Postfix);

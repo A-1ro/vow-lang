@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Reference a top-level function by name"
+      }
+    ],
+    "message": "'base' is not a function; 'fold' takes a named function reference",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 31,
+        "line": 8
+      },
+      "file": "tests/golden/check/err_collection_fn_value.kei",
+      "start": {
+        "col": 27,
+        "line": 8
+      }
+    }
+  }
+]
