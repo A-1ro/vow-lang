@@ -6,6 +6,7 @@
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
+use kei_check::contract_expr_text as kei_expr_text;
 use kei_syntax::ast::{self, BinOp, UnaryOp};
 use kei_syntax::Span;
 
@@ -1058,125 +1059,7 @@ fn ts_string(s: &str) -> String {
 // ---------------------------------------------------------------------------
 // 契約式の Kei ソース表記(condition フィールドと doc コメント用)
 // ---------------------------------------------------------------------------
-
-fn kei_bin_op(op: BinOp) -> &'static str {
-    match op {
-        BinOp::Eq => "==",
-        BinOp::Ne => "!=",
-        BinOp::Lt => "<",
-        BinOp::Gt => ">",
-        BinOp::Le => "<=",
-        BinOp::Ge => ">=",
-        BinOp::Add => "+",
-        BinOp::Sub => "-",
-        BinOp::Mul => "*",
-        BinOp::Div => "/",
-        BinOp::Implies => "implies",
-    }
-}
-
-fn kei_expr_text(e: &ast::Expr) -> String {
-    // `tight` は同優先度の子も括弧で包むか。左結合の右オペランド・
-    // 右結合(implies)の左オペランドで真にし、結合方向の取り違えを防ぐ。
-    fn child(e: &ast::Expr, parent: Prec, tight: bool) -> String {
-        let needs_paren = match e {
-            ast::Expr::Binary { op, .. } => {
-                let cp = bin_prec(*op);
-                cp < parent || (tight && cp == parent)
-            }
-            _ => false,
-        };
-        let text = kei_expr_text(e);
-        if needs_paren {
-            format!("({text})")
-        } else {
-            text
-        }
-    }
-    match e {
-        ast::Expr::Int { value, .. } => value.to_string(),
-        ast::Expr::Str { value, .. } => ts_string(value),
-        ast::Expr::Bool { value, .. } => if *value { "true" } else { "false" }.to_string(),
-        ast::Expr::Name { name, .. } => name.clone(),
-        ast::Expr::Field { base, name, .. } => {
-            format!("{}.{}", child(base, Prec::Postfix, false), name.name)
-        }
-        ast::Expr::Call { callee, args, .. } => {
-            let args: Vec<String> = args.iter().map(kei_expr_text).collect();
-            format!(
-                "{}({})",
-                child(callee, Prec::Postfix, false),
-                args.join(", ")
-            )
-        }
-        ast::Expr::Unary { op, expr, .. } => {
-            let sym = match op {
-                UnaryOp::Neg => "-",
-                UnaryOp::Not => "!",
-            };
-            format!("{sym}{}", child(expr, Prec::Unary, false))
-        }
-        ast::Expr::Binary { op, lhs, rhs, .. } => {
-            let prec = bin_prec(*op);
-            // implies は右結合、他は左結合(parser::parse_implies)。
-            let (lhs_tight, rhs_tight) = if *op == BinOp::Implies {
-                (true, false)
-            } else {
-                (false, true)
-            };
-            format!(
-                "{} {} {}",
-                child(lhs, prec, lhs_tight),
-                kei_bin_op(*op),
-                child(rhs, prec, rhs_tight)
-            )
-        }
-        ast::Expr::RecordLit { path, fields, .. } => {
-            let parts: Vec<&str> = path.iter().map(|i| i.name.as_str()).collect();
-            let fs: Vec<String> = fields
-                .iter()
-                .map(|f| match &f.value {
-                    None => f.name.name.clone(),
-                    Some(v) => format!("{}: {}", f.name.name, kei_expr_text(v)),
-                })
-                .collect();
-            format!("{} {{ {} }}", parts.join("."), fs.join(", "))
-        }
-        ast::Expr::Match {
-            scrutinee, arms, ..
-        } => {
-            let arms: Vec<String> = arms
-                .iter()
-                .map(|a| {
-                    format!(
-                        "{} => {}",
-                        kei_pattern_text(&a.pattern),
-                        kei_expr_text(&a.body)
-                    )
-                })
-                .collect();
-            format!(
-                "match {} {{ {} }}",
-                kei_expr_text(scrutinee),
-                arms.join(", ")
-            )
-        }
-    }
-}
-
-/// パターンの Kei ソース表記(契約条件文字列・doc コメント用)。
-fn kei_pattern_text(pat: &ast::Pattern) -> String {
-    let path: Vec<&str> = pat.path.iter().map(|i| i.name.as_str()).collect();
-    let head = path.join(".");
-    match &pat.payload {
-        ast::PatternPayload::Unit => head,
-        ast::PatternPayload::Tuple { bindings } => {
-            let bs: Vec<&str> = bindings.iter().map(|i| i.name.as_str()).collect();
-            format!("{head}({})", bs.join(", "))
-        }
-        ast::PatternPayload::Record { fields } => {
-            let fs: Vec<&str> = fields.iter().map(|i| i.name.as_str()).collect();
-            format!("{head} {{ {} }}", fs.join(", "))
-        }
-    }
-}
+//
+// 表記の正規実装は `kei_check::contract_expr_text`(#32、ファイル冒頭で `kei_expr_text` として
+// import)。`condition` は `CheckReport.contracts[].expr` とバイト一致が要件なので、優先順位・
+// 結合方向・文字列エスケープをここで再実装せず、検査クレートの単一実装へ委譲する。

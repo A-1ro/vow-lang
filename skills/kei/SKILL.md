@@ -633,7 +633,7 @@ tagged 型と基底型、または別の tagged 型を混同した。`type Accou
 
 ### KEI-E0102 reserved keyword as identifier
 
-予約語を識別子に使った。予約語: `module import as type record enum func uses requires ensures let if else fail return tagged true false implies match`。
+予約語を識別子に使った。予約語: `module import as type record enum func uses requires ensures let if else fail return tagged true false implies match extern`。
 
 ✗: `let type = 1` → ✓: 別名にする(`let kind = 1`)。`.` の後ろのメンバ名は同綴りでも可(`Audit.Log.record`)。
 

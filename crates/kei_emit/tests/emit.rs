@@ -108,6 +108,67 @@ fn ensures_wraps_body_and_captures_old() {
     assert!(out.ts.contains("return kei$result;"));
 }
 
+/// 生成 TS から `condition: "<json>"` の値を出現順に抜き出し、JSON エスケープを解いて返す。
+/// `condition` は `ts_string`(= serde_json)で TS 文字列リテラル化されているので往復で復元できる。
+fn extract_conditions(ts: &str) -> Vec<String> {
+    ts.lines()
+        .filter_map(|line| {
+            let rest = line.trim_start().strip_prefix("condition: ")?;
+            let json = rest.strip_suffix(',').unwrap_or(rest);
+            Some(serde_json::from_str::<String>(json).expect("condition is a JSON string literal"))
+        })
+        .collect()
+}
+
+/// #32: 契約式の Kei 表記は `kei_check::contract_expr_text` を唯一の正規実装とし、`kei_emit` は
+/// そこへ委譲する。検証レポートの `CheckReport.contracts[].expr` と実行時診断の
+/// `KeiContractViolation.condition` は**バイト一致が要件**。優先順位・結合方向・括弧最小化・
+/// 否定・呼び出し・フィールド・`match` を網羅する契約群で両経路の出力が一致することを固定し、
+/// 将来どちらかが二重実装へ逆戻りしても検出できるようにする(出典: PR #31 レビュー 指摘1)。
+#[test]
+fn contract_expr_text_is_single_source_for_report_and_runtime() {
+    let src = concat!(
+        "module a.b\n",
+        "\n",
+        "enum Status {\n",
+        "  Open\n",
+        "  Closed\n",
+        "}\n",
+        "\n",
+        "func classify(s: Status) -> Int {\n",
+        "  return match s { Status.Open => 1, Status.Closed => 0 }\n",
+        "}\n",
+        "\n",
+        "func f(a: Int, b: Int, c: Int) -> Int\n",
+        "  requires a + b * c > 0\n",
+        "  requires (a + b) * c > 0\n",
+        "  requires a - (b - c) == 0\n",
+        "  requires a > 0 implies b > 0 implies c > 0\n",
+        "  requires (a > 0 implies b > 0) implies c > 0\n",
+        "  requires !(a == b)\n",
+        "  requires -a < b\n",
+        "  ensures result == old(a) + old(b)\n",
+        "{\n",
+        "  return a + b + c\n",
+        "}\n",
+    );
+
+    // 検証レポート側(kei_check が組む expr)。
+    let parsed = kei_syntax::parse_module(src);
+    assert!(parsed.errors.is_empty(), "test source must parse cleanly");
+    let report = kei_check::check_module_report("test.kei", &parsed.module);
+    let report_exprs: Vec<String> = report.contracts.iter().map(|c| c.expr.clone()).collect();
+    assert!(!report_exprs.is_empty(), "expected contracts in report");
+
+    // 実行時診断側(kei_emit が出す condition)。requires→ensures の宣言順で並ぶ。
+    let runtime_conditions = extract_conditions(&emit(src).ts);
+
+    assert_eq!(
+        report_exprs, runtime_conditions,
+        "CheckReport.contracts[].expr と KeiContractViolation.condition はバイト一致が要件(#32)"
+    );
+}
+
 #[test]
 fn else_fail_unwraps_via_shared_discriminant() {
     let out = emit(concat!(

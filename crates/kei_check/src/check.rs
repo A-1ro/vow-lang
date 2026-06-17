@@ -1952,6 +1952,9 @@ impl FnChecker<'_> {
                     vec![direction("Make every arm produce the same type")],
                 );
             } else if matches!(result_ty, Ty::Unknown) {
+                // 先行する腕の本体型が Unknown(エラー由来など)だったとき、後続の具体型で
+                // 結果型を回復する。Unknown は何とでも compatible なので上の不一致検査は通っており、
+                // ここで具体型に差し替えると以降の不一致を実型で判定でき、波及エラーを抑えられる。
                 result_ty = body_ty;
             }
         }
@@ -2428,9 +2431,12 @@ fn direction(title: impl Into<String>) -> Fix {
     }
 }
 
-/// 契約式の Kei ソース表記。`kei_emit` の `kei_expr_text` と同じ優先順位規則で
-/// 整形し、`KeiContractViolation.condition` と一致させる(検証レポートの `expr`)。
-fn contract_expr_text(e: &ast::Expr) -> String {
+/// 契約式の Kei ソース表記の**唯一の正規実装**(#32)。
+///
+/// `CheckReport.contracts[].expr`(検証レポート)と実行時 `KeiContractViolation.condition`
+/// は**バイト一致が要件**。後者を生成する `kei_emit` はこの関数へ委譲するため、優先順位表・
+/// 結合方向・文字列エスケープを二重実装しない(片方だけ変えてサイレント乖離する事故を構造的に防ぐ)。
+pub fn contract_expr_text(e: &ast::Expr) -> String {
     // kei_emit と同じ優先順位(Equality < Relational)。括弧を最小化する。
     fn bin_prec(op: ast::BinOp) -> u8 {
         use ast::BinOp::*;
@@ -2534,7 +2540,8 @@ fn contract_expr_text(e: &ast::Expr) -> String {
     }
 }
 
-fn contract_pattern_text(pat: &ast::Pattern) -> String {
+/// パターンの Kei ソース表記の正規実装(#32)。[`contract_expr_text`] と同様 `kei_emit` が委譲する。
+pub fn contract_pattern_text(pat: &ast::Pattern) -> String {
     let head: Vec<&str> = pat.path.iter().map(|i| i.name.as_str()).collect();
     let head = head.join(".");
     match &pat.payload {
