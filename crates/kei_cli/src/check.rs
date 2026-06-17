@@ -7,21 +7,22 @@
 
 use std::path::Path;
 
-use kei_check::{CheckReport, Severity};
+use kei_check::{CheckOptions, CheckReport, Severity};
 
 use crate::cli::UsageError;
 use crate::render;
 
 /// `kei check`。成功時は終了コード(0 / 1)、ファイル読込失敗は使用法エラー。
-pub fn run(file: &Path, json: bool) -> Result<u8, UsageError> {
+pub fn run(file: &Path, json: bool, strict_extern: bool) -> Result<u8, UsageError> {
     let source = crate::read_source(file)?;
     let name = file.to_string_lossy().into_owned();
+    let opts = CheckOptions { strict_extern };
 
     // kei_mcp::tools::run_check と同方針: 構文エラーがあるときは壊れた AST に
     // 意味検査をかけず、構文 Diagnostic だけを返す(契約レポートも出さない)。
     let parsed = kei_syntax::parse_module(&source);
     let report = if parsed.errors.is_empty() {
-        kei_check::check_module_report(&name, &parsed.module)
+        kei_check::check_module_report_with(&name, &parsed.module, opts)
     } else {
         CheckReport {
             diagnostics: kei_check::syntax_diagnostics(&name, &parsed.errors),

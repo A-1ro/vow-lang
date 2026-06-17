@@ -10,7 +10,10 @@ pub mod report;
 pub mod syntax;
 pub mod types;
 
-pub use check::{check_module, check_module_report, contract_expr_text, contract_pattern_text};
+pub use check::{
+    check_module, check_module_report, check_module_report_with, check_module_with,
+    contract_expr_text, contract_pattern_text, CheckOptions,
+};
 pub use diagnostic::{Diagnostic, Fix, Position, Severity, Span, TextEdit};
 pub use report::{CheckReport, ContractInfo, ContractKind, Verification};
 pub use syntax::syntax_diagnostics;

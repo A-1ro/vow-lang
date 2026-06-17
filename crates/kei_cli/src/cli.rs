@@ -9,8 +9,13 @@ use std::path::PathBuf;
 /// 解釈済みのサブコマンド。実行は各ランナー(check / fmt / build / test)が担う。
 #[derive(Debug, PartialEq, Eq)]
 pub enum Command {
-    /// `kei check <file> [--json]`
-    Check { file: PathBuf, json: bool },
+    /// `kei check <file> [--json] [--strict-extern]`
+    Check {
+        file: PathBuf,
+        json: bool,
+        /// 未宣言の外部 namespace 呼び出しを警告する(M16 / #44)。既定 off。
+        strict_extern: bool,
+    },
     /// `kei fmt <file> [--check | --write]`
     Fmt { file: PathBuf, mode: FmtMode },
     /// `kei build <dir> [--out-dir <dir>] [--no-source-map]`
@@ -73,6 +78,7 @@ pub fn parse(args: Vec<String>) -> Result<Command, UsageError> {
 fn parse_check(it: impl Iterator<Item = String>) -> Result<Command, UsageError> {
     let mut file: Option<PathBuf> = None;
     let mut json = false;
+    let mut strict_extern = false;
     for arg in it {
         match arg.as_str() {
             "--json" => {
@@ -80,6 +86,12 @@ fn parse_check(it: impl Iterator<Item = String>) -> Result<Command, UsageError> 
                     return Err(UsageError::new("--json given more than once"));
                 }
                 json = true;
+            }
+            "--strict-extern" => {
+                if strict_extern {
+                    return Err(UsageError::new("--strict-extern given more than once"));
+                }
+                strict_extern = true;
             }
             "--help" | "-h" => return Ok(Command::Help),
             opt if is_option(opt) => {
@@ -96,7 +108,11 @@ fn parse_check(it: impl Iterator<Item = String>) -> Result<Command, UsageError> 
         }
     }
     let file = file.ok_or_else(|| UsageError::new("check requires a <file> argument"))?;
-    Ok(Command::Check { file, json })
+    Ok(Command::Check {
+        file,
+        json,
+        strict_extern,
+    })
 }
 
 fn parse_fmt(it: impl Iterator<Item = String>) -> Result<Command, UsageError> {
@@ -220,7 +236,9 @@ pub const USAGE: &str = "\
 kei — the Kei toolchain
 
 USAGE:
-    kei check <file> [--json]    意味検査(既定は散文 Diagnostic、--json で Diagnostic[])
+    kei check <file> [--json] [--strict-extern]
+                                 意味検査(既定は散文 Diagnostic、--json で Diagnostic[]。
+                                 --strict-extern で extern 未宣言の外部呼び出しを警告)
     kei fmt <file> [--check | --write]
                                  正規形整形(既定は stdout、--check は検証、--write は上書き)
     kei build <dir> [--out-dir <dir>] [--no-source-map]
@@ -252,6 +270,7 @@ mod tests {
             Ok(Command::Check {
                 file: PathBuf::from("a.kei"),
                 json: false,
+                strict_extern: false,
             })
         );
     }
@@ -261,9 +280,32 @@ mod tests {
         let expected = Ok(Command::Check {
             file: PathBuf::from("a.kei"),
             json: true,
+            strict_extern: false,
         });
         assert_eq!(parse_args(&["check", "a.kei", "--json"]), expected);
         assert_eq!(parse_args(&["check", "--json", "a.kei"]), expected);
+    }
+
+    #[test]
+    fn check_strict_extern_flag() {
+        let expected = Ok(Command::Check {
+            file: PathBuf::from("a.kei"),
+            json: false,
+            strict_extern: true,
+        });
+        assert_eq!(parse_args(&["check", "a.kei", "--strict-extern"]), expected);
+        assert_eq!(parse_args(&["check", "--strict-extern", "a.kei"]), expected);
+        // --json と併用可・順不同。
+        assert_eq!(
+            parse_args(&["check", "--strict-extern", "--json", "a.kei"]),
+            Ok(Command::Check {
+                file: PathBuf::from("a.kei"),
+                json: true,
+                strict_extern: true,
+            })
+        );
+        // 二重指定は使用法エラー。
+        assert!(parse_args(&["check", "a.kei", "--strict-extern", "--strict-extern"]).is_err());
     }
 
     #[test]

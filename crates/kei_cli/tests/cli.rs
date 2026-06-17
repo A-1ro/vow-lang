@@ -150,6 +150,73 @@ fn check_golden() {
 }
 
 // ---------------------------------------------------------------------------
+// golden: kei check --strict-extern(M16 / #44)
+// ---------------------------------------------------------------------------
+
+/// strict-extern は **オプトイン**。同じ #22 再現コードが、既定の `kei check` では
+/// 通り(extern 未宣言の外部呼び出しは opaque)、`--strict-extern` でのみ警告される
+/// (extern 宣言の追加を促す)ことを対で固定する。
+#[test]
+fn strict_extern_golden() {
+    let dir = cli_dir().join("checks");
+    let rel = "tests/cli/checks/strict_extern.kei";
+    let mut failures = Vec::new();
+
+    // 既定: 未宣言の外部呼び出しは通る(警告なし・exit 0)。
+    let default = run_kei(&["check", rel]);
+    if !default.stdout.is_empty() || default.code != 0 {
+        failures.push(format!(
+            "default check should be clean: code={} stdout={:?}",
+            default.code, default.stdout
+        ));
+    }
+
+    // strict: KEI-E3004 警告(stage a は warning なので exit は 0)。散文 / --json を固定。
+    let strict = run_kei(&["check", "--strict-extern", rel]);
+    expect_golden(
+        &dir.join("strict_extern.strict.txt"),
+        &strict.stdout,
+        &mut failures,
+    );
+    if strict.code != 0 {
+        failures.push(format!(
+            "strict check warning must not change exit code (stage a): code={}",
+            strict.code
+        ));
+    }
+
+    let strict_json = run_kei(&["check", "--strict-extern", "--json", rel]);
+    expect_golden(
+        &dir.join("strict_extern.strict.json"),
+        &strict_json.stdout,
+        &mut failures,
+    );
+    // #22 再現: warning に KEI-E3004 と extern 宣言の fix が載る。
+    let parsed: serde_json::Value =
+        serde_json::from_str(&strict_json.stdout).expect("--json emits valid JSON");
+    let diags = parsed["diagnostics"]
+        .as_array()
+        .expect("diagnostics is an array");
+    if !diags.iter().any(|d| {
+        d["code"] == "KEI-E3004"
+            && d["severity"] == "warning"
+            && !d["fixes"].as_array().map(|f| f.is_empty()).unwrap_or(true)
+    }) {
+        failures.push(format!(
+            "strict --json must carry a KEI-E3004 warning with a fix: {strict_json:?}",
+            strict_json = strict_json.stdout
+        ));
+    }
+
+    assert!(
+        failures.is_empty(),
+        "{} strict-extern case(s) failed:\n{}",
+        failures.len(),
+        failures.join("\n\n")
+    );
+}
+
+// ---------------------------------------------------------------------------
 // golden: kei fmt(整形 / --check / 構文エラー)
 // ---------------------------------------------------------------------------
 

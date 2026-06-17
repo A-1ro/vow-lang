@@ -37,7 +37,11 @@ fn main() -> ExitCode {
             println!("kei {}", env!("CARGO_PKG_VERSION"));
             0
         }
-        Ok(Command::Check { file, json }) => dispatch(check::run(&file, json)),
+        Ok(Command::Check {
+            file,
+            json,
+            strict_extern,
+        }) => dispatch(check::run(&file, json, strict_extern)),
         Ok(Command::Fmt { file, mode }) => dispatch(fmt::run(&file, mode)),
         Ok(Command::Build {
             dir,

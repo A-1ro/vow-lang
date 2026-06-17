@@ -34,14 +34,30 @@ mod codes {
     pub const EFFECT_UNDECLARED: &str = "KEI-E3001";
     pub const UNKNOWN_EFFECT: &str = "KEI-E3002";
     pub const DUPLICATE_EXTERN: &str = "KEI-E3003";
+    pub const UNDECLARED_EXTERN_CALL: &str = "KEI-E3004";
     pub const IMPURE_CONTRACT: &str = "KEI-E4001";
     pub const CONTRACT_CONSTRUCT: &str = "KEI-E4002";
     pub const CONST_FALSE_CONTRACT: &str = "KEI-E4003";
 }
 
-/// 1 モジュールを検査し、出現位置に対応した順序で Diagnostic を返す。
+/// 検査オプション(M16 / #44)。既定はすべて off で、`check_module` /
+/// `check_module_report` の従来挙動を保つ。strict 系はすべて**オプトイン**で、
+/// 既存の golden を壊さない段階移行のための辺。
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CheckOptions {
+    /// `extern` 未宣言の外部 namespace 呼び出しを警告する(KEI-E3004)。
+    /// 既定 off。`kei check --strict-extern` で on。
+    pub strict_extern: bool,
+}
+
+/// 1 モジュールを検査し、出現位置に対応した順序で Diagnostic を返す(既定オプション)。
 /// `file` はリポジトリルートからの相対パス(span の `file` フィールドに入る)。
 pub fn check_module(file: &str, module: &ast::Module) -> Vec<Diagnostic> {
+    check_module_with(file, module, CheckOptions::default())
+}
+
+/// [`check_module`] にオプションを与えた版(M16)。strict-extern 等の opt-in 検査を制御する。
+pub fn check_module_with(file: &str, module: &ast::Module, opts: CheckOptions) -> Vec<Diagnostic> {
     let mut diags = Vec::new();
     let (env, fn_sigs) = Env::build(file, module, &mut diags);
     for (item, sig) in module.items.iter().zip(&fn_sigs) {
@@ -53,6 +69,7 @@ pub fn check_module(file: &str, module: &ast::Module) -> Vec<Diagnostic> {
                 sig,
                 mode: Mode::Body,
                 scopes: Vec::new(),
+                opts,
             }
             .check();
         }
@@ -71,7 +88,16 @@ pub fn check_module(file: &str, module: &ast::Module) -> Vec<Diagnostic> {
 /// 検査結果(診断)に加えて、各契約の達成検証レベルを併せて返す(M12)。
 /// `kei check --json` が出力する構造化レポート。
 pub fn check_module_report(file: &str, module: &ast::Module) -> CheckReport {
-    let diagnostics = check_module(file, module);
+    check_module_report_with(file, module, CheckOptions::default())
+}
+
+/// [`check_module_report`] にオプションを与えた版(M16)。
+pub fn check_module_report_with(
+    file: &str,
+    module: &ast::Module,
+    opts: CheckOptions,
+) -> CheckReport {
+    let diagnostics = check_module_with(file, module, opts);
     let contracts = collect_contracts(file, module);
     CheckReport {
         diagnostics,
@@ -610,8 +636,20 @@ impl Env {
         span: SynSpan,
         fixes: Vec<Fix>,
     ) {
+        self.push_sev(diags, Severity::Error, code, message, span, fixes);
+    }
+
+    fn push_sev(
+        &self,
+        diags: &mut Vec<Diagnostic>,
+        severity: Severity,
+        code: &str,
+        message: String,
+        span: SynSpan,
+        fixes: Vec<Fix>,
+    ) {
         diags.push(
-            Diagnostic::new(Severity::Error, code, message, self.span(span), fixes)
+            Diagnostic::new(severity, code, message, self.span(span), fixes)
                 .expect("checker diagnostics always carry at least one fix"),
         );
     }
@@ -822,6 +860,7 @@ struct FnChecker<'a> {
     mode: Mode,
     /// 内側ほど後ろ。`scopes[0]` はパラメータ。
     scopes: Vec<HashMap<String, Ty>>,
+    opts: CheckOptions,
 }
 
 impl FnChecker<'_> {
@@ -852,6 +891,28 @@ impl FnChecker<'_> {
 
     fn push(&mut self, code: &str, message: String, span: SynSpan, fixes: Vec<Fix>) {
         self.env.push(self.diags, code, message, span, fixes);
+    }
+
+    fn push_warning(&mut self, code: &str, message: String, span: SynSpan, fixes: Vec<Fix>) {
+        self.env
+            .push_sev(self.diags, Severity::Warning, code, message, span, fixes);
+    }
+
+    /// strict-extern(M16 / #44): `extern` 未宣言の外部 namespace 呼び出しを警告する。
+    /// 宣言があれば `call_extern` が検証下に入れる。無いと従来は opaque で素通りするため、
+    /// #22 の「外部呼び出しのエフェクト漏れ(uses 宣言漏れ)」が検出されない。strict では
+    /// その呼び出しを警告し、`extern` 宣言の追加を促す(段階移行: まず warning)。
+    fn warn_undeclared_extern(&mut self, key: &str, span: SynSpan) {
+        self.push_warning(
+            codes::UNDECLARED_EXTERN_CALL,
+            format!(
+                "external call '{key}' has no 'extern' declaration; its return type and effects are unverified"
+            ),
+            span,
+            vec![direction(format!(
+                "Declare 'extern {key}(...) -> ... uses ...' to bring this external call under verification"
+            ))],
+        );
     }
 
     fn check_contract_clause(&mut self, clause: &ast::Expr) {
@@ -1360,7 +1421,8 @@ impl FnChecker<'_> {
                     }
                 }
                 // 外部境界(import した名前空間配下)の呼び出しで extern 署名が
-                // あれば照合する。無ければ従来どおり opaque(M11 段階移行)。
+                // あれば照合する。無ければ従来どおり opaque(M11 段階移行)。strict-extern
+                // 時のみ、未宣言の外部呼び出しを警告する(M16 / #44)。
                 if let Some(path) = field_path(callee) {
                     if self.lookup_scope(&path[0]).is_none()
                         && self.env.kinds.get(&path[0]) == Some(&NameKind::Import)
@@ -1368,6 +1430,9 @@ impl FnChecker<'_> {
                         let key = path.join(".");
                         if let Some(sig) = self.env.externs.get(&key).cloned() {
                             return self.call_extern(&key, &sig, args, span);
+                        }
+                        if self.opts.strict_extern {
+                            self.warn_undeclared_extern(&key, span);
                         }
                     }
                 }
