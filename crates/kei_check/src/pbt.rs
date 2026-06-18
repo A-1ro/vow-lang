@@ -469,6 +469,23 @@ fn eval_expr(
                 _ => Err(EvalError::Unsupported),
             }
         }
+        // `implies` は右辺を短絡評価する。emit は `!(lhs) || rhs` に展開して短絡するので、
+        // 前件が偽なら右辺(契約で守られたヘルパー呼び出しなど)を評価しない。前件が偽でも
+        // 右辺を評価すると、`x > 0 implies positiveCheck(x)` で x<=0 のとき positiveCheck の
+        // requires 違反を拾い、実行時には起きない反例を作ってしまう。
+        ast::Expr::Binary {
+            op: ast::BinOp::Implies,
+            lhs,
+            rhs,
+            ..
+        } => match eval_expr(lhs, env, funcs, in_ensures, depth)? {
+            Value::Bool(false) => Ok(Value::Bool(true)),
+            Value::Bool(true) => match eval_expr(rhs, env, funcs, in_ensures, depth)? {
+                v @ Value::Bool(_) => Ok(v),
+                _ => Err(EvalError::Unsupported),
+            },
+            _ => Err(EvalError::Unsupported),
+        },
         ast::Expr::Binary { op, lhs, rhs, .. } => {
             let l = eval_expr(lhs, env, funcs, in_ensures, depth)?;
             let r = eval_expr(rhs, env, funcs, in_ensures, depth)?;
@@ -1524,6 +1541,31 @@ mod tests {
                 .any(|d| d.code == seed_codes::SEED_GRAMMAR
                     && d.message.contains("unterminated string")),
             "unterminated string must be KEI-E4006: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn implies_short_circuits_guarded_helper() {
+        // `x > 0 implies positiveCheck(x)` は前件が偽(x<=0)なら右辺を評価しない。
+        // emit の `!(lhs) || rhs` と同じ短絡。x<=0 で positiveCheck の requires 違反を
+        // 拾って偽反例を作らないことを、シード経路と生成経路の両方で確認する。
+        let m = module(
+            "module t\n\nfunc positiveCheck(y: Int) -> Bool\n  requires y > 0\n{\n  return true\n}\n\nfunc f(x: Int) -> Int\n  ensures x > 0 implies positiveCheck(x)\n{\n  return x\n}\n",
+        );
+        // 生成経路: 全入力(負も含む)で反例ゼロ → f は generative。
+        let out = run_module(&m);
+        let f = out.iter().find(|o| o.func == "f").expect("f analyzed");
+        assert!(
+            f.passed,
+            "implies must short-circuit; no false counterexample: {:?}",
+            f.counterexample
+        );
+        // シード経路: x = -5(前件偽)でも反例にならない。
+        let src = "seeds for f {\n  input { x: -5 }\n}\n";
+        let diags = check_seeds("t.seeds", src, &m, &mut []);
+        assert!(
+            diags.is_empty(),
+            "guarded helper under a false antecedent must not be a counterexample: {diags:?}"
         );
     }
 
