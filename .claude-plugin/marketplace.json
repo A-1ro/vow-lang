@@ -10,7 +10,7 @@
       "name": "kei",
       "source": "./",
       "description": "Kei 言語を学習なしで正しく書くためのスキル(kei skill)。",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "keywords": [
         "kei",
         "language",
