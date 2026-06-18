@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E4001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Move the effectful call into the function body"
+      }
+    ],
+    "message": "call to 'activeCheck' (uses Database.Read) is not allowed in a contract; contract expressions must be pure",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 34,
+        "line": 18
+      },
+      "file": "tests/golden/check/err_collection_contract.kei",
+      "start": {
+        "col": 12,
+        "line": 18
+      }
+    }
+  }
+]

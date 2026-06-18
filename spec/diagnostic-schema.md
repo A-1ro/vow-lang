@@ -38,6 +38,7 @@
 | `message` | string | ✓ | 人間・エージェント双方が読む一文。英語 |
 | `span` | Span | ✓ | 問題箇所 |
 | `fixes` | Fix[] | ✓(最低 1 要素) | 修正候補。優先度順 |
+| `suggested_contract` | SuggestedContract | — | 構造化修正提案(M18 / #24)。無いときは**フィールドごと省略**(後方互換) |
 
 ### Span
 
@@ -67,6 +68,25 @@
 |---|---|---|---|
 | `span` | Span | ✓ | 置換対象範囲 |
 | `new_text` | string | ✓ | 置換後テキスト。挿入は start == end の span で表現 |
+
+### SuggestedContract(Agent Repair Protocol / M18 / #24)
+
+`Fix`(テキスト編集)の**意味論的強化版**。契約レベルの構造化された修正提案で、エージェントが
+機械適用 → 再検証できる形にする。`fixes` とは**独立した追加フィールド**で、知らない消費側が
+無視しても壊れない(後方互換)。`None` のときは Diagnostic に**現れない**(`skip_serializing_if`)。
+
+| フィールド | 型 | 必須 | 説明 |
+|---|---|---|---|
+| `kind` | string | ✓ | 提案種別(例: `"ContractMissing"`)。エージェントの分岐キー |
+| `function` | string | ✓ | 契約を加える対象関数名 |
+| `clause` | `"requires" \| "ensures"` | ✓ | 契約節の種別 |
+| `expr` | string | ✓ | 提案する契約式の Kei ソース表記(`contract_expr_text` と同じ表記) |
+
+**適用 → 再検証プロトコル:** エージェントは `kind` で分岐し、`function` の `clause` に `expr` を
+加えて再検証する。提案を生む診断は `KEI-E4008`(ContractMissing、`kei check --suggest-contracts`)。
+ContractMissing は「契約の無い純粋関数の本体(単一 `return <式>`)から `ensures result == <式>` を
+導く」もので、適用すると check-clean(`result` は構築上その式)になり `--generative` で `generative`
+まで上がる。**最低 1 種(ContractMissing)から始め、後続で `ContractWeak` 等へ拡張する。**
 
 ## JSON 例
 

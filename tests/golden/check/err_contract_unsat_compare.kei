@@ -1,0 +1,7 @@
+module contracts.unsat_compare
+
+func neverCallable(count: Int) -> Int
+  requires 1 > 2
+{
+  return count
+}

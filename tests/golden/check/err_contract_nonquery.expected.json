@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E4004",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Declare 'extern query Library.availableOf(...)' if it is a pure observer"
+      }
+    ],
+    "message": "external function 'Library.availableOf' may only be called in a contract if declared 'extern query'; contracts observe state, they do not act on it",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 37,
+        "line": 10
+      },
+      "file": "tests/golden/check/err_contract_nonquery.kei",
+      "start": {
+        "col": 12,
+        "line": 10
+      }
+    }
+  }
+]

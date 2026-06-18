@@ -1,0 +1,3 @@
+verification:
+  dec requires x > 0  [runtime]
+  dec ensures result == old(x) - 1  [runtime]

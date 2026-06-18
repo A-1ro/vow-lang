@@ -6,11 +6,15 @@
 pub mod check;
 pub mod diagnostic;
 pub mod effects;
+pub mod pbt;
 pub mod report;
 pub mod syntax;
 pub mod types;
 
-pub use check::{check_module, check_module_report, contract_expr_text, contract_pattern_text};
-pub use diagnostic::{Diagnostic, Fix, Position, Severity, Span, TextEdit};
+pub use check::{
+    check_module, check_module_report, check_module_report_with, check_module_with,
+    contract_expr_text, contract_pattern_text, list_op_spans, CheckOptions,
+};
+pub use diagnostic::{Diagnostic, Fix, Position, Severity, Span, SuggestedContract, TextEdit};
 pub use report::{CheckReport, ContractInfo, ContractKind, Verification};
 pub use syntax::syntax_diagnostics;

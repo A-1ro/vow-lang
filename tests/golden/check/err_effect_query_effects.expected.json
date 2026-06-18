@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E3005",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Remove 'uses' from the query, or drop 'query' if it has effects"
+      }
+    ],
+    "message": "query observer 'Library.availableOf' must be pure; a 'query' extern cannot declare 'uses'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 73,
+        "line": 7
+      },
+      "file": "tests/golden/check/err_effect_query_effects.kei",
+      "start": {
+        "col": 1,
+        "line": 7
+      }
+    }
+  }
+]

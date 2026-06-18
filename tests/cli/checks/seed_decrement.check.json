@@ -1,0 +1,39 @@
+{
+  "diagnostics": [],
+  "contracts": [
+    {
+      "func": "decrementAvailable",
+      "kind": "requires",
+      "expr": "available > 0",
+      "verification": "runtime",
+      "span": {
+        "file": "tests/cli/checks/seed_decrement.kei",
+        "start": {
+          "line": 4,
+          "col": 12
+        },
+        "end": {
+          "line": 4,
+          "col": 25
+        }
+      }
+    },
+    {
+      "func": "decrementAvailable",
+      "kind": "ensures",
+      "expr": "result == old(available) - 1",
+      "verification": "runtime",
+      "span": {
+        "file": "tests/cli/checks/seed_decrement.kei",
+        "start": {
+          "line": 5,
+          "col": 11
+        },
+        "end": {
+          "line": 5,
+          "col": 39
+        }
+      }
+    }
+  ]
+}

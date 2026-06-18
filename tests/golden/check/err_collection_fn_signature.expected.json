@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Use a function with the expected parameters"
+      }
+    ],
+    "message": "function 'needsTwo' takes 2 parameter(s), but 'map' passes 1",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 28,
+        "line": 12
+      },
+      "file": "tests/golden/check/err_collection_fn_signature.kei",
+      "start": {
+        "col": 20,
+        "line": 12
+      }
+    }
+  }
+]

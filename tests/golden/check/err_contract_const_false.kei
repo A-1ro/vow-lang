@@ -1,0 +1,7 @@
+module contracts.const_false
+
+func neverCallable(count: Int) -> Int
+  requires false
+{
+  return count
+}

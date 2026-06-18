@@ -54,6 +54,9 @@ pub enum Item {
 /// 外部関数の戻り型・エフェクトを宣言する。本体は持たない。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ExternDecl {
+    /// 純粋観測子(query)か(M14 / #45)。`extern query Database.availableOf(...)` で true。
+    /// query は副作用のない論理的読み取りで、契約式から呼べる(`uses` は持てない)。
+    pub query: bool,
     /// `[Time, now]` / `[Database, fetchBalance]` / `[Audit, Log, record]`
     pub path: Vec<Ident>,
     pub params: Vec<Param>,

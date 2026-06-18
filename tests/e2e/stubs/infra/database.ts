@@ -60,3 +60,9 @@ export function fetchAvailable(book: string): Option<number> {
 export function setAvailable(book: string, count: number): void {
   available.set(book, count);
 }
+
+// 純粋観測子(extern query)に対応: 在庫数をそのまま返す(未登録は 0)。
+// 状態は変えない論理的読み取り。examples/contracts/borrow_direct.kei の契約が呼ぶ。
+export function availableOf(book: string): number {
+  return available.get(book) ?? 0;
+}

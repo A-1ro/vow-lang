@@ -23,6 +23,9 @@ pub enum Ty {
     },
     Result(Box<Ty>, Box<Ty>),
     Option(Box<Ty>),
+    /// `List<T>`(不変・opaque な列)。`Result` / `Option` と並ぶ第三の組み込み
+    /// ジェネリクス(spec/kei-spec-v0.3-collections.md / M9)。
+    List(Box<Ty>),
     Unknown,
 }
 
@@ -37,6 +40,7 @@ impl Ty {
             (Tagged { name: a, .. }, Tagged { name: b, .. }) => a == b,
             (Result(o1, e1), Result(o2, e2)) => o1.compatible(o2) && e1.compatible(e2),
             (Option(a), Option(b)) => a.compatible(b),
+            (List(a), List(b)) => a.compatible(b),
             _ => false,
         }
     }
@@ -47,6 +51,24 @@ impl Ty {
             Ty::Int | Ty::Unknown => true,
             Ty::Tagged { underlying, .. } => underlying.is_numeric(),
             _ => false,
+        }
+    }
+
+    /// 等値比較(`==` / `!=`)の対象になれるか。スカラー(Int / String / Bool と
+    /// それらを基底にする tagged 型)のみ。合成型(Record / Enum / Option /
+    /// Result / List / Unit)は emit が参照等価(`===`)しか出せず構造等価には
+    /// ならないため、v0.3 では等値比較を許さない(KEI-E2010)。Unknown は
+    /// import 境界の穴として寛容に許す。
+    pub fn is_equatable(&self) -> bool {
+        match self {
+            Ty::Int | Ty::Str | Ty::Bool | Ty::Unknown => true,
+            Ty::Tagged { underlying, .. } => underlying.is_equatable(),
+            Ty::Record(_)
+            | Ty::Enum(_)
+            | Ty::Option(_)
+            | Ty::Result(..)
+            | Ty::List(_)
+            | Ty::Unit => false,
         }
     }
 }
@@ -61,6 +83,7 @@ impl fmt::Display for Ty {
             Ty::Record(n) | Ty::Enum(n) | Ty::Tagged { name: n, .. } => write!(f, "{n}"),
             Ty::Result(t, e) => write!(f, "Result<{t}, {e}>"),
             Ty::Option(t) => write!(f, "Option<{t}>"),
+            Ty::List(t) => write!(f, "List<{t}>"),
             Ty::Unknown => write!(f, "_"),
         }
     }

@@ -53,6 +53,17 @@ export function None(): None {
   return NONE;
 }
 
+// ---- List コンビネータのランタイムヘルパー(spec v0.3-collections §9 / M9) ----
+//
+// List<T> は readonly T[] にトランスパイルされ、length / isEmpty / map / filter /
+// fold / all / any は配列メソッド(.length / .length===0 / .map / .filter /
+// .reduce / .every / .some)へ直接写る。範囲外で死なない get だけはここで支える。
+
+/** List<T>.get(index): 範囲外は None(添字で死なない。spec §3 原則3)。 */
+export function keiListGet<T>(xs: readonly T[], index: number): Option<T> {
+  return index >= 0 && index < xs.length ? Some(xs[index]) : None();
+}
+
 // ---- 契約アサーション(spec §4: requires / ensures は実行時アサーション) ----
 
 export interface ContractViolationInfo {

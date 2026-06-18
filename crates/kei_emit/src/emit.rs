@@ -3,7 +3,7 @@
 //! 検査(型・名前・エフェクト)は kei_check 済みであることを前提とし、
 //! ここでは構文情報のみを使って出力を組み立てる(検査の再実装禁止)。
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::fmt::Write as _;
 
 use kei_check::contract_expr_text as kei_expr_text;
@@ -16,12 +16,21 @@ use crate::EmitOutput;
 const RUNTIME_MODULE: &str = "@kei/runtime";
 const INDENT: &str = "  ";
 
-pub fn emit_checked(file: &str, source: &str, module: &ast::Module) -> EmitOutput {
+/// `list_ops` は kei_check が確定した「List コンビネータ呼び出し位置」(Call span の開始
+/// `(line, col)`)の集合。emit はこれだけを根拠に配列メソッドへ写す(構文ヒューリスティックで
+/// レシーバ型を推測しない。外部呼び出しの連鎖・同名フィールドの誤写を防ぐ。M9)。
+pub fn emit_checked(
+    file: &str,
+    source: &str,
+    module: &ast::Module,
+    list_ops: &HashSet<(u32, u32)>,
+) -> EmitOutput {
     let ts_path = ts_path_for(file, module);
     let ts_file = ts_path.rsplit('/').next().expect("non-empty path");
     let mut e = Emitter {
         src_file: file,
         module,
+        list_ops,
         out: Out::default(),
         old_counter: 0,
         in_ensures: false,
@@ -103,14 +112,18 @@ impl Out {
 // ランタイム import の収集(構文走査のみ)
 // ---------------------------------------------------------------------------
 
-#[derive(Default)]
-struct RuntimeUses {
+struct RuntimeUses<'a> {
     names: BTreeSet<&'static str>,
+    /// List コンビネータ呼び出し位置(検査器由来)。`get` の keiListGet import 判定に使う。
+    list_ops: &'a HashSet<(u32, u32)>,
 }
 
-impl RuntimeUses {
-    fn collect(module: &ast::Module) -> Self {
-        let mut u = RuntimeUses::default();
+impl<'a> RuntimeUses<'a> {
+    fn collect(module: &ast::Module, list_ops: &'a HashSet<(u32, u32)>) -> Self {
+        let mut u = RuntimeUses {
+            names: BTreeSet::new(),
+            list_ops,
+        };
         for item in &module.items {
             match item {
                 ast::Item::TypeAlias(a) => u.ty(&a.ty),
@@ -233,6 +246,11 @@ impl RuntimeUses {
                         _ => {}
                     }
                 } else {
+                    // List.get(i) は範囲外 None を返すランタイムヘルパーへ写す(M9)。emit と
+                    // 同じ判定(is_list_get)で、検査器が List.get と確定した位置だけ import する。
+                    if is_list_get(callee.as_ref(), args, self.list_ops) {
+                        self.names.insert("keiListGet");
+                    }
                     self.expr(callee);
                 }
                 for a in args {
@@ -311,6 +329,8 @@ fn ts_bin_op(op: BinOp) -> &'static str {
 struct Emitter<'a> {
     src_file: &'a str,
     module: &'a ast::Module,
+    /// List コンビネータ呼び出し位置(Call span 開始)。検査器由来の権威的な型情報。
+    list_ops: &'a HashSet<(u32, u32)>,
     out: Out,
     /// ensures 内 `old(...)` の通し番号。事前キャプチャと同じ走査順で消費する。
     old_counter: usize,
@@ -326,7 +346,7 @@ impl Emitter<'_> {
         self.out
             .line("// Do not edit; regenerate with `kei build`.");
 
-        let runtime = RuntimeUses::collect(self.module);
+        let runtime = RuntimeUses::collect(self.module, self.list_ops);
         let mut wrote_imports = false;
         if !runtime.names.is_empty() {
             let names: Vec<&str> = runtime.names.iter().copied().collect();
@@ -421,11 +441,24 @@ impl Emitter<'_> {
                 self.ts_type(&t.args[1])
             ),
             "Option" => format!("Option<{}>", self.ts_type(&t.args[0])),
+            // List<T> → 不変配列 readonly T[](spec v0.3-collections §9)。
+            "List" => format!("readonly {}[]", self.ts_type_paren_for_array(&t.args[0])),
             _ if t.args.is_empty() => name.to_string(),
             _ => {
                 let args: Vec<String> = t.args.iter().map(|a| self.ts_type(a)).collect();
                 format!("{name}<{}>", args.join(", "))
             }
+        }
+    }
+
+    /// 配列要素型の TS 表記。要素がさらに List(配列)なら括弧で包む
+    /// (`readonly (readonly U[])[]`。`readonly readonly U[][]` は不正)。
+    fn ts_type_paren_for_array(&self, t: &ast::Type) -> String {
+        let inner = self.ts_type(t);
+        if t.path.len() == 1 && t.path[0].name == "List" {
+            format!("({inner})")
+        } else {
+            inner
         }
     }
 
@@ -814,6 +847,9 @@ impl Emitter<'_> {
                 }
             }
             ast::Expr::Field { base, name, .. } => {
+                // フィールドアクセスはそのまま写す。List.isEmpty はメソッド形 `xs.isEmpty()`
+                // なので emit_call 側で `.length === 0` に写る(ここに来るのは純粋なフィールド
+                // アクセスで、レコードの `isEmpty` フィールドも安全にそのまま出る)。
                 self.emit_expr(base, Prec::Postfix);
                 self.out.frag(&format!(".{}", name.name));
             }
@@ -946,6 +982,66 @@ impl Emitter<'_> {
                 return;
             }
         }
+        // List コンビネータのメソッド呼び出し(M9 / spec v0.3-collections §9)。
+        // **この呼び出し位置を検査器が List 操作と確定している**ときだけ配列メソッドへ写す
+        // (構文ヒューリスティックでレシーバ型を推測しない。外部呼び出しの連鎖
+        // `Database.reader().get(id)` や let 束縛 opaque 値の誤写を防ぐ)。
+        // 鍵はメソッド名トークン(`name`)の位置。Call の span は連鎖だとレシーバ先頭で
+        // 揃ってしまい(`db.get(id).get(0)` の内外で同じ)衝突するため使わない。
+        //
+        // get -> keiListGet は import 収集(RuntimeUses)と同じ is_list_get で判定を共有する
+        // (両者がずれて「呼び出しはあるが import 無し」になる事故を防ぐ)。
+        if is_list_get(callee, args, self.list_ops) {
+            if let ast::Expr::Field { base, .. } = callee {
+                self.out.frag("keiListGet(");
+                self.emit_expr(base, Prec::Or);
+                self.out.frag(", ");
+                self.emit_expr(&args[0], Prec::Or);
+                self.out.frag(")");
+                return;
+            }
+        }
+        if let ast::Expr::Field { base, name, .. } = callee {
+            let is_list_op = self
+                .list_ops
+                .contains(&(name.span.start.line, name.span.start.col));
+            if is_list_op {
+                match name.name.as_str() {
+                    // isEmpty() → `(xs.length === 0)`。
+                    "isEmpty" if args.is_empty() => {
+                        self.out.frag("(");
+                        self.emit_expr(base, Prec::Postfix);
+                        self.out.frag(".length === 0)");
+                        return;
+                    }
+                    // fold(init, f) → reduce(f, init)(引数順が逆)。
+                    "fold" if args.len() == 2 => {
+                        self.emit_expr(base, Prec::Postfix);
+                        self.out.frag(".reduce(");
+                        self.emit_expr(&args[1], Prec::Or);
+                        self.out.frag(", ");
+                        self.emit_expr(&args[0], Prec::Or);
+                        self.out.frag(")");
+                        return;
+                    }
+                    // all/any → every/some。map/filter は同名の配列メソッドへ素通り。
+                    "all" | "any" => {
+                        let js = if name.name == "all" { "every" } else { "some" };
+                        self.emit_expr(base, Prec::Postfix);
+                        self.out.frag(&format!(".{js}("));
+                        for (i, a) in args.iter().enumerate() {
+                            if i > 0 {
+                                self.out.frag(", ");
+                            }
+                            self.emit_expr(a, Prec::Or);
+                        }
+                        self.out.frag(")");
+                        return;
+                    }
+                    _ => {}
+                }
+            }
+        }
         self.emit_expr(callee, Prec::Postfix);
         self.out.frag("(");
         for (i, a) in args.iter().enumerate() {
@@ -979,7 +1075,12 @@ impl Emitter<'_> {
         } else {
             self.emit_expr(lhs, prec);
             self.out.frag(&format!(" {} ", ts_bin_op(op)));
+            // 左結合演算子の右辺は 1 段高い優先度で出す。同優先度が右にネストしたとき
+            // (`a == (b == c)`)に括弧を保つため(括弧を落とすと JS の左結合で
+            // `(a == b) == c` に化けて結果が変わる)。Equality / Relational も対象。
             let rhs_min = match prec {
+                Prec::Equality => Prec::Relational,
+                Prec::Relational => Prec::Additive,
                 Prec::Additive => Prec::Multiplicative,
                 Prec::Multiplicative => Prec::Unary,
                 p => p,
@@ -1054,6 +1155,20 @@ fn collect_old_exprs(ensures: &[ast::Expr]) -> Vec<&ast::Expr> {
 /// TS 文字列リテラル(JSON エスケープは TS と互換)。
 fn ts_string(s: &str) -> String {
     serde_json::to_string(s).expect("strings are serializable")
+}
+
+/// `callee(args)` が「検査器が確定した List.get 呼び出し」か。`get` だけは `keiListGet`
+/// ランタイムヘルパーへ写るため、import 収集(`RuntimeUses`)と emit の両方が**同じ判定**を
+/// 必要とする。二つがずれると「呼び出しはあるが import が無い」TS になるので 1 か所に集約する。
+/// 鍵はメソッド名トークンの位置(Call span は連鎖だと衝突する)。
+fn is_list_get(callee: &ast::Expr, args: &[ast::Expr], list_ops: &HashSet<(u32, u32)>) -> bool {
+    matches!(
+        callee,
+        ast::Expr::Field { name, .. }
+            if name.name == "get"
+                && args.len() == 1
+                && list_ops.contains(&(name.span.start.line, name.span.start.col))
+    )
 }
 
 // ---------------------------------------------------------------------------

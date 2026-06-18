@@ -1,0 +1,7 @@
+module contracts.str_false
+
+func neverCallable(name: String) -> String
+  requires "a" == "b"
+{
+  return name
+}

@@ -1,0 +1,27 @@
+{
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "KEI-E3004",
+      "message": "external call 'Time.now' has no 'extern' declaration; its return type and effects are unverified",
+      "span": {
+        "file": "tests/cli/checks/strict_extern.kei",
+        "start": {
+          "line": 6,
+          "col": 10
+        },
+        "end": {
+          "line": 6,
+          "col": 20
+        }
+      },
+      "fixes": [
+        {
+          "title": "Declare 'extern Time.now(...) -> ... uses ...' to bring this external call under verification",
+          "edits": []
+        }
+      ]
+    }
+  ],
+  "contracts": []
+}

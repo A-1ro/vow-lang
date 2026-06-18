@@ -1,0 +1,11 @@
+error[KEI-E4005]: ensures 'result == old(available) - 1' of 'decrementAvailable' is violated by a generated input (available = 1)
+ --> tests/cli/checks/gen_decrement_broken.kei:5:11
+  |
+5 |   ensures result == old(available) - 1
+  |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  = fix: Fix the implementation to satisfy the contract, or correct the contract
+
+
+verification:
+  decrementAvailable requires available > 0  [runtime]
+  decrementAvailable ensures result == old(available) - 1  [runtime]

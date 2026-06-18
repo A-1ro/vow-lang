@@ -1,0 +1,13 @@
+module contracts.query_effects
+
+import infra.library as Library
+
+type BookId = String tagged "BookId"
+
+extern query Library.availableOf(book: BookId) -> Int uses Database.Read
+
+func peek(book: BookId) -> Int
+  uses Database.Read
+{
+  return Library.availableOf(book)
+}

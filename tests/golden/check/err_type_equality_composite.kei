@@ -1,0 +1,5 @@
+module collections.equality
+
+func sameList(a: List<Int>, b: List<Int>) -> Bool {
+  return a == b
+}

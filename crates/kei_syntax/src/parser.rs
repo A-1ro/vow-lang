@@ -764,8 +764,18 @@ impl Parser {
 
     fn parse_extern(&mut self) -> Option<ExternDecl> {
         let kw = self.bump(); // 'extern'
-                              // 先頭は名前空間(実識別子)、以降のメンバーは式のメンバー
-                              // アクセスと同様に予約語綴りも許す(`Audit.Log.record`)。
+                              // 純粋観測子修飾子 `query`(M14)。文脈依存キーワード:
+                              // `extern query <Ident>...`(query の直後がさらに識別子=パス先頭)
+                              // のときだけ修飾子。`extern query.foo()` / `extern query()` では
+                              // `query` を通常の名前空間名として扱う(予約語化しない)。
+        let query = self.cur().kind == T::Ident
+            && self.cur().text == "query"
+            && self.tokens.get(self.pos + 1).map(|t| t.kind) == Some(T::Ident);
+        if query {
+            self.bump();
+        }
+        // 先頭は名前空間(実識別子)、以降のメンバーは式のメンバー
+        // アクセスと同様に予約語綴りも許す(`Audit.Log.record`)。
         let first = match self.expect_ident("an external function path") {
             Some(first) => first,
             None => {
@@ -811,6 +821,7 @@ impl Parser {
             }
         }
         Some(ExternDecl {
+            query,
             path,
             params,
             ret,

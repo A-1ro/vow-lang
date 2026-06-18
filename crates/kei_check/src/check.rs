@@ -15,7 +15,7 @@ use kei_syntax::{Position as SynPosition, Span as SynSpan};
 use crate::effects;
 use crate::report::{CheckReport, ContractInfo, ContractKind, Verification};
 use crate::types::Ty;
-use crate::{Diagnostic, Fix, Position, Severity, Span, TextEdit};
+use crate::{Diagnostic, Fix, Position, Severity, Span, SuggestedContract, TextEdit};
 
 mod codes {
     pub const UNDEFINED_NAME: &str = "KEI-E1001";
@@ -31,16 +31,45 @@ mod codes {
     pub const MATCH_NOT_EXHAUSTIVE: &str = "KEI-E2007";
     pub const MATCH_UNREACHABLE_ARM: &str = "KEI-E2008";
     pub const MATCH_PATTERN: &str = "KEI-E2009";
+    pub const UNSUPPORTED_EQUALITY: &str = "KEI-E2010";
     pub const EFFECT_UNDECLARED: &str = "KEI-E3001";
     pub const UNKNOWN_EFFECT: &str = "KEI-E3002";
     pub const DUPLICATE_EXTERN: &str = "KEI-E3003";
+    pub const UNDECLARED_EXTERN_CALL: &str = "KEI-E3004";
+    pub const QUERY_WITH_EFFECTS: &str = "KEI-E3005";
     pub const IMPURE_CONTRACT: &str = "KEI-E4001";
     pub const CONTRACT_CONSTRUCT: &str = "KEI-E4002";
+    pub const CONST_FALSE_CONTRACT: &str = "KEI-E4003";
+    pub const NON_QUERY_IN_CONTRACT: &str = "KEI-E4004";
+    pub const GENERATIVE_COUNTEREXAMPLE: &str = "KEI-E4005";
+    pub const CONTRACT_MISSING: &str = "KEI-E4008";
 }
 
-/// 1 モジュールを検査し、出現位置に対応した順序で Diagnostic を返す。
+/// 検査オプション(M16 / #44)。既定はすべて off で、`check_module` /
+/// `check_module_report` の従来挙動を保つ。strict 系はすべて**オプトイン**で、
+/// 既存の golden を壊さない段階移行のための辺。
+#[derive(Debug, Clone, Copy, Default)]
+pub struct CheckOptions {
+    /// `extern` 未宣言の外部 namespace 呼び出しを警告する(KEI-E3004)。
+    /// 既定 off。`kei check --strict-extern` で on。
+    pub strict_extern: bool,
+    /// 契約から property-based test を生成・実行する(M15 / #26)。既定 off。
+    /// `kei check --generative` で on。純粋関数の ensures を generative へ格上げし、
+    /// 反例があれば KEI-E4005 を出す。
+    pub generative: bool,
+    /// 構造化修正提案(M18 / #24)を出す。既定 off。`kei check --suggest-contracts` で on。
+    /// 契約の無い純粋関数に ContractMissing(KEI-E4008 / suggested_contract)を提案する。
+    pub suggest_contracts: bool,
+}
+
+/// 1 モジュールを検査し、出現位置に対応した順序で Diagnostic を返す(既定オプション)。
 /// `file` はリポジトリルートからの相対パス(span の `file` フィールドに入る)。
 pub fn check_module(file: &str, module: &ast::Module) -> Vec<Diagnostic> {
+    check_module_with(file, module, CheckOptions::default())
+}
+
+/// [`check_module`] にオプションを与えた版(M16)。strict-extern 等の opt-in 検査を制御する。
+pub fn check_module_with(file: &str, module: &ast::Module, opts: CheckOptions) -> Vec<Diagnostic> {
     let mut diags = Vec::new();
     let (env, fn_sigs) = Env::build(file, module, &mut diags);
     for (item, sig) in module.items.iter().zip(&fn_sigs) {
@@ -52,9 +81,15 @@ pub fn check_module(file: &str, module: &ast::Module) -> Vec<Diagnostic> {
                 sig,
                 mode: Mode::Body,
                 scopes: Vec::new(),
+                opts,
+                list_ops: None,
             }
             .check();
         }
+    }
+    // 構造化修正提案(M18 / #24)。opt-in。契約の無い純粋関数に ContractMissing を提案する。
+    if opts.suggest_contracts {
+        suggest_missing_contracts(&env, module, &mut diags);
     }
     // パーサのエラー整列(parse_module)と同じ規約: ソース上の出現位置順。
     diags.sort_by(|a, b| {
@@ -67,15 +102,187 @@ pub fn check_module(file: &str, module: &ast::Module) -> Vec<Diagnostic> {
     diags
 }
 
+/// List コンビネータのメソッド呼び出しの位置(Call span の開始 `(line, col)`)を集める(M9)。
+/// emit はこの**権威的な型情報**だけを根拠に `get`/`fold`/`all`/`any`/`isEmpty` を配列メソッドへ
+/// 写す(構文だけでレシーバが List か判別すると、外部呼び出しの連鎖や同名フィールドを誤写する)。
+/// 検査器(型推論)そのものを使って収集するので、検査の再実装にはならない。
+pub fn list_op_spans(module: &ast::Module) -> std::collections::HashSet<(u32, u32)> {
+    let file = "";
+    let mut diags = Vec::new();
+    let (env, fn_sigs) = Env::build(file, module, &mut diags);
+    let mut spans = HashSet::new();
+    for (item, sig) in module.items.iter().zip(&fn_sigs) {
+        if let (ast::Item::Func(f), Some(sig)) = (item, sig) {
+            FnChecker {
+                env: &env,
+                diags: &mut diags,
+                func: f,
+                sig,
+                mode: Mode::Body,
+                scopes: Vec::new(),
+                opts: CheckOptions::default(),
+                list_ops: Some(&mut spans),
+            }
+            .check();
+        }
+    }
+    spans
+}
+
 /// 検査結果(診断)に加えて、各契約の達成検証レベルを併せて返す(M12)。
 /// `kei check --json` が出力する構造化レポート。
 pub fn check_module_report(file: &str, module: &ast::Module) -> CheckReport {
-    let diagnostics = check_module(file, module);
-    let contracts = collect_contracts(file, module);
+    check_module_report_with(file, module, CheckOptions::default())
+}
+
+/// [`check_module_report`] にオプションを与えた版(M16)。
+pub fn check_module_report_with(
+    file: &str,
+    module: &ast::Module,
+    opts: CheckOptions,
+) -> CheckReport {
+    let mut diagnostics = check_module_with(file, module, opts);
+    let mut contracts = collect_contracts(file, module);
+
+    // 契約ベース PBT(M15 / #26)。静的検査がクリーンなときだけ走らせる(壊れた AST に
+    // 評価器をかけない)。純粋関数の ensures を全生成入力で検証し、反例ゼロなら generative へ
+    // 格上げ、反例があれば KEI-E4005 を出す。
+    if opts.generative && !diagnostics.iter().any(|d| d.severity == Severity::Error) {
+        apply_generative(file, module, &mut diagnostics, &mut contracts);
+    }
+
     CheckReport {
         diagnostics,
         contracts,
     }
+}
+
+/// PBT の結果を診断・契約レベルに反映する(M15)。生成・判定は kei_check::pbt が担い、
+/// ここは「結果 → 検証レベル格上げ / 反例診断」への写像だけを行う。
+fn apply_generative(
+    file: &str,
+    module: &ast::Module,
+    diagnostics: &mut Vec<Diagnostic>,
+    contracts: &mut [ContractInfo],
+) {
+    for outcome in crate::pbt::run_module(module) {
+        if outcome.passed {
+            // 反例ゼロ: この関数の ensures(runtime 止まり)を generative へ格上げ。
+            for c in contracts.iter_mut() {
+                if c.func == outcome.func
+                    && c.kind == ContractKind::Ensures
+                    && c.verification == Verification::Runtime
+                {
+                    c.verification = Verification::Generative;
+                }
+            }
+        } else if let Some(ce) = &outcome.counterexample {
+            let span = Span {
+                file: file.to_string(),
+                start: Position {
+                    line: ce.clause_span.start.line,
+                    col: ce.clause_span.start.col,
+                },
+                end: Position {
+                    line: ce.clause_span.end.line,
+                    col: ce.clause_span.end.col,
+                },
+            };
+            // 反例の種別で文面を分ける: ensures 違反 / 呼び出し先 requires 違反(throw)。
+            let message = if ce.precondition {
+                format!(
+                    "'{}' throws for a generated input ({}): {}",
+                    outcome.func,
+                    ce.inputs_text(),
+                    ce.clause
+                )
+            } else {
+                format!(
+                    "ensures '{}' of '{}' is violated by a generated input ({})",
+                    ce.clause,
+                    outcome.func,
+                    ce.inputs_text()
+                )
+            };
+            diagnostics.push(
+                Diagnostic::new(
+                    Severity::Error,
+                    codes::GENERATIVE_COUNTEREXAMPLE,
+                    message,
+                    span,
+                    vec![direction(
+                        "Fix the implementation to satisfy the contract, or correct the contract",
+                    )],
+                )
+                .expect("generative counterexample carries a fix"),
+            );
+        }
+    }
+    // 反例診断を出現位置順に整列(check_module と同じ規約)。
+    diagnostics.sort_by(|a, b| {
+        (a.span.start.line, a.span.start.col, a.code.as_str()).cmp(&(
+            b.span.start.line,
+            b.span.start.col,
+            b.code.as_str(),
+        ))
+    });
+}
+
+/// 構造化修正提案: ContractMissing(M18 / #24)。契約の無い純粋関数で、本体が単一の
+/// `return <expr>` のものに、本体から導いた `ensures result == <expr>` を提案する。
+/// 提案は機械適用可能(`suggested_contract`)で、適用すると check-clean(`result` は構築上
+/// その式)になり、`--generative` では `generative` まで上がる。warning(opt-in)。
+fn suggest_missing_contracts(env: &Env, module: &ast::Module, diags: &mut Vec<Diagnostic>) {
+    for item in &module.items {
+        let ast::Item::Func(f) = item else { continue };
+        if !f.uses.is_empty() || !f.ensures.is_empty() {
+            continue;
+        }
+        let Some(ret) = &f.ret else { continue };
+        if !is_scalar_type(ret) {
+            continue;
+        }
+        // 本体がちょうど 1 つの `return <expr>` のときだけ、式から事後条件を導ける。
+        let [ast::Stmt::Return(r)] = f.body.stmts.as_slice() else {
+            continue;
+        };
+        let Some(value) = &r.value else { continue };
+        // 本体式が二項式なら括弧で包む。`result == x > 0` は `==` と `>` の優先順位で
+        // `result == (x > 0)` に化けたり、`implies` が `result` を巻き込んだりするため、
+        // 提案を適用したら必ず「result と本体式の比較」になるよう明示する。
+        let body = contract_expr_text(value);
+        let body = if matches!(value, ast::Expr::Binary { .. }) {
+            format!("({body})")
+        } else {
+            body
+        };
+        let expr = format!("result == {body}");
+        let diag = Diagnostic::new(
+            Severity::Warning,
+            codes::CONTRACT_MISSING,
+            format!(
+                "function '{}' has no postcondition; an ensures can be derived from its body",
+                f.name.name
+            ),
+            env.span(f.name.span),
+            vec![direction(format!("Add 'ensures {expr}'"))],
+        )
+        .expect("contract-missing diagnostic carries a fix")
+        .with_suggested_contract(SuggestedContract {
+            kind: "ContractMissing".to_string(),
+            function: f.name.name.clone(),
+            clause: "ensures".to_string(),
+            expr,
+        });
+        diags.push(diag);
+    }
+}
+
+/// スカラ組み込み型(`==` で事後条件にしやすい)か。
+fn is_scalar_type(t: &ast::Type) -> bool {
+    t.path.len() == 1
+        && t.args.is_empty()
+        && matches!(t.path[0].name.as_str(), "Int" | "Bool" | "String")
 }
 
 /// 各関数の requires / ensures を走査し、検証レベルを判定して報告を組む。
@@ -114,20 +321,46 @@ fn contract_info(file: &str, func: &str, kind: ContractKind, expr: &ast::Expr) -
     }
 }
 
-/// v0.2 の検証レベル判定(最小実装)。純粋・定数評価可能で**真**に畳める契約は
-/// コンパイル時に成立が確定するため `static`。それ以外は実行時アサーションの
-/// `runtime`(spec/kei-spec-v0.2.md §3)。SMT による本格 static は v1.0 送り。
-fn verification_of(expr: &ast::Expr) -> Verification {
+/// 契約式を定数畳み込みで三分類する(M17 / #35)。`verification_of`(報告)と
+/// 恒偽診断(`check_contract_clause` の KEI-E4003)が共有する単一の判定点。
+/// 片方だけ分岐が増えてサイレント乖離する事故を防ぐ。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ContractTruth {
+    /// 定数畳み込みで `true`。コンパイル時に成立が確定。
+    AlwaysTrue,
+    /// 定数畳み込みで `false`。処理系が反証済み(必ず違反する)。
+    AlwaysFalse,
+    /// 変数を含むなど定数畳み込み不能。実行時に判定する。
+    Unknown,
+}
+
+fn classify_contract(expr: &ast::Expr) -> ContractTruth {
     match const_eval(expr) {
-        Some(ConstVal::Bool(true)) => Verification::Static,
-        _ => Verification::Runtime,
+        Some(ConstVal::Bool(true)) => ContractTruth::AlwaysTrue,
+        Some(ConstVal::Bool(false)) => ContractTruth::AlwaysFalse,
+        _ => ContractTruth::Unknown,
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+/// v0.2 の検証レベル判定(最小実装)。純粋・定数評価可能で**真**に畳める契約は
+/// コンパイル時に成立が確定するため `static`。それ以外は実行時アサーションの
+/// `runtime`(spec/kei-spec-v0.2.md §3)。SMT による本格 static は v1.0 送り。
+///
+/// 恒偽(`AlwaysFalse`)は `verification_of` 上は `runtime` に倒すが、実際には
+/// `check_contract_clause` が KEI-E4003 でコンパイルエラーにするため実行時へは
+/// 到達しない(報告の `static` は「成立が判定済み」を意味し、反証済みとは区別する)。
+fn verification_of(expr: &ast::Expr) -> Verification {
+    match classify_contract(expr) {
+        ContractTruth::AlwaysTrue => Verification::Static,
+        ContractTruth::AlwaysFalse | ContractTruth::Unknown => Verification::Runtime,
+    }
+}
+
+#[derive(Debug, Clone)]
 enum ConstVal {
     Int(i64),
     Bool(bool),
+    Str(String),
 }
 
 /// 変数を含まない純粋な式を定数畳み込みする。畳めなければ `None`。
@@ -136,6 +369,7 @@ fn const_eval(expr: &ast::Expr) -> Option<ConstVal> {
     match expr {
         ast::Expr::Int { value, .. } => Some(ConstVal::Int(*value)),
         ast::Expr::Bool { value, .. } => Some(ConstVal::Bool(*value)),
+        ast::Expr::Str { value, .. } => Some(ConstVal::Str(value.clone())),
         ast::Expr::Unary { op, expr, .. } => match (op, const_eval(expr)?) {
             (UnaryOp::Neg, ConstVal::Int(n)) => Some(ConstVal::Int(n.checked_neg()?)),
             (UnaryOp::Not, ConstVal::Bool(b)) => Some(ConstVal::Bool(!b)),
@@ -159,6 +393,9 @@ fn const_eval(expr: &ast::Expr) -> Option<ConstVal> {
                 (Ge, ConstVal::Int(a), ConstVal::Int(b)) => Some(ConstVal::Bool(a >= b)),
                 (Eq, ConstVal::Bool(a), ConstVal::Bool(b)) => Some(ConstVal::Bool(a == b)),
                 (Ne, ConstVal::Bool(a), ConstVal::Bool(b)) => Some(ConstVal::Bool(a != b)),
+                // 文字列定数の等値比較(`requires "a" == "b"` 等の恒偽/恒真を畳む。M17 / #35)。
+                (Eq, ConstVal::Str(a), ConstVal::Str(b)) => Some(ConstVal::Bool(a == b)),
+                (Ne, ConstVal::Str(a), ConstVal::Str(b)) => Some(ConstVal::Bool(a != b)),
                 (Implies, ConstVal::Bool(a), ConstVal::Bool(b)) => Some(ConstVal::Bool(!a || b)),
                 _ => None,
             }
@@ -214,6 +451,8 @@ struct FuncSig {
 /// 外部境界の署名(M11)。`extern Time.now() -> Int uses Clock` の登録形。
 #[derive(Debug, Clone)]
 struct ExternSig {
+    /// 純粋観測子(`extern query`、M14 / #45)。契約式から呼べる論理的読み取り。
+    query: bool,
     params: Vec<(String, Ty)>,
     ret: Ty,
     effects: Vec<String>,
@@ -521,6 +760,18 @@ impl Env {
                 .as_ref()
                 .map(|t| env.resolve_ty(t, diags))
                 .unwrap_or(Ty::Unit);
+            // 純粋観測子(query)は副作用を持てない。`uses` が付いていればエラー(M14)。
+            if e.query && !e.uses.is_empty() {
+                env.push(
+                    diags,
+                    codes::QUERY_WITH_EFFECTS,
+                    format!(
+                        "query observer '{key}' must be pure; a 'query' extern cannot declare 'uses'"
+                    ),
+                    e.span,
+                    vec![direction("Remove 'uses' from the query, or drop 'query' if it has effects")],
+                );
+            }
             let mut effects = Vec::new();
             for u in &e.uses {
                 let path = u
@@ -552,6 +803,7 @@ impl Env {
             env.externs.insert(
                 key,
                 ExternSig {
+                    query: e.query,
                     params,
                     ret,
                     effects,
@@ -584,8 +836,20 @@ impl Env {
         span: SynSpan,
         fixes: Vec<Fix>,
     ) {
+        self.push_sev(diags, Severity::Error, code, message, span, fixes);
+    }
+
+    fn push_sev(
+        &self,
+        diags: &mut Vec<Diagnostic>,
+        severity: Severity,
+        code: &str,
+        message: String,
+        span: SynSpan,
+        fixes: Vec<Fix>,
+    ) {
         diags.push(
-            Diagnostic::new(Severity::Error, code, message, self.span(span), fixes)
+            Diagnostic::new(severity, code, message, self.span(span), fixes)
                 .expect("checker diagnostics always carry at least one fix"),
         );
     }
@@ -641,6 +905,13 @@ impl Env {
                 }
                 Ty::Option(Box::new(self.resolve_ty(&t.args[0], diags)))
             }
+            // 第三の組み込みジェネリクス(M9 / spec v0.3-collections §3)。型引数 1。
+            "List" => {
+                if !self.check_type_args(t, 1, diags) {
+                    return Ty::Unknown;
+                }
+                Ty::List(Box::new(self.resolve_ty(&t.args[0], diags)))
+            }
             _ => match self.kinds.get(root) {
                 Some(NameKind::Record) => {
                     self.check_type_args(t, 0, diags);
@@ -671,7 +942,7 @@ impl Env {
                     Ty::Unknown
                 }
                 None => {
-                    let builtins = ["Int", "String", "Bool", "Result", "Option"];
+                    let builtins = ["Int", "String", "Bool", "Result", "Option", "List"];
                     let candidates = self
                         .kinds
                         .iter()
@@ -796,6 +1067,10 @@ struct FnChecker<'a> {
     mode: Mode,
     /// 内側ほど後ろ。`scopes[0]` はパラメータ。
     scopes: Vec<HashMap<String, Ty>>,
+    opts: CheckOptions,
+    /// List コンビネータのメソッド呼び出し位置(Call span の開始 line,col)を収集する
+    /// 任意のシンク(M9 / emit の権威的な型情報)。通常検査では `None`。
+    list_ops: Option<&'a mut HashSet<(u32, u32)>>,
 }
 
 impl FnChecker<'_> {
@@ -828,6 +1103,28 @@ impl FnChecker<'_> {
         self.env.push(self.diags, code, message, span, fixes);
     }
 
+    fn push_warning(&mut self, code: &str, message: String, span: SynSpan, fixes: Vec<Fix>) {
+        self.env
+            .push_sev(self.diags, Severity::Warning, code, message, span, fixes);
+    }
+
+    /// strict-extern(M16 / #44): `extern` 未宣言の外部 namespace 呼び出しを警告する。
+    /// 宣言があれば `call_extern` が検証下に入れる。無いと従来は opaque で素通りするため、
+    /// #22 の「外部呼び出しのエフェクト漏れ(uses 宣言漏れ)」が検出されない。strict では
+    /// その呼び出しを警告し、`extern` 宣言の追加を促す(段階移行: まず warning)。
+    fn warn_undeclared_extern(&mut self, key: &str, span: SynSpan) {
+        self.push_warning(
+            codes::UNDECLARED_EXTERN_CALL,
+            format!(
+                "external call '{key}' has no 'extern' declaration; its return type and effects are unverified"
+            ),
+            span,
+            vec![direction(format!(
+                "Declare 'extern {key}(...) -> ... uses ...' to bring this external call under verification"
+            ))],
+        );
+    }
+
     fn check_contract_clause(&mut self, clause: &ast::Expr) {
         let t = self.infer(clause);
         if !t.compatible(&Ty::Bool) {
@@ -836,6 +1133,22 @@ impl FnChecker<'_> {
                 format!("contract clause must be a Bool expression, found '{t}'"),
                 clause.span(),
                 vec![direction("Use a Bool condition")],
+            );
+        } else if classify_contract(clause) == ContractTruth::AlwaysFalse {
+            // 定数恒偽(`requires false` / `requires 1 > 2`)は処理系が反証済み。
+            // 実行時アサーションに落とさず、コンパイル時に静的エラーにする(M17 / #35)。
+            let kw = match self.mode {
+                Mode::Requires => "requires",
+                Mode::Ensures => "ensures",
+                Mode::Body => "contract",
+            };
+            self.push(
+                codes::CONST_FALSE_CONTRACT,
+                format!("contract is always false; this '{kw}' can never be satisfied"),
+                clause.span(),
+                vec![direction(
+                    "Replace the contract with a satisfiable condition",
+                )],
             );
         }
     }
@@ -1206,6 +1519,44 @@ impl FnChecker<'_> {
             }
             Ty::Result(..) => self.builtin_member(base, name, &["isOk", "isErr"]),
             Ty::Option(..) => self.builtin_member(base, name, &["isSome", "isNone"]),
+            // List のプロパティ(引数なし)は `length` のみ。`isEmpty` を含むメソッドは
+            // infer_call で処理するため、ここに来るのは呼び出しなしのアクセス(M9)。
+            // `isEmpty` をメソッドにしているのは emit の曖昧性回避: レコードが `isEmpty`
+            // フィールドを持つと `bag.isEmpty`(フィールドアクセス)を `.length === 0` へ
+            // 誤写しうる。呼び出し形 `xs.isEmpty()` ならフィールドアクセスと構文的に区別でき、
+            // レコードは呼べるフィールドを持てない(検査が弾く)ので衝突しない。
+            Ty::List(_) => match name.name.as_str() {
+                "length" => Ty::Int,
+                "isEmpty" | "get" | "map" | "filter" | "fold" | "all" | "any" => {
+                    let m = name.name.clone();
+                    self.push(
+                        codes::UNKNOWN_FIELD,
+                        format!("'{m}' is a List method; call it as 'xs.{m}(...)'"),
+                        name.span,
+                        vec![direction(format!("Call the method: 'xs.{m}(...)'"))],
+                    );
+                    Ty::Unknown
+                }
+                _ => {
+                    let members = [
+                        "length", "isEmpty", "get", "map", "filter", "fold", "all", "any",
+                    ];
+                    let fix = match suggestion(&name.name, members.iter().copied()) {
+                        Some(s) => {
+                            self.env
+                                .replace_fix(format!("Did you mean '{s}'?"), name.span, &s)
+                        }
+                        None => direction(format!("Use one of: {}", members.join(", "))),
+                    };
+                    self.push(
+                        codes::UNKNOWN_FIELD,
+                        format!("no member '{}' on 'List'", name.name),
+                        name.span,
+                        vec![fix],
+                    );
+                    Ty::Unknown
+                }
+            },
             other => {
                 let other = other.clone();
                 self.push(
@@ -1318,7 +1669,8 @@ impl FnChecker<'_> {
                     }
                 }
                 // 外部境界(import した名前空間配下)の呼び出しで extern 署名が
-                // あれば照合する。無ければ従来どおり opaque(M11 段階移行)。
+                // あれば照合する。無ければ従来どおり opaque(M11 段階移行)。strict-extern
+                // 時のみ、未宣言の外部呼び出しを警告する(M16 / #44)。
                 if let Some(path) = field_path(callee) {
                     if self.lookup_scope(&path[0]).is_none()
                         && self.env.kinds.get(&path[0]) == Some(&NameKind::Import)
@@ -1327,7 +1679,29 @@ impl FnChecker<'_> {
                         if let Some(sig) = self.env.externs.get(&key).cloned() {
                             return self.call_extern(&key, &sig, args, span);
                         }
+                        if self.opts.strict_extern {
+                            self.warn_undeclared_extern(&key, span);
+                        }
+                        // 未宣言の外部呼び出しは opaque: 引数だけ検査して Unknown を返す。
+                        for a in args {
+                            self.infer(a);
+                        }
+                        return Ty::Unknown;
                     }
+                }
+                // List コンビネータのメソッド呼び出し(M9)。レシーバが値のときだけ
+                // 型を推論して List を見分ける(型名・未定義名の従来のエラー経路を保つ)。
+                let base_is_value = match base.as_ref() {
+                    ast::Expr::Name { name, .. } => self.lookup_scope(name).is_some(),
+                    _ => true,
+                };
+                if base_is_value {
+                    let base_ty = self.infer(base);
+                    if let Ty::List(elem) = base_ty.clone() {
+                        return self.list_method(&elem, vname, args, span);
+                    }
+                    let callee_ty = self.field_on(&base_ty, vname);
+                    return self.call_value(&callee_ty, args, span);
                 }
                 let callee_ty = self.infer(callee);
                 self.call_value(&callee_ty, args, span)
@@ -1353,6 +1727,250 @@ impl FnChecker<'_> {
             );
         }
         Ty::Unknown
+    }
+
+    /// List コンビネータのメソッド呼び出し(M9 / spec v0.3-collections §4)。
+    /// `elem` は要素型 T。関数引数は名前付き関数参照のみ許す(案2、§4.1)。
+    fn list_method(
+        &mut self,
+        elem: &Ty,
+        method: &ast::Ident,
+        args: &[ast::Expr],
+        span: SynSpan,
+    ) -> Ty {
+        // この呼び出しは「List レシーバ上のメソッド呼び出し」だと型推論が確定した点。emit は
+        // この集合だけを根拠に配列メソッドへ写す(M9 / 権威的な型情報)。鍵は **メソッド名
+        // トークンの位置**(`method.span`)。Call の span は連鎖だとレシーバ先頭で揃って
+        // 衝突する(`db.get(id).get(0)` の内外で同一)ため使わない。メソッド名トークンは
+        // 呼び出しごとに必ず異なる位置にある。
+        if let Some(ops) = self.list_ops.as_deref_mut() {
+            ops.insert((method.span.start.line, method.span.start.col));
+        }
+        match method.name.as_str() {
+            // get(index: Int) -> Option<T>(範囲外は None)。
+            "get" => {
+                self.expect_arity(&method.name, 1, args, span);
+                if let Some(a) = args.first() {
+                    let at = self.infer(a);
+                    self.check_assign(&Ty::Int, &at, a.span());
+                }
+                for a in args.iter().skip(1) {
+                    self.infer(a);
+                }
+                Ty::Option(Box::new(elem.clone()))
+            }
+            // map(f: (T) -> U) -> List<U>。U は f の戻り型。
+            "map" => {
+                if !self.expect_arity(&method.name, 1, args, span) {
+                    for a in args {
+                        self.infer(a);
+                    }
+                    return Ty::List(Box::new(Ty::Unknown));
+                }
+                let u = self.check_combinator_fn_arg(
+                    &args[0],
+                    std::slice::from_ref(elem),
+                    None,
+                    "map",
+                    span,
+                );
+                Ty::List(Box::new(u))
+            }
+            // filter(pred: (T) -> Bool) -> List<T>。
+            "filter" => {
+                if self.expect_arity(&method.name, 1, args, span) {
+                    self.check_combinator_fn_arg(
+                        &args[0],
+                        std::slice::from_ref(elem),
+                        Some(&Ty::Bool),
+                        "filter",
+                        span,
+                    );
+                }
+                Ty::List(Box::new(elem.clone()))
+            }
+            // fold(init: U, f: (U, T) -> U) -> U。U は init の型。
+            "fold" => {
+                if !self.expect_arity(&method.name, 2, args, span) {
+                    for a in args {
+                        self.infer(a);
+                    }
+                    return Ty::Unknown;
+                }
+                let u = self.infer(&args[0]);
+                self.check_combinator_fn_arg(
+                    &args[1],
+                    &[u.clone(), elem.clone()],
+                    Some(&u),
+                    "fold",
+                    span,
+                );
+                u
+            }
+            // all / any(pred: (T) -> Bool) -> Bool。段階1の「量化子の代わり」。
+            "all" | "any" => {
+                if self.expect_arity(&method.name, 1, args, span) {
+                    self.check_combinator_fn_arg(
+                        &args[0],
+                        std::slice::from_ref(elem),
+                        Some(&Ty::Bool),
+                        &method.name,
+                        span,
+                    );
+                }
+                Ty::Bool
+            }
+            // isEmpty(引数なしメソッド)-> Bool。空か。emit 衝突回避のためメソッド形
+            // (`xs.isEmpty()`)で持つ(field_on のコメント参照)。
+            "isEmpty" => {
+                self.expect_arity(&method.name, 0, args, span);
+                for a in args {
+                    self.infer(a);
+                }
+                Ty::Bool
+            }
+            // length はプロパティ(引数なし)。呼び出し形で書いた。
+            "length" => {
+                self.push(
+                    codes::TYPE_MISMATCH,
+                    "'length' is a List property; write 'xs.length' without arguments".to_string(),
+                    span,
+                    vec![direction("Remove the call: 'xs.length'")],
+                );
+                for a in args {
+                    self.infer(a);
+                }
+                Ty::Int
+            }
+            other => {
+                let members = [
+                    "length", "isEmpty", "get", "map", "filter", "fold", "all", "any",
+                ];
+                let fix = match suggestion(other, members.iter().copied()) {
+                    Some(s) => {
+                        self.env
+                            .replace_fix(format!("Did you mean '{s}'?"), method.span, &s)
+                    }
+                    None => direction(format!("Use one of: {}", members.join(", "))),
+                };
+                self.push(
+                    codes::UNKNOWN_FIELD,
+                    format!("no method '{other}' on 'List'"),
+                    method.span,
+                    vec![fix],
+                );
+                for a in args {
+                    self.infer(a);
+                }
+                Ty::Unknown
+            }
+        }
+    }
+
+    /// 引数の個数を検査する。合っていれば true。
+    fn expect_arity(
+        &mut self,
+        name: &str,
+        expected: usize,
+        args: &[ast::Expr],
+        span: SynSpan,
+    ) -> bool {
+        if args.len() == expected {
+            return true;
+        }
+        self.push(
+            codes::TYPE_MISMATCH,
+            format!(
+                "'{name}' takes {expected} argument(s), found {}",
+                args.len()
+            ),
+            span,
+            vec![direction("Adjust the arguments")],
+        );
+        false
+    }
+
+    /// コンビネータ引数の関数参照(案2 / spec v0.3-collections §4.1)。第一級関数値は
+    /// 導入せず、トップレベル/同一モジュールの**純粋関数名**だけを引数位置で許す。
+    /// 期待シグネチャ(params -> ret)と照合し、関数のエフェクトを呼び出し元へ
+    /// 推移伝播する(契約式なら副作用は KEI-E4001)。戻り型を返す(map / fold の U 決定用)。
+    fn check_combinator_fn_arg(
+        &mut self,
+        arg: &ast::Expr,
+        params: &[Ty],
+        ret: Option<&Ty>,
+        method: &str,
+        span: SynSpan,
+    ) -> Ty {
+        let ast::Expr::Name { name, span: nspan } = arg else {
+            self.infer(arg);
+            self.push(
+                codes::TYPE_MISMATCH,
+                format!(
+                    "'{method}' expects a named function reference here; functions are not first-class values in Kei"
+                ),
+                arg.span(),
+                vec![direction("Pass a top-level function name, e.g. 'xs.map(toItem)'")],
+            );
+            return Ty::Unknown;
+        };
+        // スコープ変数は関数参照になれない(関数は値ではない)。
+        if self.lookup_scope(name).is_some() || self.env.kinds.get(name) != Some(&NameKind::Func) {
+            self.push(
+                codes::TYPE_MISMATCH,
+                format!("'{name}' is not a function; '{method}' takes a named function reference"),
+                *nspan,
+                vec![direction("Reference a top-level function by name")],
+            );
+            return Ty::Unknown;
+        }
+        let sig = self
+            .env
+            .funcs
+            .get(name)
+            .cloned()
+            .expect("Func kind implies a registered signature");
+        if sig.params.len() != params.len() {
+            self.push(
+                codes::TYPE_MISMATCH,
+                format!(
+                    "function '{name}' takes {} parameter(s), but '{method}' passes {}",
+                    sig.params.len(),
+                    params.len()
+                ),
+                *nspan,
+                vec![direction("Use a function with the expected parameters")],
+            );
+            return sig.ret.clone();
+        }
+        for ((pname, pty), expected) in sig.params.iter().zip(params) {
+            if !pty.compatible(expected) {
+                self.push(
+                    codes::TYPE_MISMATCH,
+                    format!(
+                        "'{method}' passes '{expected}' to parameter '{pname}' of '{name}', which expects '{pty}'"
+                    ),
+                    *nspan,
+                    vec![direction(format!("Make '{name}' accept '{expected}'"))],
+                );
+            }
+        }
+        if let Some(expected_ret) = ret {
+            if !sig.ret.compatible(expected_ret) {
+                self.push(
+                    codes::TYPE_MISMATCH,
+                    format!(
+                        "'{method}' expects the function to return '{expected_ret}', but '{name}' returns '{}'",
+                        sig.ret
+                    ),
+                    *nspan,
+                    vec![direction(format!("Make '{name}' return '{expected_ret}'"))],
+                );
+            }
+        }
+        // 関数のエフェクトを呼び出し元へ推移伝播(§8.1。契約式なら KEI-E4001)。
+        self.check_call_effects(&sig.effects, name, span);
+        sig.ret.clone()
     }
 
     fn call_named(&mut self, name: &str, nspan: SynSpan, args: &[ast::Expr], span: SynSpan) -> Ty {
@@ -1539,7 +2157,24 @@ impl FnChecker<'_> {
         for arg in args.iter().skip(sig.params.len()) {
             self.infer(arg);
         }
-        self.check_call_effects(&sig.effects, key, span);
+        // 契約式の中から呼べる外部関数は **query 観測子(純粋な論理的読み取り)だけ**
+        // (M14 / #45)。query は無副作用なので old() でスナップショットでき、本体が
+        // 外部状態をどう変えるかを ensures から直接読み取れる。非 query の extern を
+        // 契約から呼ぶのは禁止(副作用の有無に関わらず観測子として宣言させる)。
+        if self.mode != Mode::Body && !sig.query {
+            self.push(
+                codes::NON_QUERY_IN_CONTRACT,
+                format!(
+                    "external function '{key}' may only be called in a contract if declared 'extern query'; contracts observe state, they do not act on it"
+                ),
+                span,
+                vec![direction(format!(
+                    "Declare 'extern query {key}(...)' if it is a pure observer"
+                ))],
+            );
+        } else {
+            self.check_call_effects(&sig.effects, key, span);
+        }
         sig.ret.clone()
     }
 
@@ -2337,6 +2972,22 @@ impl FnChecker<'_> {
             Eq | Ne => {
                 if !lt.compatible(&rt) {
                     self.compare_mismatch(&lt, &rt, span);
+                } else if !lt.is_equatable() || !rt.is_equatable() {
+                    // 型は一致するが合成型。emit は `===`(参照等価)しか出せず、
+                    // 構造等価にならない(例: `result == xs.get(0)` は非空リストで
+                    // 常に偽 → 契約が常に失敗する)。スカラー限定にする(spec v0.3)。
+                    let bad = if !lt.is_equatable() { &lt } else { &rt };
+                    self.push(
+                        codes::UNSUPPORTED_EQUALITY,
+                        format!(
+                            "equality is not supported on '{bad}'; == / != compare scalars only \
+                             (Int, String, Bool, and tagged scalars)"
+                        ),
+                        span,
+                        vec![direction(
+                            "Compare scalar fields, or use match to inspect the value",
+                        )],
+                    );
                 }
                 Ty::Bool
             }
@@ -2623,4 +3274,82 @@ fn levenshtein(a: &str, b: &str) -> usize {
         std::mem::swap(&mut prev, &mut cur);
     }
     prev[b.len()]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `requires <src>` を 1 つ持つ関数をパースし、その契約式を取り出す。
+    fn requires_expr(src: &str) -> ast::Expr {
+        let module = kei_syntax::parse_module(&format!(
+            "module t\n\nfunc f(x: Int) -> Int\n  requires {src}\n{{\n  return x\n}}\n"
+        ));
+        assert!(
+            module.errors.is_empty(),
+            "test contract must parse: {:?}",
+            module.errors
+        );
+        let ast::Item::Func(f) = &module.module.items[0] else {
+            panic!("expected a function item");
+        };
+        f.requires[0].clone()
+    }
+
+    #[test]
+    fn classify_contract_three_way() {
+        // 恒真: 定数畳み込みで true。
+        assert_eq!(
+            classify_contract(&requires_expr("true")),
+            ContractTruth::AlwaysTrue
+        );
+        assert_eq!(
+            classify_contract(&requires_expr("2 > 1")),
+            ContractTruth::AlwaysTrue
+        );
+        // 恒偽: 定数畳み込みで false。
+        assert_eq!(
+            classify_contract(&requires_expr("false")),
+            ContractTruth::AlwaysFalse
+        );
+        assert_eq!(
+            classify_contract(&requires_expr("1 > 2")),
+            ContractTruth::AlwaysFalse
+        );
+        // 文字列定数の比較も畳む(#35 フォローアップ)。
+        assert_eq!(
+            classify_contract(&requires_expr("\"a\" == \"b\"")),
+            ContractTruth::AlwaysFalse
+        );
+        assert_eq!(
+            classify_contract(&requires_expr("\"a\" == \"a\"")),
+            ContractTruth::AlwaysTrue
+        );
+        assert_eq!(
+            classify_contract(&requires_expr("\"a\" != \"b\"")),
+            ContractTruth::AlwaysTrue
+        );
+        // 変数を含む契約は定数畳み込み不能。
+        assert_eq!(
+            classify_contract(&requires_expr("x > 0")),
+            ContractTruth::Unknown
+        );
+    }
+
+    #[test]
+    fn verification_levels_unchanged() {
+        // 恒真は static、それ以外(恒偽・変数あり)は runtime のまま(M17 で不変)。
+        assert_eq!(
+            verification_of(&requires_expr("true")),
+            Verification::Static
+        );
+        assert_eq!(
+            verification_of(&requires_expr("false")),
+            Verification::Runtime
+        );
+        assert_eq!(
+            verification_of(&requires_expr("x > 0")),
+            Verification::Runtime
+        );
+    }
 }

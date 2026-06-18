@@ -1,0 +1,5 @@
+# 生成器の固定ドメインには 7 が無いので生成テストは通る(generative)。
+# だがシードの 7 は ensures を破る → その契約は generative とは言えず runtime へ降格する。
+seeds for dec {
+  input { x: 7 }
+}

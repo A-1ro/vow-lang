@@ -1,0 +1,9 @@
+module collections.fn_value
+
+record Item {
+  qty: Int
+}
+
+func bad(items: List<Item>, base: Int) -> Int {
+  return items.fold(base, base)
+}

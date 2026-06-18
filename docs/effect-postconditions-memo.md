@@ -57,13 +57,16 @@ func borrowBook(book: BookId) -> Result<Int, BorrowError>
 | **既存機構との連続性** | 高(M11 extern の自然な延長) | 低(新しい検証サブ言語に近い) |
 | **段階性** | 小さく入れられる | コレクション(#25)成熟が前提で大きい |
 
-## v0.3+ への送り判断
+## 判断: 案1 を採用した(v0.3 / M14 / #45)
 
-- **第一候補は案1**(論理的読み取り)。HANDOFF と外部レビューが収斂した方向であり、M11 `extern` の
-  延長として小さく入れられ、合意書原則との整合も高い。健全性の鍵は「観測子の純粋性をどう保証するか」。
-- **案2 は #25(コレクション・立場B)と量化契約 `forall`/`exists` の成熟が前提**。それらが揃う段階で
-  再評価する(現状は依存が重く、スコープ発散リスクが高い)。
-- v0.2 では**実装しない**。短期イディオム(§4)で現実解を提供し、本格拡張は設計合意後の v0.3+。
+- **案1(論理的読み取り)を採用・実装した。** HANDOFF と外部レビューが収斂した方向であり、M11 `extern` の
+  延長として小さく入った(`extern query` 観測子 + 契約内 `old()` 拡張)。合意書原則との整合も高い。
+  仕様は `spec/kei-spec-v0.2.md` §4.3、実装は `kei_syntax`(`extern query` パース)/ `kei_check`
+  (query 純粋性 `KEI-E3005`・契約内は query のみ `KEI-E4004`)/ `kei_emit`(`old` 機構の延長)。
+- **健全性の根は観測子の純粋性。** v0.3 では `extern` 宣言を**信頼する(trusted)**——`query` が `uses` を
+  持てないことを `KEI-E3005` で強制し、宣言が「純粋」と言う以上それを信じる。宣言が嘘なら契約も嘘になる。
+- **案2 は引き続き見送り。** #25(コレクション・立場B)と量化契約 `forall`/`exists` の成熟が前提。
+  それらが揃う段階で再評価する(現状は依存が重く、スコープ発散リスクが高い)。
 
 ## 目標ケースの定義(将来の e2e/golden の達成基準)
 
@@ -78,4 +81,8 @@ func borrowBook(book: BookId) -> Result<Int, BorrowError>
 4. **e2e:** 上記を満たす `.kei` がトランスパイル→実行で「ちょうど 1 減る」を示し、違反版が
    `KeiContractViolation`(または静的エラー)で落ちる golden を持つ。
 
-この 4 点が、§4 の現実解と将来の言語拡張を分かつ受け入れ条件。達成は v0.3+ の対応 Milestone で測る。
+この 4 点が、§4 の現実解と将来の言語拡張を分かつ受け入れ条件だった。**v0.3 / M14(案1)で 4 点とも達成
+した:** 表現は `examples/contracts/borrow_direct.kei` の `borrowBook`(契約直書き)、検査は `kei check`
+が通り `verification` は `runtime`、反例は `borrowBookOffByTwo`(2 減らす)が実行時に `KeiContractViolation`、
+e2e は `tests/e2e/tests/borrow_direct.test.ts`。golden は `tests/golden/check/ok_contract_observer`
+(ok)/ `err_effect_query_effects`(`KEI-E3005`)/ `err_contract_nonquery`(`KEI-E4004`)。

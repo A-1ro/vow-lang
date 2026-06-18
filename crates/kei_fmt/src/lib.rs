@@ -93,7 +93,8 @@ fn extern_text(decl: &ExternDecl) -> String {
         .iter()
         .map(|p| format!("{}: {}", p.name.name, type_text(&p.ty)))
         .collect();
-    let mut s = format!("extern {}({})", path_text(&decl.path), params.join(", "));
+    let kw = if decl.query { "extern query" } else { "extern" };
+    let mut s = format!("{kw} {}({})", path_text(&decl.path), params.join(", "));
     if let Some(ret) = &decl.ret {
         s.push_str(" -> ");
         s.push_str(&type_text(ret));

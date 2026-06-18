@@ -1,0 +1,19 @@
+module contracts.observer
+
+import infra.library as Library
+
+type BookId = String tagged "BookId"
+
+extern query Library.availableOf(book: BookId) -> Int
+
+extern Library.setAvailable(book: BookId, count: Int) uses Database.Write
+
+func borrowBook(book: BookId) -> Int
+  uses Database.Write
+  requires Library.availableOf(book) > 0
+  ensures Library.availableOf(book) == old(Library.availableOf(book)) - 1
+{
+  let current: Int = Library.availableOf(book)
+  Library.setAvailable(book, current - 1)
+  return current - 1
+}

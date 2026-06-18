@@ -1,0 +1,46 @@
+module collections.inventory
+
+record Product {
+  id: String
+  quantity: Int
+  unitPrice: Int
+  reorderLevel: Int
+}
+
+record ReorderPlan {
+  product: String
+  orderQuantity: Int
+}
+
+func hasNonNegativeQuantity(product: Product) -> Bool {
+  return product.quantity >= 0
+}
+
+func addProductValue(acc: Int, product: Product) -> Int {
+  return acc + product.quantity * product.unitPrice
+}
+
+func needsReorder(product: Product) -> Bool {
+  return product.quantity < product.reorderLevel
+}
+
+func toReorderPlan(product: Product) -> ReorderPlan {
+  return ReorderPlan { product: product.id, orderQuantity: product.reorderLevel - product.quantity }
+}
+
+func totalStockValue(products: List<Product>) -> Int
+  requires products.all(hasNonNegativeQuantity)
+  ensures result >= 0
+{
+  return products.fold(0, addProductValue)
+}
+
+func planAllReorders(products: List<Product>) -> List<ReorderPlan>
+  ensures result.length <= products.length
+{
+  return products.filter(needsReorder).map(toReorderPlan)
+}
+
+func firstProduct(products: List<Product>) -> Option<Product> {
+  return products.get(0)
+}

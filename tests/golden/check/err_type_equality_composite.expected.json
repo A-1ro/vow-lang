@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E2010",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Compare scalar fields, or use match to inspect the value"
+      }
+    ],
+    "message": "equality is not supported on 'List<Int>'; == / != compare scalars only (Int, String, Bool, and tagged scalars)",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 16,
+        "line": 4
+      },
+      "file": "tests/golden/check/err_type_equality_composite.kei",
+      "start": {
+        "col": 10,
+        "line": 4
+      }
+    }
+  }
+]

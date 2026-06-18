@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E3001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Add 'uses Audit.Log' to 'logAll'"
+      }
+    ],
+    "message": "effect 'Audit.Log' used but not declared in 'uses' clause of 'logAll' (required by call to 'logItem')",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 28,
+        "line": 18
+      },
+      "file": "tests/golden/check/err_collection_effect.kei",
+      "start": {
+        "col": 10,
+        "line": 18
+      }
+    }
+  }
+]

@@ -44,6 +44,21 @@ pub struct Fix {
     pub edits: Vec<TextEdit>,
 }
 
+/// 構造化修正提案(Agent Repair Protocol / M18 / #24)。`Fix`(テキスト編集)の
+/// **意味論的強化版**で、契約レベルの差分をエージェントが機械適用 → 再検証できる形にする。
+/// `Diagnostic.fixes` とは独立した追加フィールドで、後方互換(消費側が知らなくても壊れない)。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SuggestedContract {
+    /// 提案種別(例: `"ContractMissing"`)。エージェントが分岐に使う。
+    pub kind: String,
+    /// 契約を加える対象関数名。
+    pub function: String,
+    /// 契約節の種別(`"requires"` | `"ensures"`)。
+    pub clause: String,
+    /// 提案する契約式の Kei ソース表記(`contract_expr_text` と同じ表記)。
+    pub expr: String,
+}
+
 /// 構造化診断。`kei check --json` は `Vec<Diagnostic>` を出力する。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Diagnostic {
@@ -54,6 +69,9 @@ pub struct Diagnostic {
     pub span: Span,
     /// 最低 1 要素。[`Diagnostic::new`] 経由の構築でこれを保証する。
     pub fixes: Vec<Fix>,
+    /// 構造化修正提案(M18 / #24)。`None` のときは JSON に現れない(後方互換)。
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub suggested_contract: Option<SuggestedContract>,
 }
 
 impl Diagnostic {
@@ -77,6 +95,13 @@ impl Diagnostic {
             message: message.into(),
             span,
             fixes,
+            suggested_contract: None,
         })
+    }
+
+    /// 構造化修正提案を載せる(M18)。`fixes` とは独立した追加情報。
+    pub fn with_suggested_contract(mut self, suggested: SuggestedContract) -> Self {
+        self.suggested_contract = Some(suggested);
+        self
     }
 }

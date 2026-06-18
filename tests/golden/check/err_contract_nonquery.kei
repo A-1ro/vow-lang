@@ -1,0 +1,13 @@
+module contracts.nonquery
+
+import infra.library as Library
+
+type BookId = String tagged "BookId"
+
+extern Library.availableOf(book: BookId) -> Int
+
+func check(book: BookId) -> Bool
+  requires Library.availableOf(book) > 0
+{
+  return true
+}

@@ -1,0 +1,3 @@
+verification:
+  decrementAvailable requires available > 0  [runtime]
+  decrementAvailable ensures result == old(available) - 1  [generative]

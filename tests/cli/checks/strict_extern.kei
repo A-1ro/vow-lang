@@ -1,0 +1,7 @@
+module cli.strict_extern
+
+import infra.time as Time
+
+func recordedAt() -> Int {
+  return Time.now()
+}

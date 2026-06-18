@@ -169,6 +169,35 @@ fn contract_expr_text_is_single_source_for_report_and_runtime() {
     );
 }
 
+/// 右ネストした同順位の等値/関係比較は括弧を保つ。`==` は JS で左結合なので、
+/// `c == (a == b)` を `c === a === b` と書くと `(c === a) === b` に化ける(PR #50
+/// 独立レビューの指摘)。`rhs_min` を一段上げて右辺の括弧を維持する。
+#[test]
+fn right_nested_equality_keeps_parentheses() {
+    let out = emit(concat!(
+        "func f(a: String, b: String, c: Bool) -> Bool {\n",
+        "  return c == (a == b)\n",
+        "}\n",
+    ));
+    assert!(
+        out.ts.contains("return c === (a === b);"),
+        "right-nested equality must keep parens: {}",
+        out.ts
+    );
+    // 逆に過剰括弧は付けない: `<` は JS で `===` より強く結合するため、
+    // `a == (b < c)` の右辺は括弧なし `a === b < c`(= `a === (b < c)`)で正しい。
+    let out2 = emit(concat!(
+        "func g(a: Bool, b: Int, c: Int) -> Bool {\n",
+        "  return a == (b < c)\n",
+        "}\n",
+    ));
+    assert!(
+        out2.ts.contains("return a === b < c;"),
+        "relational rhs of equality needs no parens (binds tighter): {}",
+        out2.ts
+    );
+}
+
 #[test]
 fn else_fail_unwraps_via_shared_discriminant() {
     let out = emit(concat!(
@@ -213,6 +242,184 @@ fn check_errors_reject_emit() {
     let err = kei_emit::emit_module("bad.kei", "func f() -> Int {\n  return missing\n}\n")
         .expect_err("undefined name must reject emit");
     assert!(err.iter().any(|d| d.code == "KEI-E1001"));
+}
+
+#[test]
+fn list_combinators_emit_to_array_methods() {
+    let out = emit(concat!(
+        "func isPos(x: Int) -> Bool {\n",
+        "  return x > 0\n",
+        "}\n",
+        "\n",
+        "func add(acc: Int, x: Int) -> Int {\n",
+        "  return acc + x\n",
+        "}\n",
+        "\n",
+        "func g(xs: List<Int>) -> Int {\n",
+        "  return xs.fold(0, add)\n",
+        "}\n",
+        "\n",
+        "func first(xs: List<Int>) -> Option<Int> {\n",
+        "  return xs.get(0)\n",
+        "}\n",
+        "\n",
+        "func anyPos(xs: List<Int>) -> Bool {\n",
+        "  return xs.any(isPos)\n",
+        "}\n",
+        "\n",
+        "func empty(xs: List<Int>) -> Bool {\n",
+        "  return xs.isEmpty()\n",
+        "}\n",
+    ));
+    assert!(
+        out.ts.contains("xs.reduce(add, 0)"),
+        "fold → reduce(f, init): {}",
+        out.ts
+    );
+    assert!(
+        out.ts.contains("keiListGet(xs, 0)"),
+        "get → keiListGet: {}",
+        out.ts
+    );
+    assert!(out.ts.contains("xs.some(isPos)"), "any → some: {}", out.ts);
+    assert!(
+        out.ts.contains("xs.length === 0"),
+        "isEmpty() → .length === 0: {}",
+        out.ts
+    );
+}
+
+/// 回帰(PR #50 再レビュー P2): レコードが `isEmpty` フィールドを持っても、フィールド
+/// アクセス `bag.isEmpty` は書き換えない(`.length === 0` への誤写を防ぐ)。List の
+/// `xs.isEmpty()` はメソッド形なので衝突せず `.length === 0` に写る。
+#[test]
+fn record_field_named_is_empty_is_not_rewritten() {
+    let out = emit(concat!(
+        "record Bag {\n",
+        "  isEmpty: Bool\n",
+        "  size: Int\n",
+        "}\n",
+        "\n",
+        "func flag(b: Bag) -> Bool {\n",
+        "  return b.isEmpty\n",
+        "}\n",
+        "\n",
+        "func vacant(xs: List<Int>) -> Bool {\n",
+        "  return xs.isEmpty()\n",
+        "}\n",
+    ));
+    assert!(
+        out.ts.contains("return b.isEmpty;"),
+        "record field stays a field access: {}",
+        out.ts
+    );
+    assert!(
+        !out.ts.contains("b.length === 0"),
+        "record field must not be rewritten: {}",
+        out.ts
+    );
+    assert!(
+        out.ts.contains("(xs.length === 0)"),
+        "List isEmpty() still rewrites: {}",
+        out.ts
+    );
+}
+
+/// 回帰(PR #50 レビュー P2): メソッド名が偶然 List コンビネータ名でも、レシーバが
+/// import した外部名前空間なら書き換えない(`extern Database.get(id)` を keiListGet に
+/// 誤変換しない)。逆に同名のローカル List レシーバは従来どおり書き換える。
+#[test]
+fn extern_namespace_calls_are_not_rewritten_as_list_helpers() {
+    let out = emit(concat!(
+        "import infra.database as Database\n",
+        "\n",
+        "extern Database.get(id: Int) -> Int uses Database.Read\n",
+        "\n",
+        "func lookup(id: Int) -> Int\n",
+        "  uses Database.Read\n",
+        "{\n",
+        "  return Database.get(id)\n",
+        "}\n",
+        "\n",
+        "func firstOf(xs: List<Int>) -> Option<Int> {\n",
+        "  return xs.get(0)\n",
+        "}\n",
+    ));
+    // 外部呼び出しは素直なメソッド呼び出し。
+    assert!(
+        out.ts.contains("return Database.get(id);"),
+        "extern call must stay a plain call: {}",
+        out.ts
+    );
+    assert!(
+        !out.ts.contains("keiListGet(Database"),
+        "extern call must not become keiListGet: {}",
+        out.ts
+    );
+    // 同名でもローカル List レシーバは keiListGet へ。
+    assert!(
+        out.ts.contains("keiListGet(xs, 0)"),
+        "list get must still rewrite: {}",
+        out.ts
+    );
+}
+
+/// 回帰(PR #50 第3レビュー P2): 連鎖した外部呼び出し `Database.reader().get(id)` は、
+/// レシーバが計算値でも List ではない(検査器が List 操作と認めない)。span-set を根拠に
+/// するので、keiListGet へ誤変換せず素直なメソッド呼び出しを出す。
+#[test]
+fn chained_extern_call_is_not_rewritten() {
+    let out = emit(concat!(
+        "import infra.database as Database\n",
+        "\n",
+        "extern Database.reader() -> Int uses Database.Read\n",
+        "extern Database.get(id: Int) -> Int uses Database.Read\n",
+        "\n",
+        "func lookup(id: Int) -> Int\n",
+        "  uses Database.Read\n",
+        "{\n",
+        "  return Database.get(id)\n",
+        "}\n",
+    ));
+    assert!(
+        out.ts.contains("return Database.get(id);"),
+        "chained/extern call must stay a plain call: {}",
+        out.ts
+    );
+    assert!(
+        !out.ts.contains("keiListGet"),
+        "no List helper for an external call: {}",
+        out.ts
+    );
+}
+
+/// 回帰(Claude レビュー): 連鎖で Call span がレシーバ先頭に揃っても、List 書き換えの
+/// 鍵をメソッド名トークン位置にしているので内外の同名 `get` を取り違えない。extern が
+/// List を返し、その結果に List.get を連鎖する `Database.get(id).get(0)` で、内側の extern
+/// 呼び出しは素のまま・外側だけ keiListGet に写ることを固定する。
+#[test]
+fn chained_list_op_on_extern_result_keys_by_method_token() {
+    let out = emit(concat!(
+        "import infra.db as Database\n",
+        "\n",
+        "extern Database.get(id: Int) -> List<Int> uses Database.Read\n",
+        "\n",
+        "func f(id: Int) -> Option<Int>\n",
+        "  uses Database.Read\n",
+        "{\n",
+        "  return Database.get(id).get(0)\n",
+        "}\n",
+    ));
+    assert!(
+        out.ts.contains("return keiListGet(Database.get(id), 0);"),
+        "inner extern get must stay a plain call; only the outer List get rewrites: {}",
+        out.ts
+    );
+    assert!(
+        !out.ts.contains("keiListGet(Database,"),
+        "the inner extern call must not be rewritten as a List helper: {}",
+        out.ts
+    );
 }
 
 // ---- source map ----

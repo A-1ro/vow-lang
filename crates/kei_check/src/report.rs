@@ -4,10 +4,14 @@
 //! 別物。検証レベルは**ソース構文に書き分けず**、`kei check` の構造化出力に載せる
 //! (spec/kei-spec-v0.2.md §3「契約は不変・検証は成長」)。
 //!
-//! - `static`   … コンパイル時に成立が判定済み(v0.2 は定数畳み込みで真になる契約)
-//! - `runtime`  … 実行時アサーションへ展開(v0.1 既定。大半はこれ)
-//! - `trusted`  … 外部・人間レビュー・テストで保証(検証器の管轄外。v0.2 では未産出)
-//! - `unchecked`… 明示的に未検証(v0.2 では未産出)
+//! - `static`     … コンパイル時に成立が判定済み(v0.2 は定数畳み込みで真になる契約)
+//! - `generative` … 契約から生成した property-based test で反例ゼロ(v0.3 / M15 / #26)
+//! - `runtime`    … 実行時アサーションへ展開(v0.1 既定。大半はこれ)
+//! - `trusted`    … 外部・人間レビュー・テストで保証(検証器の管轄外。v0.2 では未産出)
+//! - `unchecked`  … 明示的に未検証(v0.2 では未産出)
+//!
+//! 強さの序列は `static` > `generative` > `runtime`。static で証明できないものは
+//! generative(全生成入力で反例なし)、それも難しければ runtime、という連続的扱い。
 
 use serde::{Deserialize, Serialize};
 
@@ -53,6 +57,7 @@ impl ContractKind {
 #[serde(rename_all = "lowercase")]
 pub enum Verification {
     Static,
+    Generative,
     Runtime,
     Trusted,
     Unchecked,
@@ -62,6 +67,7 @@ impl Verification {
     pub fn as_str(self) -> &'static str {
         match self {
             Verification::Static => "static",
+            Verification::Generative => "generative",
             Verification::Runtime => "runtime",
             Verification::Trusted => "trusted",
             Verification::Unchecked => "unchecked",

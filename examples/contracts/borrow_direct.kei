@@ -1,0 +1,28 @@
+module contracts.borrow_direct
+
+import infra.database as Database
+
+type BookId = String tagged "BookId"
+
+extern query Database.availableOf(book: BookId) -> Int
+extern Database.setAvailable(book: BookId, count: Int) uses Database.Write
+
+func borrowBook(book: BookId) -> Int
+  uses Database.Write
+  requires Database.availableOf(book) > 0
+  ensures Database.availableOf(book) == old(Database.availableOf(book)) - 1
+{
+  let current: Int = Database.availableOf(book)
+  Database.setAvailable(book, current - 1)
+  return current - 1
+}
+
+func borrowBookOffByTwo(book: BookId) -> Int
+  uses Database.Write
+  requires Database.availableOf(book) > 0
+  ensures Database.availableOf(book) == old(Database.availableOf(book)) - 1
+{
+  let current: Int = Database.availableOf(book)
+  Database.setAvailable(book, current - 2)
+  return current - 2
+}

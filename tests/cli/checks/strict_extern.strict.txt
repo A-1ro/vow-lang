@@ -1,0 +1,7 @@
+warning[KEI-E3004]: external call 'Time.now' has no 'extern' declaration; its return type and effects are unverified
+ --> tests/cli/checks/strict_extern.kei:6:10
+  |
+6 |   return Time.now()
+  |          ^^^^^^^^^^
+  = fix: Declare 'extern Time.now(...) -> ... uses ...' to bring this external call under verification
+

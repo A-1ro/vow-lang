@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E4003",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Replace the contract with a satisfiable condition"
+      }
+    ],
+    "message": "contract is always false; this 'requires' can never be satisfied",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 22,
+        "line": 4
+      },
+      "file": "tests/golden/check/err_contract_str_false.kei",
+      "start": {
+        "col": 12,
+        "line": 4
+      }
+    }
+  }
+]

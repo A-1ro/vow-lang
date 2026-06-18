@@ -1,0 +1,150 @@
+{
+  "decl": {
+    "path": [
+      {
+        "name": "syntax",
+        "span": "1:8-1:14"
+      },
+      {
+        "name": "extern_query",
+        "span": "1:15-1:27"
+      }
+    ],
+    "span": "1:1-1:27"
+  },
+  "imports": [
+    {
+      "alias": {
+        "name": "Library",
+        "span": "3:25-3:32"
+      },
+      "names": [],
+      "path": [
+        {
+          "name": "infra",
+          "span": "3:8-3:13"
+        },
+        {
+          "name": "library",
+          "span": "3:14-3:21"
+        }
+      ],
+      "span": "3:1-3:32"
+    }
+  ],
+  "items": [
+    {
+      "kind": "Extern",
+      "params": [
+        {
+          "name": {
+            "name": "book",
+            "span": "5:34-5:38"
+          },
+          "span": "5:34-5:46",
+          "ty": {
+            "args": [],
+            "path": [
+              {
+                "name": "String",
+                "span": "5:40-5:46"
+              }
+            ],
+            "span": "5:40-5:46"
+          }
+        }
+      ],
+      "path": [
+        {
+          "name": "Library",
+          "span": "5:14-5:21"
+        },
+        {
+          "name": "availableOf",
+          "span": "5:22-5:33"
+        }
+      ],
+      "query": true,
+      "ret": {
+        "args": [],
+        "path": [
+          {
+            "name": "Int",
+            "span": "5:51-5:54"
+          }
+        ],
+        "span": "5:51-5:54"
+      },
+      "span": "5:1-5:54",
+      "uses": []
+    },
+    {
+      "kind": "Extern",
+      "params": [
+        {
+          "name": {
+            "name": "book",
+            "span": "6:29-6:33"
+          },
+          "span": "6:29-6:41",
+          "ty": {
+            "args": [],
+            "path": [
+              {
+                "name": "String",
+                "span": "6:35-6:41"
+              }
+            ],
+            "span": "6:35-6:41"
+          }
+        },
+        {
+          "name": {
+            "name": "count",
+            "span": "6:43-6:48"
+          },
+          "span": "6:43-6:53",
+          "ty": {
+            "args": [],
+            "path": [
+              {
+                "name": "Int",
+                "span": "6:50-6:53"
+              }
+            ],
+            "span": "6:50-6:53"
+          }
+        }
+      ],
+      "path": [
+        {
+          "name": "Library",
+          "span": "6:8-6:15"
+        },
+        {
+          "name": "setAvailable",
+          "span": "6:16-6:28"
+        }
+      ],
+      "query": false,
+      "ret": null,
+      "span": "6:1-6:74",
+      "uses": [
+        {
+          "path": [
+            {
+              "name": "Database",
+              "span": "6:60-6:68"
+            },
+            {
+              "name": "Write",
+              "span": "6:69-6:74"
+            }
+          ],
+          "span": "6:60-6:74"
+        }
+      ]
+    }
+  ],
+  "span": "1:1-7:1"
+}

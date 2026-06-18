@@ -1,0 +1,6 @@
+module syntax.extern_query
+
+import infra.library as Library
+
+extern query Library.availableOf(book: String) -> Int
+extern Library.setAvailable(book: String, count: Int) uses Database.Write

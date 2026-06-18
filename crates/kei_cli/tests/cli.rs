@@ -150,6 +150,223 @@ fn check_golden() {
 }
 
 // ---------------------------------------------------------------------------
+// golden: kei check --strict-extern(M16 / #44)
+// ---------------------------------------------------------------------------
+
+/// strict-extern は **オプトイン**。同じ #22 再現コードが、既定の `kei check` では
+/// 通り(extern 未宣言の外部呼び出しは opaque)、`--strict-extern` でのみ警告される
+/// (extern 宣言の追加を促す)ことを対で固定する。
+#[test]
+fn strict_extern_golden() {
+    let dir = cli_dir().join("checks");
+    let rel = "tests/cli/checks/strict_extern.kei";
+    let mut failures = Vec::new();
+
+    // 既定: 未宣言の外部呼び出しは通る(警告なし・exit 0)。
+    let default = run_kei(&["check", rel]);
+    if !default.stdout.is_empty() || default.code != 0 {
+        failures.push(format!(
+            "default check should be clean: code={} stdout={:?}",
+            default.code, default.stdout
+        ));
+    }
+
+    // strict: KEI-E3004 警告(stage a は warning なので exit は 0)。散文 / --json を固定。
+    let strict = run_kei(&["check", "--strict-extern", rel]);
+    expect_golden(
+        &dir.join("strict_extern.strict.txt"),
+        &strict.stdout,
+        &mut failures,
+    );
+    if strict.code != 0 {
+        failures.push(format!(
+            "strict check warning must not change exit code (stage a): code={}",
+            strict.code
+        ));
+    }
+
+    let strict_json = run_kei(&["check", "--strict-extern", "--json", rel]);
+    expect_golden(
+        &dir.join("strict_extern.strict.json"),
+        &strict_json.stdout,
+        &mut failures,
+    );
+    // #22 再現: warning に KEI-E3004 と extern 宣言の fix が載る。
+    let parsed: serde_json::Value =
+        serde_json::from_str(&strict_json.stdout).expect("--json emits valid JSON");
+    let diags = parsed["diagnostics"]
+        .as_array()
+        .expect("diagnostics is an array");
+    if !diags.iter().any(|d| {
+        d["code"] == "KEI-E3004"
+            && d["severity"] == "warning"
+            && !d["fixes"].as_array().map(|f| f.is_empty()).unwrap_or(true)
+    }) {
+        failures.push(format!(
+            "strict --json must carry a KEI-E3004 warning with a fix: {strict_json:?}",
+            strict_json = strict_json.stdout
+        ));
+    }
+
+    assert!(
+        failures.is_empty(),
+        "{} strict-extern case(s) failed:\n{}",
+        failures.len(),
+        failures.join("\n\n")
+    );
+}
+
+// ---------------------------------------------------------------------------
+// golden: kei check --generative(M15 / #26)
+// ---------------------------------------------------------------------------
+
+/// 契約ベース PBT。正しい実装は ensures が generative へ格上げされ(全生成入力で反例ゼロ)、
+/// わざと壊した実装(`available - 2`)は最小化された反例付きで KEI-E4005 を出す。
+/// オラクルは契約のみ・シードは入力のみ(捏造不能性)を、出力で固定する。
+#[test]
+fn generative_golden() {
+    let dir = cli_dir().join("checks");
+    let mut failures = Vec::new();
+
+    // 正しい実装: ensures が generative。exit 0。
+    let ok_rel = "tests/cli/checks/gen_decrement.kei";
+    let ok = run_kei(&["check", "--generative", ok_rel]);
+    expect_golden(
+        &dir.join("gen_decrement.gen.txt"),
+        &ok.stdout,
+        &mut failures,
+    );
+    if ok.code != 0 {
+        failures.push(format!(
+            "generative(correct) should exit 0, got {}",
+            ok.code
+        ));
+    }
+    let ok_json = run_kei(&["check", "--generative", "--json", ok_rel]);
+    let parsed: serde_json::Value =
+        serde_json::from_str(&ok_json.stdout).expect("--json emits valid JSON");
+    let has_generative = parsed["contracts"]
+        .as_array()
+        .map(|cs| cs.iter().any(|c| c["verification"] == "generative"))
+        .unwrap_or(false);
+    if !has_generative {
+        failures.push(format!(
+            "correct impl must report a 'generative' contract:\n{}",
+            ok_json.stdout
+        ));
+    }
+
+    // 壊れた実装: 最小化反例付き KEI-E4005、exit 1。
+    let bad_rel = "tests/cli/checks/gen_decrement_broken.kei";
+    let bad = run_kei(&["check", "--generative", bad_rel]);
+    expect_golden(
+        &dir.join("gen_decrement_broken.gen.txt"),
+        &bad.stdout,
+        &mut failures,
+    );
+    if bad.code != 1 {
+        failures.push(format!(
+            "generative(broken) should exit 1, got {}",
+            bad.code
+        ));
+    }
+    if !bad.stdout.contains("KEI-E4005") || !bad.stdout.contains("available = 1") {
+        failures.push(format!(
+            "broken impl must report KEI-E4005 with minimized input 'available = 1':\n{}",
+            bad.stdout
+        ));
+    }
+
+    // 既定(--generative なし)では壊れた実装も静的には通る(PBT は opt-in)。
+    let bad_default = run_kei(&["check", bad_rel]);
+    if bad_default.code != 0 {
+        failures.push(format!(
+            "without --generative the broken impl is statically clean, got exit {}",
+            bad_default.code
+        ));
+    }
+
+    assert!(
+        failures.is_empty(),
+        "{} generative case(s) failed:\n{}",
+        failures.len(),
+        failures.join("\n\n")
+    );
+}
+
+/// シード注入(M15 段階2): `<stem>.seeds` を --generative で自動検証する。入力のみの
+/// シードを requires に照らし、違反シード(available: 0)を KEI-E4007 で弾く。期待値を
+/// 書く構文が無い(seeds は入力のみ)ことは pbt の unit test で固定。
+#[test]
+fn seed_injection_golden() {
+    let dir = cli_dir().join("checks");
+    let rel = "tests/cli/checks/seed_decrement.kei";
+    let mut failures = Vec::new();
+
+    let run = run_kei(&["check", "--generative", rel]);
+    expect_golden(
+        &dir.join("seed_decrement.gen.txt"),
+        &run.stdout,
+        &mut failures,
+    );
+    if run.code != 1 {
+        failures.push(format!(
+            "a requires-violating seed must make exit 1, got {}",
+            run.code
+        ));
+    }
+    if !run.stdout.contains("KEI-E4007") || !run.stdout.contains("seed_decrement.seeds") {
+        failures.push(format!(
+            "seed validation must point at the .seeds file with KEI-E4007:\n{}",
+            run.stdout
+        ));
+    }
+
+    // 既定(--generative なし)ではシードを読まない(opt-in)。
+    let default = run_kei(&["check", rel]);
+    if default.code != 0 || default.stdout.contains("KEI-E4007") {
+        failures.push(format!(
+            "without --generative, seeds are not validated: code={} out={:?}",
+            default.code, default.stdout
+        ));
+    }
+
+    assert!(
+        failures.is_empty(),
+        "{} seed case(s) failed:\n{}",
+        failures.len(),
+        failures.join("\n\n")
+    );
+}
+
+/// シード注入の検証レベル整合(PR #50 第4レビュー P2): 生成器の固定ドメインでは反例ゼロでも、
+/// シードがドメイン外(`x = 7`)で `ensures` を破ったら、その契約は `generative` ではなく
+/// `runtime` を報告する。`--json` が「generative」と KEI-E4005 を同時に主張しないことを固定。
+#[test]
+fn seed_failure_downgrades_contract_to_runtime() {
+    let rel = "tests/cli/checks/seed_downgrade.kei";
+    let run = run_kei(&["check", "--generative", "--json", rel]);
+    let parsed: serde_json::Value =
+        serde_json::from_str(&run.stdout).expect("--json emits valid JSON");
+
+    let diags = parsed["diagnostics"].as_array().expect("diagnostics array");
+    assert!(
+        diags.iter().any(|d| d["code"] == "KEI-E4005"),
+        "seed must produce a KEI-E4005 counterexample: {}",
+        run.stdout
+    );
+    let contracts = parsed["contracts"].as_array().expect("contracts array");
+    // シードが破った ensures が generative のまま残っていないこと(矛盾の防止)。
+    assert!(
+        contracts
+            .iter()
+            .all(|c| !(c["kind"] == "ensures" && c["verification"] == "generative")),
+        "a seed-broken contract must not stay 'generative': {}",
+        run.stdout
+    );
+}
+
+// ---------------------------------------------------------------------------
 // golden: kei fmt(整形 / --check / 構文エラー)
 // ---------------------------------------------------------------------------
 
