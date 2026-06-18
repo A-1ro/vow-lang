@@ -335,6 +335,35 @@ fn extern_namespace_calls_are_not_rewritten_as_list_helpers() {
     );
 }
 
+/// 回帰(PR #50 第3レビュー P2): 連鎖した外部呼び出し `Database.reader().get(id)` は、
+/// レシーバが計算値でも List ではない(検査器が List 操作と認めない)。span-set を根拠に
+/// するので、keiListGet へ誤変換せず素直なメソッド呼び出しを出す。
+#[test]
+fn chained_extern_call_is_not_rewritten() {
+    let out = emit(concat!(
+        "import infra.database as Database\n",
+        "\n",
+        "extern Database.reader() -> Int uses Database.Read\n",
+        "extern Database.get(id: Int) -> Int uses Database.Read\n",
+        "\n",
+        "func lookup(id: Int) -> Int\n",
+        "  uses Database.Read\n",
+        "{\n",
+        "  return Database.get(id)\n",
+        "}\n",
+    ));
+    assert!(
+        out.ts.contains("return Database.get(id);"),
+        "chained/extern call must stay a plain call: {}",
+        out.ts
+    );
+    assert!(
+        !out.ts.contains("keiListGet"),
+        "no List helper for an external call: {}",
+        out.ts
+    );
+}
+
 // ---- source map ----
 
 fn vlq_decode(s: &str) -> Vec<Vec<i64>> {

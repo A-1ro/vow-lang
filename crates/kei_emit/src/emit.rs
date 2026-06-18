@@ -3,7 +3,7 @@
 //! 検査(型・名前・エフェクト)は kei_check 済みであることを前提とし、
 //! ここでは構文情報のみを使って出力を組み立てる(検査の再実装禁止)。
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 use std::fmt::Write as _;
 
 use kei_check::contract_expr_text as kei_expr_text;
@@ -16,12 +16,21 @@ use crate::EmitOutput;
 const RUNTIME_MODULE: &str = "@kei/runtime";
 const INDENT: &str = "  ";
 
-pub fn emit_checked(file: &str, source: &str, module: &ast::Module) -> EmitOutput {
+/// `list_ops` は kei_check が確定した「List コンビネータ呼び出し位置」(Call span の開始
+/// `(line, col)`)の集合。emit はこれだけを根拠に配列メソッドへ写す(構文ヒューリスティックで
+/// レシーバ型を推測しない。外部呼び出しの連鎖・同名フィールドの誤写を防ぐ。M9)。
+pub fn emit_checked(
+    file: &str,
+    source: &str,
+    module: &ast::Module,
+    list_ops: &HashSet<(u32, u32)>,
+) -> EmitOutput {
     let ts_path = ts_path_for(file, module);
     let ts_file = ts_path.rsplit('/').next().expect("non-empty path");
     let mut e = Emitter {
         src_file: file,
         module,
+        list_ops,
         out: Out::default(),
         old_counter: 0,
         in_ensures: false,
@@ -103,14 +112,18 @@ impl Out {
 // ランタイム import の収集(構文走査のみ)
 // ---------------------------------------------------------------------------
 
-#[derive(Default)]
-struct RuntimeUses {
+struct RuntimeUses<'a> {
     names: BTreeSet<&'static str>,
+    /// List コンビネータ呼び出し位置(検査器由来)。`get` の keiListGet import 判定に使う。
+    list_ops: &'a HashSet<(u32, u32)>,
 }
 
-impl RuntimeUses {
-    fn collect(module: &ast::Module) -> Self {
-        let mut u = RuntimeUses::default();
+impl<'a> RuntimeUses<'a> {
+    fn collect(module: &ast::Module, list_ops: &'a HashSet<(u32, u32)>) -> Self {
+        let mut u = RuntimeUses {
+            names: BTreeSet::new(),
+            list_ops,
+        };
         for item in &module.items {
             match item {
                 ast::Item::TypeAlias(a) => u.ty(&a.ty),
@@ -215,7 +228,7 @@ impl RuntimeUses {
             ast::Expr::Int { .. } | ast::Expr::Str { .. } | ast::Expr::Bool { .. } => {}
             ast::Expr::Name { .. } => {}
             ast::Expr::Field { base, .. } => self.expr(base),
-            ast::Expr::Call { callee, args, .. } => {
+            ast::Expr::Call { callee, args, span } => {
                 if let ast::Expr::Name { name, .. } = callee.as_ref() {
                     match name.as_str() {
                         "Ok" => {
@@ -234,8 +247,13 @@ impl RuntimeUses {
                     }
                 } else {
                     // List.get(i) は範囲外 None を返すランタイムヘルパーへ写す(M9)。
+                    // 検査器が List 呼び出しと確定した位置のときだけ import する(外部呼び出しの
+                    // `Database.get(id)` などで誤って keiListGet を import しない)。
                     if let ast::Expr::Field { name, .. } = callee.as_ref() {
-                        if name.name == "get" && args.len() == 1 {
+                        if name.name == "get"
+                            && args.len() == 1
+                            && self.list_ops.contains(&(span.start.line, span.start.col))
+                        {
                             self.names.insert("keiListGet");
                         }
                     }
@@ -317,6 +335,8 @@ fn ts_bin_op(op: BinOp) -> &'static str {
 struct Emitter<'a> {
     src_file: &'a str,
     module: &'a ast::Module,
+    /// List コンビネータ呼び出し位置(Call span 開始)。検査器由来の権威的な型情報。
+    list_ops: &'a HashSet<(u32, u32)>,
     out: Out,
     /// ensures 内 `old(...)` の通し番号。事前キャプチャと同じ走査順で消費する。
     old_counter: usize,
@@ -332,7 +352,7 @@ impl Emitter<'_> {
         self.out
             .line("// Do not edit; regenerate with `kei build`.");
 
-        let runtime = RuntimeUses::collect(self.module);
+        let runtime = RuntimeUses::collect(self.module, self.list_ops);
         let mut wrote_imports = false;
         if !runtime.names.is_empty() {
             let names: Vec<&str> = runtime.names.iter().copied().collect();
@@ -384,30 +404,6 @@ impl Emitter<'_> {
         };
         let parts: Vec<&str> = path.iter().map(|i| i.name.as_str()).collect();
         format!("{prefix}{}", parts.join("/"))
-    }
-
-    /// レシーバ `base` が import した名前空間に根ざす純粋なパス(`Database` /
-    /// `Audit.Log` 等)か。true なら `extern`/外部呼び出しのレシーバで、List コンビネータの
-    /// 構文的書き換え(`get`/`fold`/`all`/`any`/`isEmpty`)を**適用しない**。
-    /// 計算値(呼び出し結果)を含むレシーバはパスではないので false(= List 書き換え対象)。
-    fn is_external_receiver(&self, base: &ast::Expr) -> bool {
-        match pure_path_root(base) {
-            Some(root) => self.is_import_binding(root),
-            None => false,
-        }
-    }
-
-    /// `name` が import で導入された束縛(別名 / 列挙名 / パス末尾)か。
-    fn is_import_binding(&self, name: &str) -> bool {
-        self.module.imports.iter().any(|imp| {
-            if let Some(alias) = &imp.alias {
-                return alias.name == name;
-            }
-            if !imp.names.is_empty() {
-                return imp.names.iter().any(|n| n.name == name);
-            }
-            imp.path.last().map(|p| p.name == name).unwrap_or(false)
-        })
     }
 
     fn emit_import(&mut self, imp: &ast::Import) {
@@ -863,7 +859,9 @@ impl Emitter<'_> {
                 self.emit_expr(base, Prec::Postfix);
                 self.out.frag(&format!(".{}", name.name));
             }
-            ast::Expr::Call { callee, args, .. } => self.emit_call(callee, args),
+            ast::Expr::Call {
+                callee, args, span, ..
+            } => self.emit_call(callee, args, *span),
             ast::Expr::Unary { op, expr, .. } => {
                 let needs_paren = parent > Prec::Unary;
                 if needs_paren {
@@ -982,7 +980,7 @@ impl Emitter<'_> {
         }
     }
 
-    fn emit_call(&mut self, callee: &ast::Expr, args: &[ast::Expr]) {
+    fn emit_call(&mut self, callee: &ast::Expr, args: &[ast::Expr], span: Span) {
         if let ast::Expr::Name { name, .. } = callee {
             if name == "old" {
                 // 事前キャプチャ済みの値を参照する(収集と同じ走査順)。
@@ -993,16 +991,14 @@ impl Emitter<'_> {
             }
         }
         // List コンビネータのメソッド呼び出し(M9 / spec v0.3-collections §9)。
-        // 検査済みなので `xs.<method>(...)` の <method> 名で配列メソッドへ写す。ただし
-        // レシーバが import した名前空間(`extern Database.get(...)` 等の外部呼び出し)の
-        // ときは書き換えない——名前が偶然 get/fold/all/any でも外部呼び出しは List ではない。
+        // **この呼び出し位置を検査器が List 操作と確定している**ときだけ配列メソッドへ写す
+        // (構文ヒューリスティックでレシーバ型を推測しない。外部呼び出しの連鎖
+        // `Database.reader().get(id)` や let 束縛 opaque 値の誤写を防ぐ)。
+        let is_list_op = self.list_ops.contains(&(span.start.line, span.start.col));
         if let ast::Expr::Field { base, name, .. } = callee {
-            if self.is_external_receiver(base) {
-                // 外部呼び出し: 通常のメソッド呼び出しとして素直に出す(下のフォールバック)。
-            } else {
+            if is_list_op {
                 match name.name.as_str() {
-                    // isEmpty() → `(xs.length === 0)`。メソッド形なのでフィールドアクセス
-                    // (レコードの isEmpty フィールド)と構文的に区別でき、衝突しない。
+                    // isEmpty() → `(xs.length === 0)`。
                     "isEmpty" if args.is_empty() => {
                         self.out.frag("(");
                         self.emit_expr(base, Prec::Postfix);
@@ -1154,17 +1150,6 @@ fn collect_old_exprs(ensures: &[ast::Expr]) -> Vec<&ast::Expr> {
 /// TS 文字列リテラル(JSON エスケープは TS と互換)。
 fn ts_string(s: &str) -> String {
     serde_json::to_string(s).expect("strings are serializable")
-}
-
-/// `Name` / `Field` だけからなる純粋なパスの根の名前を返す。途中に `Call` 等の
-/// 計算値が混ざればパスではないので `None`(`Database.fetch().get(0)` の `.get` の
-/// レシーバは計算値で、import 名前空間ではない)。
-fn pure_path_root(e: &ast::Expr) -> Option<&str> {
-    match e {
-        ast::Expr::Name { name, .. } => Some(name),
-        ast::Expr::Field { base, .. } => pure_path_root(base),
-        _ => None,
-    }
 }
 
 // ---------------------------------------------------------------------------

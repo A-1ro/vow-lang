@@ -312,14 +312,21 @@ fn eval_func_call(
     // 呼び出し先の requires を引数で検査する。emit は全呼び出しで requires をアサートし、
     // 満たさなければ実行時に違反送出するので、生成テストも前提違反を Precondition として扱う
     // (満たさない入力で本体を素通り評価して generative に上げてしまう穴を塞ぐ)。
-    // 評価不能な requires は寛容にスキップ。
     for req in &f.requires {
-        if let Ok(false) = eval_bool(req, &env, funcs, false) {
-            return Err(EvalError::Precondition(format!(
-                "requires '{}' of '{}' is not satisfied",
-                contract_expr_text(req),
-                f.name.name
-            )));
+        match eval_bool(req, &env, funcs, false) {
+            Ok(true) => {}
+            // 前提が定量的に偽 → 実行時 throw。反例として扱う。
+            Ok(false) => {
+                return Err(EvalError::Precondition(format!(
+                    "requires '{}' of '{}' is not satisfied",
+                    contract_expr_text(req),
+                    f.name.name
+                )))
+            }
+            // 前提が評価器の範囲外 / 評価破綻 → この呼び出しの妥当性を判定できない。
+            // 実行時はその requires が走り throw しうるので、寛容スキップは過信になる。
+            // 検証不能として伝播し(Unsupported)、呼び出し元を generative に上げない。
+            Err(_) => return Err(EvalError::Unsupported),
         }
     }
     eval_block(&f.body, env, funcs, depth)
@@ -546,6 +553,8 @@ enum SeedTok {
     Ident(String),
     Int(i64),
     Str(String),
+    /// 閉じ引用符なしで EOF に達した文字列(文法エラーにする)。
+    UnterminatedStr,
     LBrace,
     RBrace,
     Colon,
@@ -628,7 +637,14 @@ fn lex_seeds(src: &str) -> Vec<SeedToken> {
                 i += 1;
                 col += 1;
                 let mut s = String::new();
-                while i < chars.len() && chars[i] != '"' {
+                let mut terminated = false;
+                while i < chars.len() {
+                    if chars[i] == '"' {
+                        terminated = true;
+                        i += 1; // 閉じ "
+                        col += 1;
+                        break;
+                    }
                     if chars[i] == '\\' && i + 1 < chars.len() {
                         i += 1;
                         col += 1;
@@ -643,11 +659,15 @@ fn lex_seeds(src: &str) -> Vec<SeedToken> {
                     i += 1;
                     col += 1;
                 }
-                i += 1; // 閉じ "
-                col += 1;
                 let len = (col - start_col).max(1);
+                // 閉じ引用符を見ずに EOF に達したら未終端文字列(文法エラー)。
+                let kind = if terminated {
+                    SeedTok::Str(s)
+                } else {
+                    SeedTok::UnterminatedStr
+                };
                 toks.push(SeedToken {
-                    kind: SeedTok::Str(s),
+                    kind,
                     line: start_line,
                     col: start_col,
                     len,
@@ -972,6 +992,18 @@ impl SeedParser<'_> {
             SeedTok::Ident(id) if id == "false" => {
                 self.bump();
                 Some(Value::Bool(false))
+            }
+            SeedTok::UnterminatedStr => {
+                let t = self.cur();
+                let (l, c, len) = (t.line, t.col, t.len);
+                self.err(
+                    "unterminated string literal (missing closing '\"')".to_string(),
+                    l,
+                    c,
+                    len,
+                    "Close the string with '\"'",
+                );
+                None
             }
             _ => {
                 let t = self.cur();
@@ -1350,6 +1382,21 @@ mod tests {
         assert!(
             diags.is_empty(),
             "correct impl + valid seed = clean: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn unterminated_seed_string_is_a_grammar_error() {
+        // 閉じ引用符の無い文字列は文法エラー(EOF まで読んで黙って Str にしない)。
+        let m = decrement_module();
+        let src = "seeds for decrementAvailable {\n  input { available: \"oops }\n}\n";
+        let diags = check_seeds("t.seeds", src, &m);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == seed_codes::SEED_GRAMMAR
+                    && d.message.contains("unterminated string")),
+            "unterminated string must be KEI-E4006: {diags:?}"
         );
     }
 

@@ -38,5 +38,8 @@ pub fn emit_module(file: &str, source: &str) -> Result<EmitOutput, Vec<Diagnosti
     if !diags.is_empty() {
         return Err(diags);
     }
-    Ok(emit::emit_checked(file, source, &parsed.module))
+    // List コンビネータ呼び出しの位置を検査器から受け取り、emit はこれだけを根拠に
+    // 配列メソッドへ写す(構文ヒューリスティックではなく権威的な型情報。M9)。
+    let list_ops = kei_check::list_op_spans(&parsed.module);
+    Ok(emit::emit_checked(file, source, &parsed.module, &list_ops))
 }

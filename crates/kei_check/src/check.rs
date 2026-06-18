@@ -81,6 +81,7 @@ pub fn check_module_with(file: &str, module: &ast::Module, opts: CheckOptions) -
                 mode: Mode::Body,
                 scopes: Vec::new(),
                 opts,
+                list_ops: None,
             }
             .check();
         }
@@ -98,6 +99,33 @@ pub fn check_module_with(file: &str, module: &ast::Module, opts: CheckOptions) -
         ))
     });
     diags
+}
+
+/// List コンビネータのメソッド呼び出しの位置(Call span の開始 `(line, col)`)を集める(M9)。
+/// emit はこの**権威的な型情報**だけを根拠に `get`/`fold`/`all`/`any`/`isEmpty` を配列メソッドへ
+/// 写す(構文だけでレシーバが List か判別すると、外部呼び出しの連鎖や同名フィールドを誤写する)。
+/// 検査器(型推論)そのものを使って収集するので、検査の再実装にはならない。
+pub fn list_op_spans(module: &ast::Module) -> std::collections::HashSet<(u32, u32)> {
+    let file = "";
+    let mut diags = Vec::new();
+    let (env, fn_sigs) = Env::build(file, module, &mut diags);
+    let mut spans = HashSet::new();
+    for (item, sig) in module.items.iter().zip(&fn_sigs) {
+        if let (ast::Item::Func(f), Some(sig)) = (item, sig) {
+            FnChecker {
+                env: &env,
+                diags: &mut diags,
+                func: f,
+                sig,
+                mode: Mode::Body,
+                scopes: Vec::new(),
+                opts: CheckOptions::default(),
+                list_ops: Some(&mut spans),
+            }
+            .check();
+        }
+    }
+    spans
 }
 
 /// 検査結果(診断)に加えて、各契約の達成検証レベルを併せて返す(M12)。
@@ -1025,6 +1053,9 @@ struct FnChecker<'a> {
     /// 内側ほど後ろ。`scopes[0]` はパラメータ。
     scopes: Vec<HashMap<String, Ty>>,
     opts: CheckOptions,
+    /// List コンビネータのメソッド呼び出し位置(Call span の開始 line,col)を収集する
+    /// 任意のシンク(M9 / emit の権威的な型情報)。通常検査では `None`。
+    list_ops: Option<&'a mut HashSet<(u32, u32)>>,
 }
 
 impl FnChecker<'_> {
@@ -1692,6 +1723,11 @@ impl FnChecker<'_> {
         args: &[ast::Expr],
         span: SynSpan,
     ) -> Ty {
+        // この呼び出し位置は「List レシーバ上のメソッド呼び出し」だと型推論が確定した点。
+        // emit はこの集合だけを根拠に配列メソッドへ写す(M9 / 権威的な型情報)。
+        if let Some(ops) = self.list_ops.as_deref_mut() {
+            ops.insert((span.start.line, span.start.col));
+        }
         match method.name.as_str() {
             // get(index: Int) -> Option<T>(範囲外は None)。
             "get" => {

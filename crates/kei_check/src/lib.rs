@@ -13,7 +13,7 @@ pub mod types;
 
 pub use check::{
     check_module, check_module_report, check_module_report_with, check_module_with,
-    contract_expr_text, contract_pattern_text, CheckOptions,
+    contract_expr_text, contract_pattern_text, list_op_spans, CheckOptions,
 };
 pub use diagnostic::{Diagnostic, Fix, Position, Severity, Span, SuggestedContract, TextEdit};
 pub use report::{CheckReport, ContractInfo, ContractKind, Verification};

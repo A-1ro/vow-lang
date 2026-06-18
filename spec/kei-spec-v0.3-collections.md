@@ -187,15 +187,17 @@ func planAllReorders(products: List<Product>, targetLevel: Int) -> List<ReorderP
 | `xs.all(p)` / `xs.any(p)` | `xs.every(p)` / `xs.some(p)` |
 
 > **`get` はランタイムヘルパー方式を採用した。** `@kei/runtime` に `keiListGet<T>(xs, i): Option<T>`
-> を追加(emit 展開だと添字式を 2 回評価する懸念があるため)。emit は検査済み AST を**構文的に**写すため、
-> メソッド名(`map` / `fold` / `all` / `isEmpty` …)で TS 形へ分岐する(型情報は再計算しない)。
-> **衝突の回避(型情報なしで健全に):**
-> - メソッド呼び出しの書き換え(`get` / `fold` / `all` / `any` / `isEmpty`)は**レシーバが import した
->   名前空間でないとき**だけ適用する。`extern Database.get(id)` のような外部呼び出しは名前が偶然一致
->   しても書き換えない(素直なメソッド呼び出しを出す)。計算値レシーバ(`f().get(0)`)はパスでないので
->   List 書き換え対象のまま。
-> - `isEmpty` は**メソッド形 `xs.isEmpty()`** なので、レコードのフィールドアクセス `bag.isEmpty` とは
->   構文的に区別でき(後者は書き換えない)、レコードは呼べるフィールドを持てないため衝突しない(§4 の注)。
+> を追加(emit 展開だと添字式を 2 回評価する懸念があるため)。
+>
+> **衝突の回避は型情報で健全に行う(構文ヒューリスティックではない)。** メソッド呼び出しの書き換え
+> (`get` / `fold` / `all` / `any` / `isEmpty`)は、**検査器が「その呼び出し位置が List レシーバ上の
+> 操作だ」と確定した位置(Call span)だけ**に適用する。検査器が `kei_check::list_op_spans` で List 操作の
+> 呼び出し位置集合を返し、emit はそれを唯一の根拠にする(`kei_check::contract_expr_text` を委譲するのと
+> 同じく「検査の再実装をしない」境界)。これにより、レシーバの型を構文だけで推測しないので、
+> 外部呼び出しの連鎖 `Database.reader().get(id)`・`let r = Database.fetch(); r.get(0)`(opaque 値)・
+> 同名メソッドの外部呼び出し `extern Database.get(id)` をいずれも誤写しない。
+> `isEmpty` を**メソッド形 `xs.isEmpty()`** にしているのも補強で、レコードの `isEmpty` フィールドアクセス
+> `bag.isEmpty`(書き換えない)と構文的に区別できる(§4 の注)。
 
 ## 10. ドッグフードの目標ケースの落とし所
 
