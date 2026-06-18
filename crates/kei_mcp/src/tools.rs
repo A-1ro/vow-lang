@@ -48,11 +48,11 @@ pub fn unknown_tool(name: &str) -> ToolOutcome {
 
 /// 仕様セクション・エラーコード解説の即引き。
 ///
-/// - 空 topic … 索引(セクション番号・追加ドラフト・エラーコード一覧)
+/// - 空 topic … 索引(セクション番号・差分仕様・エラーコード一覧)
 /// - `KEI-Exxxx` … `spec/errors/{code}.md`
 /// - `"diagnostic"` を含む … diagnostic スキーマ
 /// - 本文のレベル2セクション … 番号・見出しキーワードで照合(MAIN_SPEC)
-/// - 追加仕様ドラフト … MAIN_SPEC 以外の spec/*.md をファイル名 stem のキーワードで照合
+/// - 差分仕様(v0.2 以降・実装済み)… MAIN_SPEC 以外の spec/*.md をファイル名 stem のキーワードで照合
 ///   (例: topic `"collections"` → `kei-spec-v0.3-collections.md` 全文)
 pub fn run_spec(topic: &str) -> ToolOutcome {
     let t = topic.trim();
@@ -86,7 +86,7 @@ pub fn run_spec(topic: &str) -> ToolOutcome {
         }
     }
 
-    // MAIN_SPEC 以外の追加ドラフト(v0.3 collections 等)はファイル名 stem で引く。
+    // MAIN_SPEC 以外の差分仕様(v0.3 collections 等)はファイル名 stem で引く。
     // 短い数値 topic がセクション番号と取り違えられないよう 3 文字以上に限る。
     if needle.len() >= 3 {
         for (stem, content) in extra_spec_docs() {
@@ -104,7 +104,7 @@ pub fn run_spec(topic: &str) -> ToolOutcome {
 
 /// MAIN_SPEC・diagnostic-schema・errors/ 以外の spec ドキュメントを
 /// `(ファイル名 stem, 内容)` で返す。build.rs が spec/**/*.md を全て埋め込むため、
-/// 追加ドラフト(例: kei-spec-v0.3-collections.md)は自動で kei_spec の経路に乗る。
+/// 差分仕様(例: kei-spec-v0.3-collections.md)は自動で kei_spec の経路に乗る。
 fn extra_spec_docs() -> Vec<(&'static str, &'static str)> {
     let mut out = Vec::new();
     for &(rel, content) in embedded::spec_files() {
@@ -165,7 +165,12 @@ fn spec_index() -> String {
         "`kei_spec` の `topic` にセクション番号・見出しキーワード・エラーコードを渡すと\n\
          該当箇所を返す。topic を空にするとこの索引を返す。\n\n",
     );
-    s.push_str("## セクション (kei-spec-v0.1.md)\n\n");
+    s.push_str(&format!(
+        "現行リリース v{}。`kei-spec-v0.1.md` が基盤仕様、v0.2 以降は **実装済み** の\n\
+         差分仕様(下記)で、ドラフトではない。\n\n",
+        env!("CARGO_PKG_VERSION")
+    ));
+    s.push_str("## 基盤仕様 (kei-spec-v0.1.md)\n\n");
     if let Some(main) = embedded::spec_file(MAIN_SPEC) {
         for (num, title, _) in sections(main) {
             s.push_str(&format!("- {num}. {title}\n"));
@@ -173,7 +178,7 @@ fn spec_index() -> String {
     }
     let extra = extra_spec_docs();
     if !extra.is_empty() {
-        s.push_str("\n## 追加仕様ドラフト (spec/)\n\n");
+        s.push_str("\n## 差分仕様(実装済み / spec/)\n\n");
         for (stem, _) in &extra {
             let topic = stem.rsplit('-').next().unwrap_or(stem);
             s.push_str(&format!("- {stem}.md (topic: \"{topic}\")\n"));
