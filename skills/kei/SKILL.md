@@ -111,8 +111,35 @@ enum FetchError {
 ```
 
 - 組み込み型は `Int`(i64)・`String`・`Bool`・`Result<T, E>`・`Option<T>` のみ。それ以外は同一ファイルの `record` / `enum` / `type` 宣言か `import` が要る。
-- ユーザー定義型は **型引数を取れない**(ジェネリクスは `Result`(2)・`Option`(1)だけ)。
-- **コレクション(`List` / 配列 / `Map`)は未実装。** `List<T>` を書くと `KEI-E1002 undefined type 'List'` になる。反復・集計・絞り込みは現状 Kei では書けない(ホスト TS 側の責務)。`List` は v0.3 で段階導入予定(立場B / `spec/kei-spec-v0.3-collections.md`)だが、**いまは使わない**。複数要素を扱う必要があれば 1 エンティティ単位の関数に分解する。
+- ユーザー定義型は **型引数を取れない**(ジェネリクスは組み込みの `Result`(2)・`Option`(1)・`List`(1)だけ)。
+- **コレクション `List<T>` は v0.3 で利用可能。** 要素は不変・opaque。8 コンビネータ — `length`・`isEmpty()`・`get(i)`(→ `Option<T>`)・`map`・`filter`・`fold`・`all`・`any` — で反復・集計・絞り込みを書く。`map`/`filter`/`fold`/`all`/`any` の関数引数は **名前付き純粋関数の参照**(ラムダは無い)。契約では `length`・`isEmpty()`・`all`・`any`・`result.length` を参照できる。`List` リテラル構文はまだ無いので、`List` はパラメータや `map`/`filter` の戻りとして受け取る。配列リテラル・`Map` は未実装。詳細は `spec/kei-spec-v0.3-collections.md`、実例は `examples/collections/inventory.kei`。
+
+```kei
+module collections.demo
+
+record Item {
+  qty: Int
+}
+
+func nonNeg(item: Item) -> Bool {
+  return item.qty >= 0
+}
+
+func addQty(acc: Int, item: Item) -> Int {
+  return acc + item.qty
+}
+
+func totalQty(items: List<Item>) -> Int
+  requires items.all(nonNeg)
+  ensures result >= 0
+{
+  return items.fold(0, addQty)
+}
+
+func firstItem(items: List<Item>) -> Option<Item> {
+  return items.get(0)
+}
+```
 
 ### 値の構築
 
@@ -712,6 +739,7 @@ tagged 型と基底型、または別の tagged 型を混同した。`type Accou
 
 - `spec/kei-spec-v0.1.md` — 言語仕様(source of truth)
 - `spec/kei-spec-v0.2.md` — v0.2 差分章(`match` / `extern` / 検証レベル / 数量契約イディオム)
+- `spec/kei-spec-v0.3-collections.md` — v0.3 コレクション(`List<T>` 段階1)
 - `spec/diagnostic-schema.md` — Diagnostic の確定スキーマ
 - `spec/errors/<code>.md` — 各エラーコードの解説
 - `examples/` — check-clean な実例(basics / contracts / effects)
