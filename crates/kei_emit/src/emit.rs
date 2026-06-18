@@ -246,18 +246,10 @@ impl<'a> RuntimeUses<'a> {
                         _ => {}
                     }
                 } else {
-                    // List.get(i) は範囲外 None を返すランタイムヘルパーへ写す(M9)。
-                    // 検査器が List 呼び出しと確定した位置のときだけ import する(外部呼び出しの
-                    // `Database.get(id)` などで誤って keiListGet を import しない)。
-                    if let ast::Expr::Field { name, .. } = callee.as_ref() {
-                        if name.name == "get"
-                            && args.len() == 1
-                            && self
-                                .list_ops
-                                .contains(&(name.span.start.line, name.span.start.col))
-                        {
-                            self.names.insert("keiListGet");
-                        }
+                    // List.get(i) は範囲外 None を返すランタイムヘルパーへ写す(M9)。emit と
+                    // 同じ判定(is_list_get)で、検査器が List.get と確定した位置だけ import する。
+                    if is_list_get(callee.as_ref(), args, self.list_ops) {
+                        self.names.insert("keiListGet");
                     }
                     self.expr(callee);
                 }
@@ -996,6 +988,19 @@ impl Emitter<'_> {
         // `Database.reader().get(id)` や let 束縛 opaque 値の誤写を防ぐ)。
         // 鍵はメソッド名トークン(`name`)の位置。Call の span は連鎖だとレシーバ先頭で
         // 揃ってしまい(`db.get(id).get(0)` の内外で同じ)衝突するため使わない。
+        //
+        // get -> keiListGet は import 収集(RuntimeUses)と同じ is_list_get で判定を共有する
+        // (両者がずれて「呼び出しはあるが import 無し」になる事故を防ぐ)。
+        if is_list_get(callee, args, self.list_ops) {
+            if let ast::Expr::Field { base, .. } = callee {
+                self.out.frag("keiListGet(");
+                self.emit_expr(base, Prec::Or);
+                self.out.frag(", ");
+                self.emit_expr(&args[0], Prec::Or);
+                self.out.frag(")");
+                return;
+            }
+        }
         if let ast::Expr::Field { base, name, .. } = callee {
             let is_list_op = self
                 .list_ops
@@ -1007,15 +1012,6 @@ impl Emitter<'_> {
                         self.out.frag("(");
                         self.emit_expr(base, Prec::Postfix);
                         self.out.frag(".length === 0)");
-                        return;
-                    }
-                    // get(i) は範囲外 None を返すランタイムヘルパーへ。
-                    "get" if args.len() == 1 => {
-                        self.out.frag("keiListGet(");
-                        self.emit_expr(base, Prec::Or);
-                        self.out.frag(", ");
-                        self.emit_expr(&args[0], Prec::Or);
-                        self.out.frag(")");
                         return;
                     }
                     // fold(init, f) → reduce(f, init)(引数順が逆)。
@@ -1154,6 +1150,20 @@ fn collect_old_exprs(ensures: &[ast::Expr]) -> Vec<&ast::Expr> {
 /// TS 文字列リテラル(JSON エスケープは TS と互換)。
 fn ts_string(s: &str) -> String {
     serde_json::to_string(s).expect("strings are serializable")
+}
+
+/// `callee(args)` が「検査器が確定した List.get 呼び出し」か。`get` だけは `keiListGet`
+/// ランタイムヘルパーへ写るため、import 収集(`RuntimeUses`)と emit の両方が**同じ判定**を
+/// 必要とする。二つがずれると「呼び出しはあるが import が無い」TS になるので 1 か所に集約する。
+/// 鍵はメソッド名トークンの位置(Call span は連鎖だと衝突する)。
+fn is_list_get(callee: &ast::Expr, args: &[ast::Expr], list_ops: &HashSet<(u32, u32)>) -> bool {
+    matches!(
+        callee,
+        ast::Expr::Field { name, .. }
+            if name.name == "get"
+                && args.len() == 1
+                && list_ops.contains(&(name.span.start.line, name.span.start.col))
+    )
 }
 
 // ---------------------------------------------------------------------------

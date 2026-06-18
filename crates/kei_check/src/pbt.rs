@@ -88,12 +88,18 @@ pub struct CounterExample {
 impl CounterExample {
     /// `available = 1, step = 0` のような入力の散文表記。
     pub fn inputs_text(&self) -> String {
-        self.inputs
-            .iter()
-            .map(|(n, v)| format!("{n} = {v}"))
-            .collect::<Vec<_>>()
-            .join(", ")
+        inputs_text(&self.inputs)
     }
+}
+
+/// 入力ベクタの散文表記(`available = 1, step = 0`)。生成経路・シード経路の反例メッセージで
+/// 表記を 1 か所に集約する(複数箇所でフォーマットが乖離して golden が割れるのを防ぐ)。
+fn inputs_text(inputs: &[(String, Value)]) -> String {
+    inputs
+        .iter()
+        .map(|(n, v)| format!("{n} = {v}"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// モジュール内の純粋関数を生成テストする。対象外の関数は結果に現れない。
@@ -361,36 +367,14 @@ fn eval_func_call(
 }
 
 /// ブロックを評価し、`return` の値を返す。`return` が無ければ Unsupported。
+/// 関数本体用。`return` に必ず到達することを要求する点だけが [`eval_block_opt`] と違う。
 fn eval_block(
     block: &ast::Block,
-    mut env: HashMap<String, Value>,
+    env: HashMap<String, Value>,
     funcs: &HashMap<&str, &ast::FuncDecl>,
     depth: usize,
 ) -> Result<Value, EvalError> {
-    for stmt in &block.stmts {
-        match stmt {
-            ast::Stmt::Let(l) => {
-                if l.else_fail.is_some() {
-                    return Err(EvalError::Unsupported);
-                }
-                let v = eval_expr(&l.value, &env, funcs, false, depth)?;
-                env.insert(l.name.name.clone(), v);
-            }
-            ast::Stmt::Return(r) => {
-                let Some(v) = &r.value else {
-                    return Err(EvalError::Unsupported);
-                };
-                return eval_expr(v, &env, funcs, false, depth);
-            }
-            ast::Stmt::If(i) => {
-                if let Some(v) = eval_if(i, &env, funcs, depth)? {
-                    return Ok(v);
-                }
-            }
-            ast::Stmt::Expr(_) => return Err(EvalError::Unsupported),
-        }
-    }
-    Err(EvalError::Unsupported)
+    eval_block_opt(block, env, funcs, depth)?.ok_or(EvalError::Unsupported)
 }
 
 /// `if` を評価。分岐内の `return` に達したら Some(値)、達しなければ None。
@@ -529,7 +513,7 @@ fn eval_expr(
 
 fn eval_binary(op: ast::BinOp, l: Value, r: Value) -> Result<Value, EvalError> {
     use ast::BinOp::*;
-    use Value::{Bool, Int};
+    use Value::{Bool, Int, Str};
     match (op, l, r) {
         (Add, Int(a), Int(b)) => a.checked_add(b).map(Int).ok_or(EvalError::Trap),
         (Sub, Int(a), Int(b)) => a.checked_sub(b).map(Int).ok_or(EvalError::Trap),
@@ -542,7 +526,14 @@ fn eval_binary(op: ast::BinOp, l: Value, r: Value) -> Result<Value, EvalError> {
         (Gt, Int(a), Int(b)) => Ok(Bool(a > b)),
         (Le, Int(a), Int(b)) => Ok(Bool(a <= b)),
         (Ge, Int(a), Int(b)) => Ok(Bool(a >= b)),
-        (Implies, Bool(a), Bool(b)) => Ok(Bool(!a || b)),
+        // String の順序比較も評価する(emit は `<` 等を JS の文字列比較へ写すため、
+        // 評価器が未対応だと String 順序の ensures が generative に上がらない過小報告になる)。
+        // Rust の辞書式順序は生成候補(ASCII)では JS と一致する。
+        (Lt, Str(a), Str(b)) => Ok(Bool(a < b)),
+        (Gt, Str(a), Str(b)) => Ok(Bool(a > b)),
+        (Le, Str(a), Str(b)) => Ok(Bool(a <= b)),
+        (Ge, Str(a), Str(b)) => Ok(Bool(a >= b)),
+        // `Implies` は eval_expr が短絡処理するためここには来ない(到達不能)。
         _ => Err(EvalError::Unsupported),
     }
 }
@@ -1248,13 +1239,7 @@ fn validate_seed(
     }
 
     // requires 適合(無効なシードを弾く)。評価不能な requires は寛容にスキップ。
-    let inputs_text = || {
-        seed.inputs
-            .iter()
-            .map(|(n, v)| format!("{n} = {v}"))
-            .collect::<Vec<_>>()
-            .join(", ")
-    };
+    let inputs_text = || inputs_text(&seed.inputs);
     let mut requires_ok = true;
     for clause in &f.requires {
         match eval_bool(clause, &env, funcs, false) {
@@ -1471,6 +1456,21 @@ mod tests {
             ce.clause.contains("broken"),
             "counterexample names the violated callee contract: {}",
             ce.clause
+        );
+    }
+
+    #[test]
+    fn string_ordering_contract_is_generatively_verified() {
+        // String の順序比較を含む ensures も生成検証できる(評価器が String の <,>,<=,>= に
+        // 対応。以前は未対応で generative に上がらず runtime 止まりだった)。
+        let m = module(
+            "module t\n\nfunc atLeast(a: String, b: String) -> Bool\n  ensures result == (a >= b)\n{\n  return a >= b\n}\n",
+        );
+        let out = run_module(&m);
+        let f = out.iter().find(|o| o.func == "atLeast").expect("analyzed");
+        assert!(
+            f.passed && f.cases_checked > 0,
+            "String ordering ensures must be generatively verified: {f:?}"
         );
     }
 
