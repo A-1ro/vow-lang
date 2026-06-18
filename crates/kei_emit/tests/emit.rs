@@ -215,6 +215,90 @@ fn check_errors_reject_emit() {
     assert!(err.iter().any(|d| d.code == "KEI-E1001"));
 }
 
+#[test]
+fn list_combinators_emit_to_array_methods() {
+    let out = emit(concat!(
+        "func isPos(x: Int) -> Bool {\n",
+        "  return x > 0\n",
+        "}\n",
+        "\n",
+        "func add(acc: Int, x: Int) -> Int {\n",
+        "  return acc + x\n",
+        "}\n",
+        "\n",
+        "func g(xs: List<Int>) -> Int {\n",
+        "  return xs.fold(0, add)\n",
+        "}\n",
+        "\n",
+        "func first(xs: List<Int>) -> Option<Int> {\n",
+        "  return xs.get(0)\n",
+        "}\n",
+        "\n",
+        "func anyPos(xs: List<Int>) -> Bool {\n",
+        "  return xs.any(isPos)\n",
+        "}\n",
+        "\n",
+        "func empty(xs: List<Int>) -> Bool {\n",
+        "  return xs.isEmpty\n",
+        "}\n",
+    ));
+    assert!(
+        out.ts.contains("xs.reduce(add, 0)"),
+        "fold → reduce(f, init): {}",
+        out.ts
+    );
+    assert!(
+        out.ts.contains("keiListGet(xs, 0)"),
+        "get → keiListGet: {}",
+        out.ts
+    );
+    assert!(out.ts.contains("xs.some(isPos)"), "any → some: {}", out.ts);
+    assert!(
+        out.ts.contains("xs.length === 0"),
+        "isEmpty → .length === 0: {}",
+        out.ts
+    );
+}
+
+/// 回帰(PR #50 レビュー P2): メソッド名が偶然 List コンビネータ名でも、レシーバが
+/// import した外部名前空間なら書き換えない(`extern Database.get(id)` を keiListGet に
+/// 誤変換しない)。逆に同名のローカル List レシーバは従来どおり書き換える。
+#[test]
+fn extern_namespace_calls_are_not_rewritten_as_list_helpers() {
+    let out = emit(concat!(
+        "import infra.database as Database\n",
+        "\n",
+        "extern Database.get(id: Int) -> Int uses Database.Read\n",
+        "\n",
+        "func lookup(id: Int) -> Int\n",
+        "  uses Database.Read\n",
+        "{\n",
+        "  return Database.get(id)\n",
+        "}\n",
+        "\n",
+        "func firstOf(xs: List<Int>) -> Option<Int> {\n",
+        "  return xs.get(0)\n",
+        "}\n",
+    ));
+    // 外部呼び出しは素直なメソッド呼び出し。
+    assert!(
+        out.ts.contains("return Database.get(id);"),
+        "extern call must stay a plain call: {}",
+        out.ts
+    );
+    assert!(
+        !out.ts.contains("keiListGet(Database"),
+        "extern call must not become keiListGet: {}",
+        out.ts
+    );
+    // 同名でもローカル List レシーバは keiListGet へ。
+    assert!(
+        out.ts.contains("keiListGet(xs, 0)"),
+        "list get must still rewrite: {}",
+        out.ts
+    );
+}
+
 // ---- source map ----
 
 fn vlq_decode(s: &str) -> Vec<Vec<i64>> {

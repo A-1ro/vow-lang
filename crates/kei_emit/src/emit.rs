@@ -386,6 +386,30 @@ impl Emitter<'_> {
         format!("{prefix}{}", parts.join("/"))
     }
 
+    /// レシーバ `base` が import した名前空間に根ざす純粋なパス(`Database` /
+    /// `Audit.Log` 等)か。true なら `extern`/外部呼び出しのレシーバで、List コンビネータの
+    /// 構文的書き換え(`get`/`fold`/`all`/`any`/`isEmpty`)を**適用しない**。
+    /// 計算値(呼び出し結果)を含むレシーバはパスではないので false(= List 書き換え対象)。
+    fn is_external_receiver(&self, base: &ast::Expr) -> bool {
+        match pure_path_root(base) {
+            Some(root) => self.is_import_binding(root),
+            None => false,
+        }
+    }
+
+    /// `name` が import で導入された束縛(別名 / 列挙名 / パス末尾)か。
+    fn is_import_binding(&self, name: &str) -> bool {
+        self.module.imports.iter().any(|imp| {
+            if let Some(alias) = &imp.alias {
+                return alias.name == name;
+            }
+            if !imp.names.is_empty() {
+                return imp.names.iter().any(|n| n.name == name);
+            }
+            imp.path.last().map(|p| p.name == name).unwrap_or(false)
+        })
+    }
+
     fn emit_import(&mut self, imp: &ast::Import) {
         let spec = self.import_specifier(&imp.path);
         self.out.start_line();
@@ -834,8 +858,9 @@ impl Emitter<'_> {
             }
             ast::Expr::Field { base, name, .. } => {
                 // List.isEmpty(プロパティ)→ `.length === 0`(spec v0.3-collections §9)。
-                // 検査済みなので名前で写す(length はそのまま `.length`)。
-                if name.name == "isEmpty" {
+                // 検査済みなので名前で写す(length はそのまま `.length`)。外部名前空間の
+                // レシーバには適用しない(`get`/`fold` 等のメソッド書き換えと同じガード)。
+                if name.name == "isEmpty" && !self.is_external_receiver(base) {
                     let needs_paren = parent > Prec::Equality;
                     if needs_paren {
                         self.out.frag("(");
@@ -980,43 +1005,49 @@ impl Emitter<'_> {
             }
         }
         // List コンビネータのメソッド呼び出し(M9 / spec v0.3-collections §9)。
-        // 検査済みなので `xs.<method>(...)` の <method> 名で配列メソッドへ写す。
+        // 検査済みなので `xs.<method>(...)` の <method> 名で配列メソッドへ写す。ただし
+        // レシーバが import した名前空間(`extern Database.get(...)` 等の外部呼び出し)の
+        // ときは書き換えない——名前が偶然 get/fold/all/any でも外部呼び出しは List ではない。
         if let ast::Expr::Field { base, name, .. } = callee {
-            match name.name.as_str() {
-                // get(i) は範囲外 None を返すランタイムヘルパーへ。
-                "get" if args.len() == 1 => {
-                    self.out.frag("keiListGet(");
-                    self.emit_expr(base, Prec::Or);
-                    self.out.frag(", ");
-                    self.emit_expr(&args[0], Prec::Or);
-                    self.out.frag(")");
-                    return;
-                }
-                // fold(init, f) → reduce(f, init)(引数順が逆)。
-                "fold" if args.len() == 2 => {
-                    self.emit_expr(base, Prec::Postfix);
-                    self.out.frag(".reduce(");
-                    self.emit_expr(&args[1], Prec::Or);
-                    self.out.frag(", ");
-                    self.emit_expr(&args[0], Prec::Or);
-                    self.out.frag(")");
-                    return;
-                }
-                // all/any → every/some。map/filter は同名の配列メソッドへ素通り。
-                "all" | "any" => {
-                    let js = if name.name == "all" { "every" } else { "some" };
-                    self.emit_expr(base, Prec::Postfix);
-                    self.out.frag(&format!(".{js}("));
-                    for (i, a) in args.iter().enumerate() {
-                        if i > 0 {
-                            self.out.frag(", ");
-                        }
-                        self.emit_expr(a, Prec::Or);
+            if self.is_external_receiver(base) {
+                // 外部呼び出し: 通常のメソッド呼び出しとして素直に出す(下のフォールバック)。
+            } else {
+                match name.name.as_str() {
+                    // get(i) は範囲外 None を返すランタイムヘルパーへ。
+                    "get" if args.len() == 1 => {
+                        self.out.frag("keiListGet(");
+                        self.emit_expr(base, Prec::Or);
+                        self.out.frag(", ");
+                        self.emit_expr(&args[0], Prec::Or);
+                        self.out.frag(")");
+                        return;
                     }
-                    self.out.frag(")");
-                    return;
+                    // fold(init, f) → reduce(f, init)(引数順が逆)。
+                    "fold" if args.len() == 2 => {
+                        self.emit_expr(base, Prec::Postfix);
+                        self.out.frag(".reduce(");
+                        self.emit_expr(&args[1], Prec::Or);
+                        self.out.frag(", ");
+                        self.emit_expr(&args[0], Prec::Or);
+                        self.out.frag(")");
+                        return;
+                    }
+                    // all/any → every/some。map/filter は同名の配列メソッドへ素通り。
+                    "all" | "any" => {
+                        let js = if name.name == "all" { "every" } else { "some" };
+                        self.emit_expr(base, Prec::Postfix);
+                        self.out.frag(&format!(".{js}("));
+                        for (i, a) in args.iter().enumerate() {
+                            if i > 0 {
+                                self.out.frag(", ");
+                            }
+                            self.emit_expr(a, Prec::Or);
+                        }
+                        self.out.frag(")");
+                        return;
+                    }
+                    _ => {}
                 }
-                _ => {}
             }
         }
         self.emit_expr(callee, Prec::Postfix);
@@ -1127,6 +1158,17 @@ fn collect_old_exprs(ensures: &[ast::Expr]) -> Vec<&ast::Expr> {
 /// TS 文字列リテラル(JSON エスケープは TS と互換)。
 fn ts_string(s: &str) -> String {
     serde_json::to_string(s).expect("strings are serializable")
+}
+
+/// `Name` / `Field` だけからなる純粋なパスの根の名前を返す。途中に `Call` 等の
+/// 計算値が混ざればパスではないので `None`(`Database.fetch().get(0)` の `.get` の
+/// レシーバは計算値で、import 名前空間ではない)。
+fn pure_path_root(e: &ast::Expr) -> Option<&str> {
+    match e {
+        ast::Expr::Name { name, .. } => Some(name),
+        ast::Expr::Field { base, .. } => pure_path_root(base),
+        _ => None,
+    }
 }
 
 // ---------------------------------------------------------------------------

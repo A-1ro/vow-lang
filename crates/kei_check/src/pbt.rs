@@ -26,6 +26,8 @@ mod seed_codes {
     pub const SEED_GRAMMAR: &str = "KEI-E4006";
     /// シード入力が対象関数の requires / 型 / 名前に適合しない。
     pub const SEED_INVALID: &str = "KEI-E4007";
+    /// シード入力が ensures を破った(反例)。生成テストと同じ KEI-E4005。
+    pub const SEED_COUNTEREXAMPLE: &str = "KEI-E4005";
 }
 
 /// 評価器が扱う値(段階1: スカラのみ)。
@@ -1072,27 +1074,72 @@ fn validate_seed(
     }
 
     // requires 適合(無効なシードを弾く)。評価不能な requires は寛容にスキップ。
-    let funcs_map = funcs;
+    let inputs_text = || {
+        seed.inputs
+            .iter()
+            .map(|(n, v)| format!("{n} = {v}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    let mut requires_ok = true;
     for clause in &f.requires {
-        match eval_bool(clause, &env, funcs_map, false) {
+        match eval_bool(clause, &env, funcs, false) {
             Ok(true) => {}
-            Ok(false) => invalid(
-                diags,
-                format!(
-                    "seed input ({}) does not satisfy requires '{}' of '{}'",
-                    seed.inputs
-                        .iter()
-                        .map(|(n, v)| format!("{n} = {v}"))
-                        .collect::<Vec<_>>()
-                        .join(", "),
-                    contract_expr_text(clause),
-                    seed.func
-                ),
-                seed.line,
-                seed.col,
-                "Provide an input that satisfies the function's requires",
-            ),
+            Ok(false) => {
+                requires_ok = false;
+                invalid(
+                    diags,
+                    format!(
+                        "seed input ({}) does not satisfy requires '{}' of '{}'",
+                        inputs_text(),
+                        contract_expr_text(clause),
+                        seed.func
+                    ),
+                    seed.line,
+                    seed.col,
+                    "Provide an input that satisfies the function's requires",
+                );
+            }
             Err(_) => {}
+        }
+    }
+
+    // シード注入(#26 段階2): requires を満たすシードを ensures で検査する。生成器の固定
+    // ドメイン外の人手の edge case でも、契約(オラクル)で反例を捕まえる。評価不能な関数
+    // (record / Option 戻り等)は寛容にスキップ。捏造不能性: シードは入力だけ、判定は ensures。
+    if requires_ok {
+        let args: Vec<Value> = f
+            .params
+            .iter()
+            .map(|p| env.get(&p.name.name).cloned().unwrap_or(Value::Int(0)))
+            .collect();
+        if let Ok(result) = eval_func_call(f, &args, funcs, 0) {
+            let mut ens_env = env.clone();
+            ens_env.insert("result".to_string(), result);
+            for clause in &f.ensures {
+                if let Ok(false) = eval_bool(clause, &ens_env, funcs, true) {
+                    diags.push(
+                        Diagnostic::new(
+                            Severity::Error,
+                            seed_codes::SEED_COUNTEREXAMPLE,
+                            format!(
+                                "ensures '{}' of '{}' is violated by the seeded input ({})",
+                                contract_expr_text(clause),
+                                seed.func,
+                                inputs_text()
+                            ),
+                            span(seed.line, seed.col),
+                            vec![Fix {
+                                title:
+                                    "Fix the implementation to satisfy the contract, or correct the contract"
+                                        .to_string(),
+                                edits: vec![],
+                            }],
+                        )
+                        .expect("seed counterexample carries a fix"),
+                    );
+                }
+            }
         }
     }
 }
@@ -1191,6 +1238,35 @@ mod tests {
         assert!(!diags.is_empty());
         assert_eq!(diags[0].code, seed_codes::SEED_GRAMMAR);
         assert!(diags[0].message.contains("inputs only"));
+    }
+
+    #[test]
+    fn seed_violating_ensures_is_a_counterexample() {
+        // 壊れた実装(2 減らす)に、requires を満たす(が生成ドメイン外の)シード 7 を当てると、
+        // ensures 反例(KEI-E4005)になる。シード注入が ensures をオラクルに使う証拠。
+        let m = module(
+            "module t\n\nfunc decrementAvailable(available: Int) -> Int\n  requires available > 0\n  ensures result == old(available) - 1\n{\n  return available - 2\n}\n",
+        );
+        let src = "seeds for decrementAvailable {\n  input { available: 7 }\n}\n";
+        let diags = check_seeds("t.seeds", src, &m);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == seed_codes::SEED_COUNTEREXAMPLE),
+            "a requires-satisfying seed that breaks ensures must be a counterexample: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn valid_seed_against_correct_impl_has_no_counterexample() {
+        // 正しい実装には、requires を満たすシードで反例が出ない。
+        let m = decrement_module();
+        let src = "seeds for decrementAvailable {\n  input { available: 7 }\n}\n";
+        let diags = check_seeds("t.seeds", src, &m);
+        assert!(
+            diags.is_empty(),
+            "correct impl + valid seed = clean: {diags:?}"
+        );
     }
 
     #[test]
