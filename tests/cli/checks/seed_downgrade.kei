@@ -1,0 +1,11 @@
+module cli.seed_downgrade
+
+func dec(x: Int) -> Int
+  requires x > 0
+  ensures result == old(x) - 1
+{
+  if x == 7 {
+    return x - 2
+  }
+  return x - 1
+}

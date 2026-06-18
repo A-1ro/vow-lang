@@ -1,0 +1,39 @@
+{
+  "diagnostics": [],
+  "contracts": [
+    {
+      "func": "dec",
+      "kind": "requires",
+      "expr": "x > 0",
+      "verification": "runtime",
+      "span": {
+        "file": "tests/cli/checks/seed_downgrade.kei",
+        "start": {
+          "line": 4,
+          "col": 12
+        },
+        "end": {
+          "line": 4,
+          "col": 17
+        }
+      }
+    },
+    {
+      "func": "dec",
+      "kind": "ensures",
+      "expr": "result == old(x) - 1",
+      "verification": "runtime",
+      "span": {
+        "file": "tests/cli/checks/seed_downgrade.kei",
+        "start": {
+          "line": 5,
+          "col": 11
+        },
+        "end": {
+          "line": 5,
+          "col": 31
+        }
+      }
+    }
+  ]
+}

@@ -339,6 +339,33 @@ fn seed_injection_golden() {
     );
 }
 
+/// シード注入の検証レベル整合(PR #50 第4レビュー P2): 生成器の固定ドメインでは反例ゼロでも、
+/// シードがドメイン外(`x = 7`)で `ensures` を破ったら、その契約は `generative` ではなく
+/// `runtime` を報告する。`--json` が「generative」と KEI-E4005 を同時に主張しないことを固定。
+#[test]
+fn seed_failure_downgrades_contract_to_runtime() {
+    let rel = "tests/cli/checks/seed_downgrade.kei";
+    let run = run_kei(&["check", "--generative", "--json", rel]);
+    let parsed: serde_json::Value =
+        serde_json::from_str(&run.stdout).expect("--json emits valid JSON");
+
+    let diags = parsed["diagnostics"].as_array().expect("diagnostics array");
+    assert!(
+        diags.iter().any(|d| d["code"] == "KEI-E4005"),
+        "seed must produce a KEI-E4005 counterexample: {}",
+        run.stdout
+    );
+    let contracts = parsed["contracts"].as_array().expect("contracts array");
+    // シードが破った ensures が generative のまま残っていないこと(矛盾の防止)。
+    assert!(
+        contracts
+            .iter()
+            .all(|c| !(c["kind"] == "ensures" && c["verification"] == "generative")),
+        "a seed-broken contract must not stay 'generative': {}",
+        run.stdout
+    );
+}
+
 // ---------------------------------------------------------------------------
 // golden: kei fmt(整形 / --check / 構文エラー)
 // ---------------------------------------------------------------------------

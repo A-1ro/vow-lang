@@ -19,6 +19,7 @@ use std::fmt;
 use kei_syntax::ast;
 
 use crate::check::contract_expr_text;
+use crate::report::{ContractInfo, ContractKind, Verification};
 use crate::{Diagnostic, Fix, Position, Severity, Span};
 
 mod seed_codes {
@@ -179,9 +180,11 @@ fn run_function(
                     clause.span(),
                     false,
                 )),
-                // ensures の評価が破綻 / 前提違反 → 検証できない → 対象外(安全側に runtime)。
-                Err(EvalError::Unsupported) | Err(EvalError::Precondition(_)) => return None,
-                Err(EvalError::Trap) => {}
+                // ensures が評価できない(範囲外 / trap / 前提違反)→ その入力での契約成立を
+                // 確認できない。実行時はその ensures が走り false / throw しうるので、黙って
+                // スキップして generative に昇格させるのは過信。検証不能として対象外にする
+                // (安全側に runtime のまま)。
+                Err(_) => return None,
             }
         }
         cases_checked += 1;
@@ -511,7 +514,17 @@ fn eval_binary(op: ast::BinOp, l: Value, r: Value) -> Result<Value, EvalError> {
 
 /// シードファイルを検査し、診断(文法エラー / requires 違反 / ensures 反例)を返す。
 /// `file` は span に入れる相対パス、`source` はシードファイル本文。
-pub fn check_seeds(file: &str, source: &str, module: &ast::Module) -> Vec<Diagnostic> {
+///
+/// シードが ensures を破った関数の契約は、`contracts` 上で `generative` から `runtime` へ
+/// **降格**する(生成器の固定ドメインでは反例ゼロでも、シードがドメイン外で破ったなら
+/// その契約は generative とは言えない。レポートが「generative」と「KEI-E4005」を同時に
+/// 主張する矛盾を防ぐ)。
+pub fn check_seeds(
+    file: &str,
+    source: &str,
+    module: &ast::Module,
+    contracts: &mut [ContractInfo],
+) -> Vec<Diagnostic> {
     let mut diags = Vec::new();
     let tokens = lex_seeds(source);
     let mut parser = SeedParser {
@@ -531,8 +544,22 @@ pub fn check_seeds(file: &str, source: &str, module: &ast::Module) -> Vec<Diagno
         })
         .collect();
 
+    // (func, Some(ensures 式) / None=全 ensures)= シードが破った契約の降格対象。
+    let mut downgrades: Vec<(String, Option<String>)> = Vec::new();
     for seed in &seeds {
-        validate_seed(seed, &funcs, file, &mut diags);
+        validate_seed(seed, &funcs, file, &mut diags, &mut downgrades);
+    }
+    // 降格を契約レベルに反映(generative → runtime)。
+    for (func, expr) in &downgrades {
+        for c in contracts.iter_mut() {
+            if c.func == *func
+                && c.kind == ContractKind::Ensures
+                && c.verification == Verification::Generative
+                && expr.as_ref().is_none_or(|e| &c.expr == e)
+            {
+                c.verification = Verification::Runtime;
+            }
+        }
     }
     diags.sort_by(|a, b| {
         (a.span.start.line, a.span.start.col).cmp(&(b.span.start.line, b.span.start.col))
@@ -555,6 +582,8 @@ enum SeedTok {
     Str(String),
     /// 閉じ引用符なしで EOF に達した文字列(文法エラーにする)。
     UnterminatedStr,
+    /// 数字を伴わない `-` / 桁あふれなどの不正な整数(文法エラーにする)。
+    BadInt,
     LBrace,
     RBrace,
     Colon,
@@ -680,15 +709,22 @@ fn lex_seeds(src: &str) -> Vec<SeedToken> {
                     i += 1;
                     col += 1;
                 }
+                let mut digits = 0usize;
                 while i < chars.len() && chars[i].is_ascii_digit() {
                     num.push(chars[i]);
+                    digits += 1;
                     i += 1;
                     col += 1;
                 }
-                let value = num.parse::<i64>().unwrap_or(0);
                 let len = (col - start_col).max(1);
+                // 数字を 1 つも伴わない(`-` 単体)/ 桁あふれは不正な整数リテラル。
+                // 黙って 0 に丸めず文法エラーにする(誤った入力を生成検査へ注入しない)。
+                let kind = match num.parse::<i64>() {
+                    Ok(v) if digits > 0 => SeedTok::Int(v),
+                    _ => SeedTok::BadInt,
+                };
                 toks.push(SeedToken {
-                    kind: SeedTok::Int(value),
+                    kind,
                     line: start_line,
                     col: start_col,
                     len,
@@ -1005,6 +1041,18 @@ impl SeedParser<'_> {
                 );
                 None
             }
+            SeedTok::BadInt => {
+                let t = self.cur();
+                let (l, c, len) = (t.line, t.col, t.len);
+                self.err(
+                    "malformed integer literal".to_string(),
+                    l,
+                    c,
+                    len,
+                    "Write a valid integer (e.g. -1, 0, 42)",
+                );
+                None
+            }
             _ => {
                 let t = self.cur();
                 let (l, c, len) = (t.line, t.col, t.len);
@@ -1063,6 +1111,7 @@ fn validate_seed(
     funcs: &HashMap<&str, &ast::FuncDecl>,
     file: &str,
     diags: &mut Vec<Diagnostic>,
+    downgrades: &mut Vec<(String, Option<String>)>,
 ) {
     let span = |line: u32, col: u32| Span {
         file: file.to_string(),
@@ -1201,28 +1250,35 @@ fn validate_seed(
                 ens_env.insert("result".to_string(), result);
                 for clause in &f.ensures {
                     if let Ok(false) = eval_bool(clause, &ens_env, funcs, true) {
+                        let expr = contract_expr_text(clause);
                         counterexample(
                             diags,
                             format!(
                                 "ensures '{}' of '{}' is violated by the seeded input ({})",
-                                contract_expr_text(clause),
+                                expr,
                                 seed.func,
                                 inputs_text()
                             ),
                         );
+                        // この ensures は generative とは言えない → 検証レベルを降格する。
+                        downgrades.push((seed.func.clone(), Some(expr)));
                     }
                 }
             }
             // 本体が呼び出し先の requires を満たさず実行時 throw する入力も反例。
-            Err(EvalError::Precondition(desc)) => counterexample(
-                diags,
-                format!(
-                    "'{}' throws for the seeded input ({}): {}",
-                    seed.func,
-                    inputs_text(),
-                    desc
-                ),
-            ),
+            Err(EvalError::Precondition(desc)) => {
+                counterexample(
+                    diags,
+                    format!(
+                        "'{}' throws for the seeded input ({}): {}",
+                        seed.func,
+                        inputs_text(),
+                        desc
+                    ),
+                );
+                // 関数全体が throw する → その関数の ensures はどれも generative とは言えない。
+                downgrades.push((seed.func.clone(), None));
+            }
             // 評価不能な関数(record / Option 戻り等)は寛容にスキップ。
             Err(_) => {}
         }
@@ -1330,7 +1386,7 @@ mod tests {
     fn valid_seed_passes() {
         let m = decrement_module();
         let src = "seeds for decrementAvailable {\n  input { available: 1 }\n  input { available: 42 }\n}\n";
-        let diags = check_seeds("t.seeds", src, &m);
+        let diags = check_seeds("t.seeds", src, &m, &mut []);
         assert!(diags.is_empty(), "valid seeds should be clean: {diags:?}");
     }
 
@@ -1339,7 +1395,7 @@ mod tests {
         let m = decrement_module();
         // available: 0 は requires available > 0 を満たさない。
         let src = "seeds for decrementAvailable {\n  input { available: 0 }\n}\n";
-        let diags = check_seeds("t.seeds", src, &m);
+        let diags = check_seeds("t.seeds", src, &m, &mut []);
         assert_eq!(diags.len(), 1);
         assert_eq!(diags[0].code, seed_codes::SEED_INVALID);
         assert!(diags[0].message.contains("requires"));
@@ -1350,7 +1406,7 @@ mod tests {
         let m = decrement_module();
         // 期待値を持たせようとすると文法エラー(捏造不能性を構造で保証)。
         let src = "seeds for decrementAvailable {\n  expected { result: 0 }\n}\n";
-        let diags = check_seeds("t.seeds", src, &m);
+        let diags = check_seeds("t.seeds", src, &m, &mut []);
         assert!(!diags.is_empty());
         assert_eq!(diags[0].code, seed_codes::SEED_GRAMMAR);
         assert!(diags[0].message.contains("inputs only"));
@@ -1364,7 +1420,7 @@ mod tests {
             "module t\n\nfunc decrementAvailable(available: Int) -> Int\n  requires available > 0\n  ensures result == old(available) - 1\n{\n  return available - 2\n}\n",
         );
         let src = "seeds for decrementAvailable {\n  input { available: 7 }\n}\n";
-        let diags = check_seeds("t.seeds", src, &m);
+        let diags = check_seeds("t.seeds", src, &m, &mut []);
         assert!(
             diags
                 .iter()
@@ -1378,7 +1434,7 @@ mod tests {
         // 正しい実装には、requires を満たすシードで反例が出ない。
         let m = decrement_module();
         let src = "seeds for decrementAvailable {\n  input { available: 7 }\n}\n";
-        let diags = check_seeds("t.seeds", src, &m);
+        let diags = check_seeds("t.seeds", src, &m, &mut []);
         assert!(
             diags.is_empty(),
             "correct impl + valid seed = clean: {diags:?}"
@@ -1390,7 +1446,7 @@ mod tests {
         // 閉じ引用符の無い文字列は文法エラー(EOF まで読んで黙って Str にしない)。
         let m = decrement_module();
         let src = "seeds for decrementAvailable {\n  input { available: \"oops }\n}\n";
-        let diags = check_seeds("t.seeds", src, &m);
+        let diags = check_seeds("t.seeds", src, &m, &mut []);
         assert!(
             diags
                 .iter()
@@ -1401,10 +1457,56 @@ mod tests {
     }
 
     #[test]
+    fn malformed_seed_integer_is_a_grammar_error() {
+        // `-`(数字なし)は黙って 0 にせず文法エラー。
+        let m = decrement_module();
+        let src = "seeds for decrementAvailable {\n  input { available: - }\n}\n";
+        let diags = check_seeds("t.seeds", src, &m, &mut []);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == seed_codes::SEED_GRAMMAR
+                    && d.message.contains("malformed integer")),
+            "malformed integer must be KEI-E4006: {diags:?}"
+        );
+    }
+
+    #[test]
+    fn seed_counterexample_downgrades_generative_contract() {
+        use crate::report::{ContractInfo, ContractKind, Verification};
+        // 壊れた実装。生成器は固定ドメイン(1,2,3,10,100…)で反例を出すが、ここでは
+        // 「もし generative に上がっていたら」をシミュレートして降格を確認する。
+        let m = module(
+            "module t\n\nfunc decrementAvailable(available: Int) -> Int\n  requires available > 0\n  ensures result == old(available) - 1\n{\n  return available - 2\n}\n",
+        );
+        let mut contracts = vec![ContractInfo {
+            func: "decrementAvailable".to_string(),
+            kind: ContractKind::Ensures,
+            expr: "result == old(available) - 1".to_string(),
+            verification: Verification::Generative,
+            span: crate::Span {
+                file: "t.kei".to_string(),
+                start: crate::Position { line: 1, col: 1 },
+                end: crate::Position { line: 1, col: 2 },
+            },
+        }];
+        let src = "seeds for decrementAvailable {\n  input { available: 7 }\n}\n";
+        let diags = check_seeds("t.seeds", src, &m, &mut contracts);
+        assert!(diags
+            .iter()
+            .any(|d| d.code == seed_codes::SEED_COUNTEREXAMPLE));
+        assert_eq!(
+            contracts[0].verification,
+            Verification::Runtime,
+            "a seed that breaks ensures must downgrade generative → runtime"
+        );
+    }
+
+    #[test]
     fn seed_for_unknown_function_is_rejected() {
         let m = decrement_module();
         let src = "seeds for nope {\n  input { available: 1 }\n}\n";
-        let diags = check_seeds("t.seeds", src, &m);
+        let diags = check_seeds("t.seeds", src, &m, &mut []);
         assert!(diags
             .iter()
             .any(|d| d.code == seed_codes::SEED_INVALID && d.message.contains("unknown function")));
