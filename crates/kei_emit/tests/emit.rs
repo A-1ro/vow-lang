@@ -239,7 +239,7 @@ fn list_combinators_emit_to_array_methods() {
         "}\n",
         "\n",
         "func empty(xs: List<Int>) -> Bool {\n",
-        "  return xs.isEmpty\n",
+        "  return xs.isEmpty()\n",
         "}\n",
     ));
     assert!(
@@ -255,7 +255,43 @@ fn list_combinators_emit_to_array_methods() {
     assert!(out.ts.contains("xs.some(isPos)"), "any → some: {}", out.ts);
     assert!(
         out.ts.contains("xs.length === 0"),
-        "isEmpty → .length === 0: {}",
+        "isEmpty() → .length === 0: {}",
+        out.ts
+    );
+}
+
+/// 回帰(PR #50 再レビュー P2): レコードが `isEmpty` フィールドを持っても、フィールド
+/// アクセス `bag.isEmpty` は書き換えない(`.length === 0` への誤写を防ぐ)。List の
+/// `xs.isEmpty()` はメソッド形なので衝突せず `.length === 0` に写る。
+#[test]
+fn record_field_named_is_empty_is_not_rewritten() {
+    let out = emit(concat!(
+        "record Bag {\n",
+        "  isEmpty: Bool\n",
+        "  size: Int\n",
+        "}\n",
+        "\n",
+        "func flag(b: Bag) -> Bool {\n",
+        "  return b.isEmpty\n",
+        "}\n",
+        "\n",
+        "func vacant(xs: List<Int>) -> Bool {\n",
+        "  return xs.isEmpty()\n",
+        "}\n",
+    ));
+    assert!(
+        out.ts.contains("return b.isEmpty;"),
+        "record field stays a field access: {}",
+        out.ts
+    );
+    assert!(
+        !out.ts.contains("b.length === 0"),
+        "record field must not be rewritten: {}",
+        out.ts
+    );
+    assert!(
+        out.ts.contains("(xs.length === 0)"),
+        "List isEmpty() still rewrites: {}",
         out.ts
     );
 }

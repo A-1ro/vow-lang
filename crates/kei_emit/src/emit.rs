@@ -857,23 +857,11 @@ impl Emitter<'_> {
                 }
             }
             ast::Expr::Field { base, name, .. } => {
-                // List.isEmpty(プロパティ)→ `.length === 0`(spec v0.3-collections §9)。
-                // 検査済みなので名前で写す(length はそのまま `.length`)。外部名前空間の
-                // レシーバには適用しない(`get`/`fold` 等のメソッド書き換えと同じガード)。
-                if name.name == "isEmpty" && !self.is_external_receiver(base) {
-                    let needs_paren = parent > Prec::Equality;
-                    if needs_paren {
-                        self.out.frag("(");
-                    }
-                    self.emit_expr(base, Prec::Postfix);
-                    self.out.frag(".length === 0");
-                    if needs_paren {
-                        self.out.frag(")");
-                    }
-                } else {
-                    self.emit_expr(base, Prec::Postfix);
-                    self.out.frag(&format!(".{}", name.name));
-                }
+                // フィールドアクセスはそのまま写す。List.isEmpty はメソッド形 `xs.isEmpty()`
+                // なので emit_call 側で `.length === 0` に写る(ここに来るのは純粋なフィールド
+                // アクセスで、レコードの `isEmpty` フィールドも安全にそのまま出る)。
+                self.emit_expr(base, Prec::Postfix);
+                self.out.frag(&format!(".{}", name.name));
             }
             ast::Expr::Call { callee, args, .. } => self.emit_call(callee, args),
             ast::Expr::Unary { op, expr, .. } => {
@@ -1013,6 +1001,14 @@ impl Emitter<'_> {
                 // 外部呼び出し: 通常のメソッド呼び出しとして素直に出す(下のフォールバック)。
             } else {
                 match name.name.as_str() {
+                    // isEmpty() → `(xs.length === 0)`。メソッド形なのでフィールドアクセス
+                    // (レコードの isEmpty フィールド)と構文的に区別でき、衝突しない。
+                    "isEmpty" if args.is_empty() => {
+                        self.out.frag("(");
+                        self.emit_expr(base, Prec::Postfix);
+                        self.out.frag(".length === 0)");
+                        return;
+                    }
                     // get(i) は範囲外 None を返すランタイムヘルパーへ。
                     "get" if args.len() == 1 => {
                         self.out.frag("keiListGet(");

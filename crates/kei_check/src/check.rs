@@ -159,16 +159,27 @@ fn apply_generative(
                     col: ce.clause_span.end.col,
                 },
             };
+            // 反例の種別で文面を分ける: ensures 違反 / 呼び出し先 requires 違反(throw)。
+            let message = if ce.precondition {
+                format!(
+                    "'{}' throws for a generated input ({}): {}",
+                    outcome.func,
+                    ce.inputs_text(),
+                    ce.clause
+                )
+            } else {
+                format!(
+                    "ensures '{}' of '{}' is violated by a generated input ({})",
+                    ce.clause,
+                    outcome.func,
+                    ce.inputs_text()
+                )
+            };
             diagnostics.push(
                 Diagnostic::new(
                     Severity::Error,
                     codes::GENERATIVE_COUNTEREXAMPLE,
-                    format!(
-                        "ensures '{}' of '{}' is violated by a generated input ({})",
-                        ce.clause,
-                        outcome.func,
-                        ce.inputs_text()
-                    ),
+                    message,
                     span,
                     vec![direction(
                         "Fix the implementation to satisfy the contract, or correct the contract",
@@ -1462,12 +1473,15 @@ impl FnChecker<'_> {
             }
             Ty::Result(..) => self.builtin_member(base, name, &["isOk", "isErr"]),
             Ty::Option(..) => self.builtin_member(base, name, &["isSome", "isNone"]),
-            // List のプロパティ(引数なし)。メソッド(引数あり)は infer_call で
-            // 処理するため、ここに来るのは呼び出しなしのアクセス(M9)。
+            // List のプロパティ(引数なし)は `length` のみ。`isEmpty` を含むメソッドは
+            // infer_call で処理するため、ここに来るのは呼び出しなしのアクセス(M9)。
+            // `isEmpty` をメソッドにしているのは emit の曖昧性回避: レコードが `isEmpty`
+            // フィールドを持つと `bag.isEmpty`(フィールドアクセス)を `.length === 0` へ
+            // 誤写しうる。呼び出し形 `xs.isEmpty()` ならフィールドアクセスと構文的に区別でき、
+            // レコードは呼べるフィールドを持てない(検査が弾く)ので衝突しない。
             Ty::List(_) => match name.name.as_str() {
                 "length" => Ty::Int,
-                "isEmpty" => Ty::Bool,
-                "get" | "map" | "filter" | "fold" | "all" | "any" => {
+                "isEmpty" | "get" | "map" | "filter" | "fold" | "all" | "any" => {
                     let m = name.name.clone();
                     self.push(
                         codes::UNKNOWN_FIELD,
@@ -1752,23 +1766,27 @@ impl FnChecker<'_> {
                 }
                 Ty::Bool
             }
-            // プロパティ(引数なし)を呼び出し形で書いた。
-            "length" | "isEmpty" => {
-                let m = &method.name;
+            // isEmpty(引数なしメソッド)-> Bool。空か。emit 衝突回避のためメソッド形
+            // (`xs.isEmpty()`)で持つ(field_on のコメント参照)。
+            "isEmpty" => {
+                self.expect_arity(&method.name, 0, args, span);
+                for a in args {
+                    self.infer(a);
+                }
+                Ty::Bool
+            }
+            // length はプロパティ(引数なし)。呼び出し形で書いた。
+            "length" => {
                 self.push(
                     codes::TYPE_MISMATCH,
-                    format!("'{m}' is a List property; write 'xs.{m}' without arguments"),
+                    "'length' is a List property; write 'xs.length' without arguments".to_string(),
                     span,
-                    vec![direction(format!("Remove the call: 'xs.{m}'"))],
+                    vec![direction("Remove the call: 'xs.length'")],
                 );
                 for a in args {
                     self.infer(a);
                 }
-                if m == "length" {
-                    Ty::Int
-                } else {
-                    Ty::Bool
-                }
+                Ty::Int
             }
             other => {
                 let members = [

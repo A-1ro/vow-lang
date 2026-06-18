@@ -55,6 +55,9 @@ enum EvalError {
     Unsupported,
     /// 実行時に表現不能(ゼロ除算・オーバーフロー)。その入力ケースを捨てる。
     Trap,
+    /// 呼び出し先の `requires` を満たさず実行時なら違反送出になる(描述付き)。
+    /// emit は全呼び出しで requires を検査するため、生成テストもそれに合わせる。
+    Precondition(String),
 }
 
 /// 1 関数の生成テスト結果。
@@ -73,10 +76,12 @@ pub struct PropertyOutcome {
 pub struct CounterExample {
     /// パラメータ名 → 値(最小化済み)。
     pub inputs: Vec<(String, Value)>,
-    /// 破れた `ensures` 節の Kei ソース表記。
+    /// 破れた `ensures` 節の Kei ソース表記、または(precondition のとき)呼び出し先前提の描述。
     pub clause: String,
-    /// 破れた `ensures` 節の span(診断位置に使う)。
+    /// 診断位置(ensures 節 / precondition なら関数名)の span。
     pub clause_span: kei_syntax::Span,
+    /// 反例の種別。true なら呼び出し先 `requires` 違反(throw)、false なら `ensures` 違反。
+    pub precondition: bool,
 }
 
 impl CounterExample {
@@ -127,7 +132,8 @@ fn run_function(
 
     let combos = cartesian(&domains);
     let mut cases_checked = 0usize;
-    let mut failures: Vec<(Vec<Value>, &ast::Expr)> = Vec::new();
+    // 反例: (入力, 破れた節のテキスト, 診断 span, precondition か)。
+    let mut failures: Vec<(Vec<Value>, String, kei_syntax::Span, bool)> = Vec::new();
     let mut evaluable = false;
 
     for combo in &combos {
@@ -142,15 +148,22 @@ fn run_function(
         match all_hold(&f.requires, &env, funcs) {
             Ok(false) => continue,
             Ok(true) => {}
-            Err(EvalError::Unsupported) => return None, // 契約が評価不能 → 対象外
+            // 契約自体が評価不能 / 前提評価が破綻 → 対象外(過信して generative に上げない)。
+            Err(EvalError::Unsupported) | Err(EvalError::Precondition(_)) => return None,
             Err(EvalError::Trap) => continue,
         }
 
-        // 関数本体を評価して result を得る。
+        // 関数本体を評価して result を得る。呼び出し先の requires 違反(throw)は反例。
         let result = match eval_func_call(f, combo, funcs, 0) {
             Ok(v) => v,
             Err(EvalError::Unsupported) => return None,
             Err(EvalError::Trap) => continue,
+            Err(EvalError::Precondition(desc)) => {
+                evaluable = true;
+                cases_checked += 1;
+                failures.push((combo.clone(), desc, f.name.span, true));
+                continue;
+            }
         };
         evaluable = true;
 
@@ -160,8 +173,14 @@ fn run_function(
         for clause in &f.ensures {
             match eval_bool(clause, &ens_env, funcs, true) {
                 Ok(true) => {}
-                Ok(false) => failures.push((combo.clone(), clause)),
-                Err(EvalError::Unsupported) => return None,
+                Ok(false) => failures.push((
+                    combo.clone(),
+                    contract_expr_text(clause),
+                    clause.span(),
+                    false,
+                )),
+                // ensures の評価が破綻 / 前提違反 → 検証できない → 対象外(安全側に runtime)。
+                Err(EvalError::Unsupported) | Err(EvalError::Precondition(_)) => return None,
                 Err(EvalError::Trap) => {}
             }
         }
@@ -176,16 +195,17 @@ fn run_function(
     // 反例があれば最小化(入力サイズ最小のもの)して報告。
     let counterexample = failures
         .iter()
-        .min_by_key(|(combo, _)| size_metric(combo))
-        .map(|(combo, clause)| CounterExample {
+        .min_by_key(|(combo, ..)| size_metric(combo))
+        .map(|(combo, clause, span, precondition)| CounterExample {
             inputs: f
                 .params
                 .iter()
                 .map(|p| p.name.name.clone())
                 .zip(combo.iter().cloned())
                 .collect(),
-            clause: contract_expr_text(clause),
-            clause_span: clause.span(),
+            clause: clause.clone(),
+            clause_span: *span,
+            precondition: *precondition,
         });
 
     Some(PropertyOutcome {
@@ -289,6 +309,19 @@ fn eval_func_call(
         .map(|p| p.name.name.clone())
         .zip(args.iter().cloned())
         .collect();
+    // 呼び出し先の requires を引数で検査する。emit は全呼び出しで requires をアサートし、
+    // 満たさなければ実行時に違反送出するので、生成テストも前提違反を Precondition として扱う
+    // (満たさない入力で本体を素通り評価して generative に上げてしまう穴を塞ぐ)。
+    // 評価不能な requires は寛容にスキップ。
+    for req in &f.requires {
+        if let Ok(false) = eval_bool(req, &env, funcs, false) {
+            return Err(EvalError::Precondition(format!(
+                "requires '{}' of '{}' is not satisfied",
+                contract_expr_text(req),
+                f.name.name
+            )));
+        }
+    }
     eval_block(&f.body, env, funcs, depth)
 }
 
@@ -1113,33 +1146,53 @@ fn validate_seed(
             .iter()
             .map(|p| env.get(&p.name.name).cloned().unwrap_or(Value::Int(0)))
             .collect();
-        if let Ok(result) = eval_func_call(f, &args, funcs, 0) {
-            let mut ens_env = env.clone();
-            ens_env.insert("result".to_string(), result);
-            for clause in &f.ensures {
-                if let Ok(false) = eval_bool(clause, &ens_env, funcs, true) {
-                    diags.push(
-                        Diagnostic::new(
-                            Severity::Error,
-                            seed_codes::SEED_COUNTEREXAMPLE,
+        let counterexample = |diags: &mut Vec<Diagnostic>, msg: String| {
+            diags.push(
+                Diagnostic::new(
+                    Severity::Error,
+                    seed_codes::SEED_COUNTEREXAMPLE,
+                    msg,
+                    span(seed.line, seed.col),
+                    vec![Fix {
+                        title:
+                            "Fix the implementation to satisfy the contract, or correct the contract"
+                                .to_string(),
+                        edits: vec![],
+                    }],
+                )
+                .expect("seed counterexample carries a fix"),
+            );
+        };
+        match eval_func_call(f, &args, funcs, 0) {
+            Ok(result) => {
+                let mut ens_env = env.clone();
+                ens_env.insert("result".to_string(), result);
+                for clause in &f.ensures {
+                    if let Ok(false) = eval_bool(clause, &ens_env, funcs, true) {
+                        counterexample(
+                            diags,
                             format!(
                                 "ensures '{}' of '{}' is violated by the seeded input ({})",
                                 contract_expr_text(clause),
                                 seed.func,
                                 inputs_text()
                             ),
-                            span(seed.line, seed.col),
-                            vec![Fix {
-                                title:
-                                    "Fix the implementation to satisfy the contract, or correct the contract"
-                                        .to_string(),
-                                edits: vec![],
-                            }],
-                        )
-                        .expect("seed counterexample carries a fix"),
-                    );
+                        );
+                    }
                 }
             }
+            // 本体が呼び出し先の requires を満たさず実行時 throw する入力も反例。
+            Err(EvalError::Precondition(desc)) => counterexample(
+                diags,
+                format!(
+                    "'{}' throws for the seeded input ({}): {}",
+                    seed.func,
+                    inputs_text(),
+                    desc
+                ),
+            ),
+            // 評価不能な関数(record / Option 戻り等)は寛容にスキップ。
+            Err(_) => {}
         }
     }
 }
@@ -1194,6 +1247,37 @@ mod tests {
         let ce = out[0].counterexample.as_ref().expect("counterexample");
         // requires available > 0 を満たす最小の失敗入力は available = 1。
         assert_eq!(ce.inputs, vec![("available".to_string(), Value::Int(1))]);
+    }
+
+    #[test]
+    fn callee_precondition_violation_is_a_counterexample() {
+        // wrapper は requires が無いのに、requires を持つ positiveOnly を呼ぶ。
+        // x <= 0 では実行時に positiveOnly の requires 違反で throw する → generative にせず反例。
+        let m = module(
+            "module t\n\nfunc positiveOnly(y: Int) -> Int\n  requires y > 0\n  ensures result == y\n{\n  return y\n}\n\nfunc wrapper(x: Int) -> Int\n  ensures result == x\n{\n  return positiveOnly(x)\n}\n",
+        );
+        let out = run_module(&m);
+        let wrapper = out
+            .iter()
+            .find(|o| o.func == "wrapper")
+            .expect("wrapper is analyzed");
+        assert!(
+            !wrapper.passed,
+            "wrapper must not be generative: it throws for x <= 0"
+        );
+        let ce = wrapper.counterexample.as_ref().expect("counterexample");
+        assert!(ce.precondition, "failure is a callee precondition throw");
+        assert!(
+            ce.clause.contains("positiveOnly"),
+            "counterexample names the unmet precondition: {}",
+            ce.clause
+        );
+        // positiveOnly 自身は requires を満たす入力でのみ検査され、generative。
+        let pos = out
+            .iter()
+            .find(|o| o.func == "positiveOnly")
+            .expect("positiveOnly is analyzed");
+        assert!(pos.passed, "positiveOnly is correct under its requires");
     }
 
     #[test]

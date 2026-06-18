@@ -33,7 +33,7 @@ func firstItem(items: List<Item>) -> Option<Item> {
 }
 
 func noneLeft(items: List<Item>) -> Bool {
-  return items.isEmpty
+  return items.isEmpty()
 }
 
 func positives(items: List<Item>) -> List<Item> {

@@ -80,10 +80,18 @@ let empty = List<Int>()     // 空リスト(未実装 — フォローアップ)
 
 `Result` / `Option` のメンバ(`.isOk` / `.isSome` …)と同じ作法。プロパティ風(引数なし)とメソッド風(引数あり)を混在させる。
 
+> **`isEmpty` だけはメソッド形 `xs.isEmpty()`(引数なし)。** 当初プロパティ設計だったが、emit が
+> `xs.isEmpty` を `xs.length === 0` へ**書き換える**ため、レコードが `isEmpty` フィールドを持つと
+> フィールドアクセス `bag.isEmpty` を誤写しうる(emit は型情報を再計算しないので名前で判別する)。
+> 呼び出し形にすると、フィールドアクセス(`bag.isEmpty`)と構文的に区別でき、かつレコードは
+> 呼べるフィールドを持てない(`bag.isEmpty()` は検査が弾く)ので衝突が原理的に消える。`length` は
+> 実在の配列プロパティへ素直に写る(書き換え不要)のでプロパティのまま。`isOk`/`isSome` も実在の
+> ランタイムプロパティへ写るので衝突しない——書き換えが要る `isEmpty` だけが例外。
+
 | コンビネータ | 形 | シグネチャ(概念) | 説明 |
 |---|---|---|---|
 | `length` | プロパティ | `List<T>.length -> Int` | 要素数 |
-| `isEmpty` | プロパティ | `List<T>.isEmpty -> Bool` | 空か |
+| `isEmpty` | メソッド | `List<T>.isEmpty() -> Bool` | 空か(呼び出し形。理由は後述) |
 | `get` | メソッド | `List<T>.get(index: Int) -> Option<T>` | 範囲外は `None`(添字で死なない) |
 | `map` | メソッド | `List<T>.map(f: (T) -> U) -> List<U>` | 各要素を変換 |
 | `filter` | メソッド | `List<T>.filter(pred: (T) -> Bool) -> List<T>` | 述語が真の要素だけ残す |
@@ -113,7 +121,7 @@ let empty = List<Int>()     // 空リスト(未実装 — フォローアップ)
 
 段階1の契約式から **参照してよい** List 由来の項:
 
-- `xs.length`(`Int`)、`xs.isEmpty`(`Bool`)
+- `xs.length`(`Int`)、`xs.isEmpty()`(`Bool`)
 - `xs.all(pred)` / `xs.any(pred)` の結果(`Bool`)。`pred` は名前付き純粋関数。
 - `result.length` / `old(xs).length`(`ensures` 内、§4 と既存の `result` / `old` 規則のまま)
 
@@ -173,16 +181,21 @@ func planAllReorders(products: List<Product>, targetLevel: Int) -> List<ReorderP
 | Kei | TypeScript |
 |---|---|
 | `List<T>` | `readonly T[]`(不変配列。要素がさらに List なら `readonly (readonly U[])[]`) |
-| `xs.length` / `xs.isEmpty` | `xs.length` / `xs.length === 0` |
+| `xs.length` / `xs.isEmpty()` | `xs.length` / `(xs.length === 0)` |
 | `xs.get(i)` | `keiListGet(xs, i)`(範囲外 `None` を返す `@kei/runtime` ヘルパー) |
 | `xs.map(f)` / `xs.filter(p)` / `xs.fold(z, f)` | `xs.map(f)` / `xs.filter(p)` / `xs.reduce(f, z)`(`fold` は引数順が逆) |
 | `xs.all(p)` / `xs.any(p)` | `xs.every(p)` / `xs.some(p)` |
 
 > **`get` はランタイムヘルパー方式を採用した。** `@kei/runtime` に `keiListGet<T>(xs, i): Option<T>`
 > を追加(emit 展開だと添字式を 2 回評価する懸念があるため)。emit は検査済み AST を**構文的に**写すため、
-> メソッド名(`map` / `fold` / `all` …)とプロパティ名(`isEmpty`)で TS 形へ分岐する(型情報は再計算しない)。
-> 段階1の制約: レコードに `isEmpty` という名のフィールドがあると `.length === 0` へ誤写しうる(型情報を
-> 持たない emit の既知の限界。実用上の衝突は稀で、必要になれば emit への型注釈付与で解消する)。
+> メソッド名(`map` / `fold` / `all` / `isEmpty` …)で TS 形へ分岐する(型情報は再計算しない)。
+> **衝突の回避(型情報なしで健全に):**
+> - メソッド呼び出しの書き換え(`get` / `fold` / `all` / `any` / `isEmpty`)は**レシーバが import した
+>   名前空間でないとき**だけ適用する。`extern Database.get(id)` のような外部呼び出しは名前が偶然一致
+>   しても書き換えない(素直なメソッド呼び出しを出す)。計算値レシーバ(`f().get(0)`)はパスでないので
+>   List 書き換え対象のまま。
+> - `isEmpty` は**メソッド形 `xs.isEmpty()`** なので、レコードのフィールドアクセス `bag.isEmpty` とは
+>   構文的に区別でき(後者は書き換えない)、レコードは呼べるフィールドを持てないため衝突しない(§4 の注)。
 
 ## 10. ドッグフードの目標ケースの落とし所
 
