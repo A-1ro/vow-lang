@@ -1,8 +1,8 @@
-# Kei 言語仕様書 v0.3 — コレクション型(立場B / Draft)
+# Kei 言語仕様書 v0.3 — コレクション型(立場B / 段階1実装済み)
 
 > Code is a kei between humans and AI.
 > この文書は [issue #25](https://github.com/A-1ro/kei-lang/issues/25) の中核成果物。
-> 本体仕様 `kei-spec-v0.1.md` の **§10「射程の宣言(立場B)」** から参照される拡張ドラフト。
+> 本体仕様 `kei-spec-v0.1.md` の **§10「射程の宣言(立場B)」** から参照される拡張仕様(段階1は実装済み・段階2/3 は将来)。
 
 ## 0. ステータス
 
