@@ -1737,10 +1737,13 @@ impl FnChecker<'_> {
         args: &[ast::Expr],
         span: SynSpan,
     ) -> Ty {
-        // この呼び出し位置は「List レシーバ上のメソッド呼び出し」だと型推論が確定した点。
-        // emit はこの集合だけを根拠に配列メソッドへ写す(M9 / 権威的な型情報)。
+        // この呼び出しは「List レシーバ上のメソッド呼び出し」だと型推論が確定した点。emit は
+        // この集合だけを根拠に配列メソッドへ写す(M9 / 権威的な型情報)。鍵は **メソッド名
+        // トークンの位置**(`method.span`)。Call の span は連鎖だとレシーバ先頭で揃って
+        // 衝突する(`db.get(id).get(0)` の内外で同一)ため使わない。メソッド名トークンは
+        // 呼び出しごとに必ず異なる位置にある。
         if let Some(ops) = self.list_ops.as_deref_mut() {
-            ops.insert((span.start.line, span.start.col));
+            ops.insert((method.span.start.line, method.span.start.col));
         }
         match method.name.as_str() {
             // get(index: Int) -> Option<T>(範囲外は None)。

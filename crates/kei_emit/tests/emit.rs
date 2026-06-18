@@ -364,6 +364,35 @@ fn chained_extern_call_is_not_rewritten() {
     );
 }
 
+/// 回帰(Claude レビュー): 連鎖で Call span がレシーバ先頭に揃っても、List 書き換えの
+/// 鍵をメソッド名トークン位置にしているので内外の同名 `get` を取り違えない。extern が
+/// List を返し、その結果に List.get を連鎖する `Database.get(id).get(0)` で、内側の extern
+/// 呼び出しは素のまま・外側だけ keiListGet に写ることを固定する。
+#[test]
+fn chained_list_op_on_extern_result_keys_by_method_token() {
+    let out = emit(concat!(
+        "import infra.db as Database\n",
+        "\n",
+        "extern Database.get(id: Int) -> List<Int> uses Database.Read\n",
+        "\n",
+        "func f(id: Int) -> Option<Int>\n",
+        "  uses Database.Read\n",
+        "{\n",
+        "  return Database.get(id).get(0)\n",
+        "}\n",
+    ));
+    assert!(
+        out.ts.contains("return keiListGet(Database.get(id), 0);"),
+        "inner extern get must stay a plain call; only the outer List get rewrites: {}",
+        out.ts
+    );
+    assert!(
+        !out.ts.contains("keiListGet(Database,"),
+        "the inner extern call must not be rewritten as a List helper: {}",
+        out.ts
+    );
+}
+
 // ---- source map ----
 
 fn vlq_decode(s: &str) -> Vec<Vec<i64>> {

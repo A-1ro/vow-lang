@@ -228,7 +228,7 @@ impl<'a> RuntimeUses<'a> {
             ast::Expr::Int { .. } | ast::Expr::Str { .. } | ast::Expr::Bool { .. } => {}
             ast::Expr::Name { .. } => {}
             ast::Expr::Field { base, .. } => self.expr(base),
-            ast::Expr::Call { callee, args, span } => {
+            ast::Expr::Call { callee, args, .. } => {
                 if let ast::Expr::Name { name, .. } = callee.as_ref() {
                     match name.as_str() {
                         "Ok" => {
@@ -252,7 +252,9 @@ impl<'a> RuntimeUses<'a> {
                     if let ast::Expr::Field { name, .. } = callee.as_ref() {
                         if name.name == "get"
                             && args.len() == 1
-                            && self.list_ops.contains(&(span.start.line, span.start.col))
+                            && self
+                                .list_ops
+                                .contains(&(name.span.start.line, name.span.start.col))
                         {
                             self.names.insert("keiListGet");
                         }
@@ -859,9 +861,7 @@ impl Emitter<'_> {
                 self.emit_expr(base, Prec::Postfix);
                 self.out.frag(&format!(".{}", name.name));
             }
-            ast::Expr::Call {
-                callee, args, span, ..
-            } => self.emit_call(callee, args, *span),
+            ast::Expr::Call { callee, args, .. } => self.emit_call(callee, args),
             ast::Expr::Unary { op, expr, .. } => {
                 let needs_paren = parent > Prec::Unary;
                 if needs_paren {
@@ -980,7 +980,7 @@ impl Emitter<'_> {
         }
     }
 
-    fn emit_call(&mut self, callee: &ast::Expr, args: &[ast::Expr], span: Span) {
+    fn emit_call(&mut self, callee: &ast::Expr, args: &[ast::Expr]) {
         if let ast::Expr::Name { name, .. } = callee {
             if name == "old" {
                 // 事前キャプチャ済みの値を参照する(収集と同じ走査順)。
@@ -994,8 +994,12 @@ impl Emitter<'_> {
         // **この呼び出し位置を検査器が List 操作と確定している**ときだけ配列メソッドへ写す
         // (構文ヒューリスティックでレシーバ型を推測しない。外部呼び出しの連鎖
         // `Database.reader().get(id)` や let 束縛 opaque 値の誤写を防ぐ)。
-        let is_list_op = self.list_ops.contains(&(span.start.line, span.start.col));
+        // 鍵はメソッド名トークン(`name`)の位置。Call の span は連鎖だとレシーバ先頭で
+        // 揃ってしまい(`db.get(id).get(0)` の内外で同じ)衝突するため使わない。
         if let ast::Expr::Field { base, name, .. } = callee {
+            let is_list_op = self
+                .list_ops
+                .contains(&(name.span.start.line, name.span.start.col));
             if is_list_op {
                 match name.name.as_str() {
                     // isEmpty() → `(xs.length === 0)`。

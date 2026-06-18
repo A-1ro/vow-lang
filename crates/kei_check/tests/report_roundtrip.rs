@@ -84,6 +84,7 @@ fn kind_and_verification_serialize_as_lowercase() {
     );
     for (v, s) in [
         (Verification::Static, "\"static\""),
+        (Verification::Generative, "\"generative\""),
         (Verification::Runtime, "\"runtime\""),
         (Verification::Trusted, "\"trusted\""),
         (Verification::Unchecked, "\"unchecked\""),
