@@ -1,0 +1,68 @@
+# AGENTS.md
+
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
+
+## プロジェクト概要
+
+Kei は「AIが書き、人間が承認し、コンパイラが履行を保証する」ことを前提に設計されたプログラミング言語。TypeScript へトランスパイルされる(ターゲット: V8 / Cloudflare Workers / Node)。実装は Rust の Cargo ワークスペース、ランタイム(`@kei/runtime`)のみ TS の npm パッケージ。
+
+**現状: v0.1(M0〜M7)+ v0.2(M10〜M13)+ v0.3(M9・M14〜M18)実装完了。** パーサ・意味検査・フォーマッタ・TS トランスパイラ・MCP サーバーが揃い、`kei` CLI の `check` / `fmt` / `build` / `test`(kei_cli)も実装済みで、`cargo test --workspace` が全件パスする。v0.2 で `match` 式・`extern` 署名・契約の検証レベル報告・数量契約イディオムを追加(`spec/kei-spec-v0.2.md`)。v0.3 で `List<T>` コレクション段階1(M9)・エフェクト事後条件の論理的読み取り(`extern query` 観測子, M14)・契約ベース PBT 生成(`kei check --generative`, M15)・strict-extern モード(M16)・定数恒偽契約の静的検出(M17)・Agent Repair Protocol(`suggested_contract`, M18)を追加(`spec/kei-spec-v0.2.md` §4.3/§5・`spec/kei-spec-v0.3-collections.md`)。開発は `docs/kei-roadmap-goals.md`(v0.1)・`docs/kei-roadmap-v0.2.md`(v0.2)・`docs/kei-roadmap-v0.3.md`(v0.3)の Milestone に沿って /goal 単位で進める。
+
+## Source of Truth(必読)
+
+- `spec/kei-spec-v0.1.md` — 言語仕様。仕様と実装が食い違ったら**仕様を先に直す**
+- `ARCHITECTURE.md` — リポジトリ構成の契約。ディレクトリ・クレート追加時は必ずこのファイルも更新する
+- `docs/kei-roadmap-goals.md` — Milestone 別の /goal 契約書集(v0.1: M0〜M7、提案中の M8: kei_lsp)。🤝 マークは着手前に人間との設計合意が必要
+- `docs/kei-roadmap-v0.2.md` — v0.2 の /goal 契約書集(M10〜M13: 健全性・契約表現力の強化, Issues #20–#23)。運用は上と同じ
+- `docs/kei-roadmap-v0.3.md` — v0.3 の /goal 契約書集(M9 + M14〜M18: 射程拡張・契約検証の本丸, Issues #25 / #45 / #26 / #44 / #35 / #24)。運用は上と同じ
+- `HANDOFF.md` — **設計判断の経緯(なぜ今こうなっているか)**。「どう書くか」ではなく「なぜその設計を選んだか・踏んだ地雷」。機能で迷ったときの最上位判断軸(intent-align)はここ
+
+## アーキテクチャ
+
+6クレート構成。依存は一方向のみ(逆流・循環禁止):
+
+```text
+kei_syntax ←─ kei_fmt
+     ↑
+kei_check  ←─ kei_emit
+     ↑              ↑
+     └── kei_cli ──┘   (→ kei_mcp: `kei mcp` で起動を委譲。循環なし)
+     └── kei_mcp ──┘
+```
+
+- `kei_syntax` — レキサー+パーサ+AST。型の知識を持たない
+- `kei_check` — 名前解決・型・エフェクト・契約検査。**Diagnostic 型の唯一の定義元**(他クレートは独自エラー型を外部に漏らさない)
+- `kei_fmt` — 正規形フォーマッタ(AST の意味的変更禁止)
+- `kei_emit` — TS トランスパイラ+source map(検査の再実装禁止)
+- `kei_cli` / `kei_mcp` — 言語処理ロジックを持たない。CLI は Diagnostic の散文整形、MCP は spec/・examples/ のビルド時埋め込み配信
+  - `kei_mcp` は実装済み(4 ツール: kei_spec / kei_check / kei_fmt / kei_examples)。stdio 起動は lib の `run_stdio` が単一エントリで、`kei-mcp` バイナリと `kei mcp` サブコマンドが共有する。`kei_cli` は **check / fmt / build / test / mcp 実装済み**(M6・M7)。`build` はディレクトリ単位の kei_emit 委譲、`test` は dev ビルド後にプロジェクトの `npm test` を起動する薄いラッパー(ランナーの知識を持たない)、`mcp` は `kei_mcp::run_stdio` への委譲(配布物を `kei` 1 バイナリに統合するための辺)
+
+## 不変条件
+
+1. **tests/golden/ が契約本文。** golden test の追加・変更は人間レビュー必須。実装都合で expected を書き換えない
+2. コンパイラ診断は JSON(構造化 Diagnostic)が正、散文は派生。全 Diagnostic に span・code・最低1つの fix 候補を含める
+3. spec/ と examples/ は kei_mcp にビルド時埋め込み(仕様更新=MCP サーバー更新)
+4. `runtime/` は Rust ワークスペース外の独立 npm パッケージ
+5. 正規形を常に維持する。Rust コードは `cargo fmt`、`.kei`(examples/・golden)は正規形(kei_fmt)を保つ。`.kei` の整形は `kei fmt --write <file>`(または `--check` で検証)で行える
+
+## コマンド
+
+- `cargo test --workspace` — 全テスト。各 Milestone の完了条件(e2e は Node が必要)
+- `cargo clippy --workspace --all-targets -- -D warnings` — 警告ゼロが必須
+- `cargo fmt --all -- --check` — 整形チェック(CI の fmt ジョブと同じ)
+- `cargo run -p kei_mcp --bin kei-mcp` — MCP サーバー起動(stdin から改行区切り JSON-RPC を読む。開発用。配布版は `kei mcp`)
+- `cargo run -p kei_emit --example transpile -- <input.kei> [output.ts]` — 単一 .kei を TS 化(検査 NG は Diagnostic を出して exit 1)。デバッグ用の最小トランスパイラ(ディレクトリ単位は `kei build`)
+- `cargo run -p kei_cli --bin kei -- check <file> [--json]` — 意味検査(既定は散文 Diagnostic、`--json` で `Diagnostic[]`)。エラーありで exit 1
+- `cargo run -p kei_cli --bin kei -- fmt <file> [--check | --write]` — 正規形整形(既定は stdout、`--check` で未整形を exit 1 検出、`--write` で上書き)
+- `cargo run -p kei_cli --bin kei -- build <dir> [--out-dir <dir>] [--no-source-map]` — `<dir>` 配下の全 .kei を検査し、エラーゼロのとき out-dir(既定 `<dir>/dist/`)に TS + source map を `ts_path` 通り配置。1 件でもエラーなら何も書かず exit 1
+- `cargo run -p kei_cli --bin kei -- test [<dir>]` — dev ビルド(契約 on)後、プロジェクトの `npm test` に委譲(Node 必須)。契約違反は `KeiContractViolation` として非ゼロ終了に伝播
+- `cargo run -p kei_cli --bin kei -- mcp` — MCP サーバーを stdio で起動(`kei_mcp::run_stdio` へ委譲)。配布物 `kei` 1 バイナリで取説サーバーを起動する経路
+
+CI(`.github/workflows/ci.yml`)は fmt / clippy / test の 3 ジョブ。test ジョブのみ Node 22 をセットアップする(e2e が npm/npx を使うため)。
+
+## 言語設計の要点(コード生成時に守ること)
+
+- null・例外なし。失敗は `Option<T>` / `Result<T, E>` のみ
+- エフェクトはケーパビリティ。`uses` 宣言外のエフェクト使用はコンパイルエラー、呼び出し先から推移的に伝播
+- `requires` / `ensures` は v0.1 では実行時アサーション。契約式は副作用禁止(将来の静的証明を壊さないため)
+- import は全て明示。ワイルドカード・再エクスポート禁止。モジュールパスはファイルパスと 1:1
