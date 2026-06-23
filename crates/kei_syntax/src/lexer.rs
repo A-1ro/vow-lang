@@ -222,6 +222,10 @@ impl Lexer {
                 self.bump();
                 TokenKind::Ge
             }
+            '|' if two('|', self) => {
+                self.bump();
+                TokenKind::OrOr
+            }
             '(' => TokenKind::LParen,
             ')' => TokenKind::RParen,
             '{' => TokenKind::LBrace,
@@ -238,6 +242,7 @@ impl Lexer {
             '-' => TokenKind::Minus,
             '*' => TokenKind::Star,
             '/' => TokenKind::Slash,
+            '%' => TokenKind::Percent,
             '!' => TokenKind::Bang,
             other => {
                 let span = Span::new(start, self.pos());

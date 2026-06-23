@@ -287,9 +287,10 @@ fn if_text(stmt: &IfStmt, level: usize) -> String {
 fn bin_prec(op: BinOp) -> u8 {
     match op {
         BinOp::Implies => 1,
-        BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge => 2,
-        BinOp::Add | BinOp::Sub => 3,
-        BinOp::Mul | BinOp::Div => 4,
+        BinOp::Or => 2,
+        BinOp::Eq | BinOp::Ne | BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge => 3,
+        BinOp::Add | BinOp::Sub => 4,
+        BinOp::Mul | BinOp::Div | BinOp::Rem => 5,
     }
 }
 
@@ -306,6 +307,8 @@ fn bin_op_text(op: BinOp) -> &'static str {
         BinOp::Sub => "-",
         BinOp::Mul => "*",
         BinOp::Div => "/",
+        BinOp::Rem => "%",
+        BinOp::Or => "||",
     }
 }
 
@@ -352,7 +355,7 @@ fn expr_text(expr: &Expr, min_prec: u8, no_struct: bool, level: usize) -> String
                 UnaryOp::Neg => "-",
                 UnaryOp::Not => "!",
             };
-            format!("{}{}", op, expr_text(expr, 5, no_struct, level))
+            format!("{}{}", op, expr_text(expr, 6, no_struct, level))
         }
         Expr::Binary { op, lhs, rhs, .. } => {
             let p = bin_prec(*op);

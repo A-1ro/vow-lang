@@ -287,6 +287,7 @@ impl<'a> RuntimeUses<'a> {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Prec {
+    Implication,
     Or,
     Equality,
     Relational,
@@ -298,11 +299,12 @@ enum Prec {
 
 fn bin_prec(op: BinOp) -> Prec {
     match op {
-        BinOp::Implies => Prec::Or,
+        BinOp::Implies => Prec::Implication,
+        BinOp::Or => Prec::Or,
         BinOp::Eq | BinOp::Ne => Prec::Equality,
         BinOp::Lt | BinOp::Gt | BinOp::Le | BinOp::Ge => Prec::Relational,
         BinOp::Add | BinOp::Sub => Prec::Additive,
-        BinOp::Mul | BinOp::Div => Prec::Multiplicative,
+        BinOp::Mul | BinOp::Div | BinOp::Rem => Prec::Multiplicative,
     }
 }
 
@@ -318,6 +320,8 @@ fn ts_bin_op(op: BinOp) -> &'static str {
         BinOp::Sub => "-",
         BinOp::Mul => "*",
         BinOp::Div => "/",
+        BinOp::Rem => "%",
+        BinOp::Or => "||",
         BinOp::Implies => "||", // emit_binary が `!(lhs) || rhs` に展開する
     }
 }
@@ -1062,15 +1066,26 @@ impl Emitter<'_> {
         if op == BinOp::Implies {
             // `a implies b` → `!(a) || b`(∨ の結合律により入れ子も意味を保つ)。
             self.out.frag("!(");
-            self.emit_expr(lhs, Prec::Or);
+            self.emit_expr(lhs, Prec::Implication);
             self.out.frag(") || ");
-            self.emit_expr(rhs, Prec::Or);
+            self.emit_expr(rhs, Prec::Implication);
         } else if op == BinOp::Div {
             // Int 除算は 0 方向への切り捨て。
             self.out.frag("Math.trunc(");
             self.emit_expr(lhs, Prec::Multiplicative);
             self.out.frag(" / ");
             self.emit_expr(rhs, Prec::Unary);
+            self.out.frag(")");
+        } else if op == BinOp::Rem {
+            // Int 剰余は Kei の 0 方向除算と同じ商で定義する。
+            self.out.frag("(");
+            self.emit_expr(lhs, Prec::Additive);
+            self.out.frag(" - Math.trunc(");
+            self.emit_expr(lhs, Prec::Multiplicative);
+            self.out.frag(" / ");
+            self.emit_expr(rhs, Prec::Unary);
+            self.out.frag(") * ");
+            self.emit_expr(rhs, Prec::Multiplicative);
             self.out.frag(")");
         } else {
             self.emit_expr(lhs, prec);
@@ -1083,6 +1098,7 @@ impl Emitter<'_> {
                 Prec::Relational => Prec::Additive,
                 Prec::Additive => Prec::Multiplicative,
                 Prec::Multiplicative => Prec::Unary,
+                Prec::Or => Prec::Equality,
                 p => p,
             };
             self.emit_expr(rhs, rhs_min);

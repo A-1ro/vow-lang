@@ -1,0 +1,6 @@
+func validLot(amount: Int, minLot: Int, caseSize: Int) -> Bool
+  requires caseSize > 0
+  ensures result == (amount == 0 || amount >= minLot)
+{
+  return amount==0||amount%caseSize==0
+}

@@ -234,7 +234,25 @@ fn implies_emits_disjunction() {
         "  return b\n",
         "}\n",
     ));
-    assert!(out.ts.contains("if (!(!(a) || b)) {"));
+    assert!(out.ts.contains("if (!((!(a) || b))) {"));
+}
+
+#[test]
+fn or_and_remainder_emit_with_kei_int_semantics() {
+    let out = emit(concat!(
+        "func validLot(amount: Int, minLot: Int, caseSize: Int) -> Bool\n",
+        "  requires caseSize > 0\n",
+        "  ensures result == (amount == 0 || amount >= minLot)\n",
+        "{\n",
+        "  return amount == 0 || amount % caseSize == 0\n",
+        "}\n",
+    ));
+    assert!(out.ts.contains(
+        "return amount === 0 || (amount - Math.trunc(amount / caseSize) * caseSize) === 0;"
+    ));
+    assert!(out
+        .ts
+        .contains("condition: \"result == (amount == 0 || amount >= minLot)\","));
 }
 
 #[test]
