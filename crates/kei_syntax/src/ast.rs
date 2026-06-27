@@ -255,6 +255,12 @@ pub enum Expr {
         arms: Vec<MatchArm>,
         span: Span,
     },
+    /// `[a, b, c]` の List リテラル(M22 / #57)。要素型は文脈から推論する。
+    /// 空 `[]` は `Ty::List(Unknown)`、let 注釈などで具体化する。
+    ListLit {
+        elements: Vec<Expr>,
+        span: Span,
+    },
 }
 
 impl Expr {
@@ -269,7 +275,8 @@ impl Expr {
             | Expr::Unary { span, .. }
             | Expr::Binary { span, .. }
             | Expr::RecordLit { span, .. }
-            | Expr::Match { span, .. } => *span,
+            | Expr::Match { span, .. }
+            | Expr::ListLit { span, .. } => *span,
         }
     }
 }

@@ -277,6 +277,11 @@ impl<'a> RuntimeUses<'a> {
                     self.expr(&arm.body);
                 }
             }
+            ast::Expr::ListLit { elements, .. } => {
+                for el in elements {
+                    self.expr(el);
+                }
+            }
         }
     }
 }
@@ -893,6 +898,18 @@ impl Emitter<'_> {
             ast::Expr::Match {
                 scrutinee, arms, ..
             } => self.emit_match(scrutinee, arms),
+            // M22 / #57: List リテラル `[a, b, c]` は JS 配列リテラルへ素直に写す。
+            // 空 `[]` は要素ゼロのまま出る。
+            ast::Expr::ListLit { elements, .. } => {
+                self.out.frag("[");
+                for (i, el) in elements.iter().enumerate() {
+                    if i > 0 {
+                        self.out.frag(", ");
+                    }
+                    self.emit_expr(el, Prec::Implication);
+                }
+                self.out.frag("]");
+            }
         }
     }
 
