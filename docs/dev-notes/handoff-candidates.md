@@ -83,3 +83,29 @@
 **Why this matters for HANDOFF.md**: コメント付きソースに対する冪等性の定義が明文化されていないと、将来のテスト設計が曖昧になる。
 **Draft entry** (lift verbatim if approved):
 > `kei_fmt` の冪等条件 `fmt(fmt(x)) == fmt(x)` は M19 以降もコメント付きソースで成立する必要がある。ただし「コメントが元のコラム位置に完全復元される」保証はない。leading コメントはインデントが揃え直され、trailing コメントは 1 スペースに正規化される。コメントの **テキスト内容** は失われないが、**位置** は整形後の正規形に変わる。引数並びや式中間のコメントは v0.4 では「次のアンカーノードの leading」に寄せられる(完全な位置復元は将来の拡張)。これを踏まえて golden test は整形後の位置で expected を書くこと。
+
+## PR branch claude/magical-gauss-wqewpm: feat(fmt): preserve // comments through kei fmt (M19 / #54) — 2026-06-27 (code-review audit session)
+
+> **Note**: このセクションは `gh pr merge` ではなく `/code-review` スキルのサブエージェント内
+> `PostToolUse`(Bash: emit_if コメントフラッシュのトレース)で発火した post-merge-handoff hook
+> によって追記された。対象 PR は M19 コメント保持機能(commit 73e72d0)。
+
+### Candidate: `emit_if` は `}` と `else` の間のコメントを黙って捨てる(既知の未実装ギャップ)
+**Why this matters for HANDOFF.md**: 「コメントが消えた」バグレポートが来たとき、`emit_if` の構造的な制約を知らないとデバッグに長時間かかる。
+**Draft entry** (lift verbatim if approved):
+> `kei_fmt` の `emit_if` は `emit_block(&stmt.then_block)` → `push(" else ")` を直列に呼ぶ。この間に `flush_trailing_on(then_block.span.end.line)` も `flush_leading(else_line)` も呼ばれないため、`}` と `else` の間に置かれたコメント(trailing-on-`}` と between-`}`-and-`else` の両方)は **黙って捨てられる**。パーサ側は `at_after_newlines(T::Else)` で改行をまたいだ else を許容するため、文法上はコメントが置ける。この組み合わせで「コメントが `fmt` をかけると消える」が発生する。将来修正する場合は `emit_block` の後に `flush_trailing_on(then_block.span.end.line)` と `\n` → `flush_leading(else_keyword.line, level)` → `indent` を挿入する必要があるが、else が 1 行フォーマット(` else `)に強制整形される現在の方針とトレードオフになる。
+
+### Candidate: `format_with_comments` は `pub` だが現時点で外部呼び出し元は存在しない
+**Why this matters for HANDOFF.md**: 「なぜ `pub` か」を知らずに「デッドコードだから `pub(crate)` にしよう」と変えると、将来の外部 API 計画を壊す可能性がある。
+**Draft entry** (lift verbatim if approved):
+> `kei_fmt::format_with_comments(module: &Module, comments: &[Comment]) -> String` は `pub` だが、現在の外部呼び出し元は存在しない(`kei_cli`, `kei_mcp`, `kei_lsp` はいずれも `format_source` か `format_module` を使う)。これは将来「パースずみ AST とコメントを別経路で持っている消費者」向けに意図して公開したもの。`pub(crate)` に落とすと外部 API の設計余地が消えるため変えないこと。現行の使われ方は `format_module` が `format_with_comments(module, &[])` で呼ぶのみ。
+
+### Candidate: `flush_remaining` と `flush_leading` の非対称 newline は意図的設計
+**Why this matters for HANDOFF.md**: 一見バグに見える非対称性が実は `finish()` との責務分担に基づいており、誤って「修正」すると trailing newline が 2 重になる。
+**Draft entry** (lift verbatim if approved):
+> `flush_leading` は各コメントの **後** に `\n` を push する(次行のインデントと連続できる)。`flush_remaining` は最初のコメントの **前** の `\n` をスキップし、以降は **前** に `\n` を push する(末尾 `\n` なし)。この非対称は `flush_remaining` が `finish()` からのみ呼ばれ、`finish()` が末尾 `\n` を保証する設計による。`flush_remaining` にも末尾 `\n` を付けると二重になる。呼び出し箇所が増える場合はこの前提が崩れるため注意。
+
+### Candidate: `Parser::into_results` の呼び出し元は `kei_syntax::lib` のみ — `parser` モジュールは `pub` だが内部 API 扱い
+**Why this matters for HANDOFF.md**: `pub mod parser` を見た外部作業者が「`Parser` を直接使える」と思って `into_results` を呼ぶコードを書かないよう、使い分けを明示する。
+**Draft entry** (lift verbatim if approved):
+> `kei_syntax::parser` は `pub mod` だが、`Parser::into_results` の実際の呼び出し元は `kei_syntax::lib` 内の `parse_module` 関数のみ。他の全クレート(`kei_fmt`, `kei_check`, `kei_cli`, `kei_mcp`, `kei_lsp`)は `kei_syntax::parse_module` / `ParseResult` を通じてのみ構文解析結果を受け取る。`Parser` を直接インスタンス化して `into_results` を呼ぶのは `kei_check::pbt` の `SeedParser`(別構造体)のような特殊用途を除き想定外。API を追加する場合は `ParseResult` 経由を優先すること。

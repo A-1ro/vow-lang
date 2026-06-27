@@ -49,3 +49,21 @@ CLAUDE.md に落として、ここからは削除してよい。
 ## PR #72 (auditor re-run): kei-invariant-auditor PostToolUse — 2026-06-27
 
 (no actionable patterns — hook triggered by invariant auditor `git diff --stat` tool use, not by `gh pr merge`; most recent merged PR #72 already documented above)
+
+## PR #73: feat(fmt): preserve // comments through kei fmt (M19 / #54) — 2026-06-27
+
+- **Pattern**: record/enum 内コメントは flush_leading でインデントずれ
+  **Source**: A-1ro (code-review) — crates/kei_fmt/src/lib.rs:209
+  **Lesson**: `record_text`/`enum_text` のような純粋文字列構築関数は `self.cursor` を進めないため、フィールド間のコメントが次の top-level `flush_leading` 呼び出しでインデントレベル 0 で吐き出される。フォーマッタを record/enum に拡張するとき、あるいは今後コメント対応を M20 以降に延ばす場合は、この既知の限界を golden テストに「ふるまい固定」として登録し、意図せぬ変化を CI で検知できる状態にしておく。
+
+- **Pattern**: 関数 `{` 行の trailing comment が body の leading に化ける
+  **Source**: A-1ro (code-review) — crates/kei_fmt/src/lib.rs:266
+  **Lesson**: `emit_block` 内で `push("{")` → `newline()` した後に `flush_leading(stmt.start_line, level+1)` を呼ぶと、`{` と同じ行の trailing comment がインデント付きの leading comment として先頭文に吸収される。`{` を push した直後(かつ `newline()` の前)に `flush_trailing_on(open_line)` を挟むのが正解。新たに `emit_block` を呼ぶ箇所を追加するたびにこの漏れを点検する。
+
+- **Pattern**: `requires`/`ensures` 前の flush が直前行 trailing comment を消費する
+  **Source**: A-1ro (code-review) — crates/kei_fmt/src/lib.rs:247
+  **Lesson**: `flush_leading(requires_expr.start_line, 1)` は返り値型行の末尾コメントを「次ノードの leading」として level 1 で emit してしまう。M19 の公式方針「アンカーノードの leading に寄せる」の範囲内ではあるが、`fmt-style.md` とゴールデンテストにこのケースが明示されていないため将来の読者が把握できない。新しい flush 呼び出しを追加するたびに `fmt-style.md` の「既知の制約」節と対応 golden を同時に更新する。
+
+- **Pattern**: `format_with_comments` の可視性が pub で実装漏れ
+  **Source**: A-1ro (code-review) — crates/kei_fmt/src/lib.rs:34
+  **Lesson**: `format_with_comments` はクレート内部からしか呼ばれないにもかかわらず `pub` になっており、外部から不正な comments スライスを渡せる API 面を作っている。コメント列はパース結果と同じソースから取得されることを前提とした設計なので、`pub(crate)` に絞って不変条件を型レベルで守る。
