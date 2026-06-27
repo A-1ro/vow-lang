@@ -16,6 +16,10 @@ func hasNonNegativeQuantity(product: Product) -> Bool {
   return product.quantity >= 0
 }
 
+func hasNonNegativeUnitPrice(product: Product) -> Bool {
+  return product.unitPrice >= 0
+}
+
 func addProductValue(acc: Int, product: Product) -> Int {
   return acc + product.quantity * product.unitPrice
 }
@@ -30,6 +34,7 @@ func toReorderPlan(product: Product) -> ReorderPlan {
 
 func totalStockValue(products: List<Product>) -> Int
   requires products.all(hasNonNegativeQuantity)
+  requires products.all(hasNonNegativeUnitPrice)
   ensures result >= 0
 {
   return products.fold(0, addProductValue)
