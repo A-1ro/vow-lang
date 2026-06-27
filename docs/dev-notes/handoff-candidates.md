@@ -61,3 +61,25 @@
          バージョン言及は機能 PR 側で更新する慣例(本 PR ではなく PR #69 が担当)。
          これらも PR body に明記されているため HANDOFF.md 昇格不要と判断。
 -->
+
+## PR #74: feat(check): resolve import boundary types (M20 / #55) — 2026-06-27
+
+### Candidate: 解決不能 import は opaque(Ty::Unknown)に倒すことが「健全性ギャップ」として設計上 OK
+**Why this matters for HANDOFF.md**: `ModuleResolver::resolve` が `None` を返すケース(パースエラー・ファイル未存在)をエラーにせず opaque 扱いにするのは意図的な段階移行の設計判断であり、将来の「完全解決モード」と混同しやすい。
+**Draft entry** (lift verbatim if approved):
+> `ModuleResolver::resolve` が `None` を返した import 名は `NameKind::Import`(opaque / `Ty::Unknown`)として扱い、フィールドアクセスや match 網羅性検査をスキップする。これは v0.1 の「単一ファイル検査」と等価なフォールバックであり、「解決失敗 → コンパイルエラー」ではない。`FsModuleResolver` でパースエラーや読み取り失敗が起きた場合も同様に `None` を返して consumer をブロックしない。この「致命的でない健全性ギャップ」は M20 の意図的な段階移行設計。将来の「strict 解決モード」(解決失敗を E1xxx にする)とは別トラック。
+
+### Candidate: `FsModuleResolver` は project root を `module a.b.c` 宣言と入力ファイルパスから逆算する
+**Why this matters for HANDOFF.md**: プロジェクト root の決定アルゴリズムが `module` 宣言の段数依存であることを知らないと、`module` 宣言の無いファイルや段数が合わないファイルで resolver が無効化される理由が分からなくなる。
+**Draft entry** (lift verbatim if approved):
+> `FsModuleResolver` は入力ファイル `<F>` の `module a.b.c` 宣言からプロジェクト root を逆算する: `<F>` の親ディレクトリを `path.len()` 段遡ったパスが root(`<root>/a/b/c.kei` 規約)。`module` 宣言が無い・段数が足りない場合は `derive_root` が `None` を返し、CLI は `NoopResolver`(従来の単一ファイル検査)にフォールバックする。この挙動は `kei_cli::check` の呼び出し側で決定する。
+
+### Candidate: namespace alias (`import a.b as Db`) は M20 でも opaque のまま — 将来拡張の温床
+**Why this matters for HANDOFF.md**: `import a.b as Db` が M20 で解決されない理由が `Env::build` のコメント 1 行に埋もれており、将来「なぜ `Db.X` の型が Unknown になるのか」と混乱するリスクがある。
+**Draft entry** (lift verbatim if approved):
+> `import a.b as Db` のような namespace alias は M20 では意図的に解決対象外とし、`NameKind::Import`(opaque)のまま据え置く。`Db.fetch(...)` のような `<alias>.<name>` 経由の呼び出しは型不明・エフェクト不明として扱われる(extern 宣言があれば照合)。`import a.b { X, Y }` の名前付き import のみ M20 の型解決対象。namespace alias の型解決は将来拡張として明示的に先送りされた(`Env::build` のコメント参照)。
+
+### Candidate: `module_type_defs` は対象モジュール内の import を追跡しない — Ty::Unknown に倒す
+**Why this matters for HANDOFF.md**: 対象モジュールが別モジュールから import した型をフィールドに使っていると、そのフィールドが `Ty::Unknown` になる。これは現時点での意図的な制限であり、将来の「transitive 解決」とは切り分けて理解する必要がある。
+**Draft entry** (lift verbatim if approved):
+> `imports::module_type_defs` は対象モジュール(解決先の `.kei`)内に書かれた `import` を追跡しない。対象モジュール内で import 由来の型を参照するフィールド・バリアントは `Ty::Unknown` に倒される。例: `import foo { Foo }; record Bar { x: Foo }` の場合、`Bar.x` は `Ty::Unknown`。これは意図的な制限(コメントに「深い検査は別途」と明記)。Consumer 側 check.rs はこの `Ty::Unknown` を opaque として受け入れる。

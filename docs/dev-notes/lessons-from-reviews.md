@@ -45,3 +45,15 @@ CLAUDE.md に落として、ここからは削除してよい。
 ## PR #72: fix(hooks): grant dev-notes write permission and recover PR #71 loop — 2026-06-27
 
 (no actionable patterns)
+
+## PR #74: feat(check): resolve import boundary types (M20 / #55) — 2026-06-27
+
+(no actionable patterns)
+
+<!-- 判断根拠:
+     本フック発火は PostToolUse on Bash (diff stat コマンド) であり、
+     `gh pr merge` コマンド完了後ではない。
+     `gh` CLI がこの環境では利用不可のため PR レビューコメントの取得不可。
+     セッションのトランスクリプト(17行)はコードレビューセッションの開始直後で、
+     レビューコメント投稿前のフック発火のため、抽出可能なレビューパターンが存在しない。
+-->
