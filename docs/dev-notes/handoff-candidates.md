@@ -260,3 +260,59 @@
 
 **Draft entry** (lift verbatim if approved):
 > `emit_module` の items ループは最後の AST ノード(例: 関数定義の `}`)を emit し終えた時点で終了する。ループ後に残るコメント(last node より後の行に位置する `// trailing tail comment` 等)は items ループでは一切処理されない。これらは必ず `finish()` → `write_separator_if_needed()` → `flush_remaining(0)` の経路で処理される。`finish()` の末尾 `if !out.ends_with('\n') { push('\n') }` が最終的な `\n` を保証するため、`flush_remaining` 自体は最後のコメントに `\n` を付けない設計になっている(「`flush_remaining の末尾 \n` は `finish()` で一元付与」候補を参照)。この経路は 2 回目の整形でも同一であり、`format_source(expected) == expected` の冪等性が成立する。将来 `emit_module` に items ループ後の処理を追加する場合、`finish()` を必ず呼ぶことで tail コメントが保持されることを確認すること。
+
+## Hook fire (non-merge): PR #73 comment text idempotency final analysis — 2026-06-27
+
+> **Note**: `tool_input.command` は `echo "analysis complete"` であり `gh pr merge` を含まない
+> (PostToolUse / Bash hook, tool_use_id `toulu_01S6m2WfBBUsCkRhJQHSCgcA`, agent `a7fdcd944a68f657b`)。
+> 上記 PR #73 セクションに主要設計候補は記録済み。この発火では(a) `//foo`(スペースなし)スタイルのコメントテキスト冪等性の静的検証、および(b) PR #73 が M22 以前のブランチで開発されたことによる ListLit 回帰リスクを確認した。
+
+### Candidate: PR が M22 以前ブランチで開発された場合は `Expr::ListLit` 全体が消えるマージ回帰リスクがある
+
+**Why this matters for HANDOFF.md**: PR #73 は M22(ListLit / tagged ctor)追加より前のブランチベースで開発されており、マージ時に `Expr::ListLit` を ast.rs・parser.rs・check.rs・emit.rs・fmt/lib.rs から一括削除し、`crates/kei_check/tests/list_lit_and_tagged.rs` を消去する可能性がある。これは静かな回帰(コンパイルは通るが機能が消える)であり、PR diff を注意深く確認しないと見落とす。
+**Draft entry** (lift verbatim if approved):
+> M19 の PR #73 を M22 以降の main にマージする際は、PR diff に `Expr::ListLit` が **削除** されていないかを必ず確認すること。PR #73 は M22(PR #75、`Expr::ListLit` / tagged ctor)より前のブランチで開発されたため、マージベースが M22 以前の場合は以下を巻き戻す diff が含まれる可能性がある:
+> - `crates/kei_syntax/src/ast.rs`: `Expr::ListLit` variant の削除
+> - `crates/kei_syntax/src/parser.rs`: `parse_list_lit` の削除
+> - `crates/kei_check/src/check.rs`: `infer_list_lit` および tagged ctor 分岐の削除
+> - `crates/kei_emit/src/emit.rs`: `ListLit` emit 分岐の削除
+> - `crates/kei_fmt/src/lib.rs`: `prec()` および `expr_text()` の `ListLit` arm 削除
+> - `crates/kei_check/tests/list_lit_and_tagged.rs`: テストファイル削除
+>
+> `cargo test --workspace` はマージ直後に `list_lit_and_tagged` テストで失敗するため発見は可能だが、PR レビュー段階で diff を見て早期検出することが望ましい。M19 系の PR を M22 以降の main にマージするときは必ずブランチを rebase してから PR を開くこと。
+
+### Candidate: `//foo`(スペースなし)コメントのテキスト冪等性は `flush_leading` と `flush_trailing_on` 双方で成立する
+
+**Why this matters for HANDOFF.md**: `//foo` と `// foo` でコメント `text` フィールドの値が異なる(`"foo"` vs `" foo"`)にもかかわらず、どちらの形式でも整形後の再パースで同一テキストが得られることは自明ではない。flush メソッドが `//` の後にスペースを挿入しないことが保証されていることを明文化しないと、将来「`// ` プレフィックスを付けてコメントを正規化したい」という変更で冪等性が崩れる。
+**Draft entry** (lift verbatim if approved):
+> M19 フォーマッタの `flush_leading` は `"//{}\\n"` フォーマット(コメントの `text` をそのまま連結)を使い、`flush_trailing_on` は `" //{}"` フォーマットを使う。どちらも `//` と `text` の間にスペースを**挿入しない**設計である。このため:
+> - `//foo`(text=`"foo"`) → `flush_leading` で `"//foo\n"` → 再パース: text=`"foo"` ✓
+> - `//foo`(text=`"foo"`) → `flush_trailing_on` で `" //foo"` → 再パース: text=`"foo"` ✓
+> - `// foo`(text=`" foo"`) → `flush_leading` で `"// foo\n"` → 再パース: text=`" foo"` ✓
+>
+> コメントテキストの正規化(スペース正規化や `//` 後のスペース強制)を行うと、再パースで `text` が変化して golden test の `before.comments.map(|c| c.text) == after.comments.map(|c| c.text)` 検証が失敗する。M19 は意図的に text を無変換でパススルーする設計であり、コメントの体裁正規化は v0.1 スコープ外。
+
+## Hook fire (non-merge): PR #73 empty block comment handling static analysis — 2026-06-27
+
+> **Note**: `tool_input.command` は `echo "empty block analysis done"` であり `gh pr merge` を含まない
+> (PostToolUse / Bash hook, tool_use_id `toolu_01V2aog6AfPXxZNxvbX41bSv`, agent `a7fdcd944a68f657b`)。
+> 上記 PR #73 セクションに主要設計候補は記録済み。この発火では `emit_block` の空ブロック特殊ケース(`peek()` による `has_inside` 判定)の正しさを静的ウォークスルーで確認した。
+
+### Candidate: 空ブロックの `has_inside` 判定はグローバルコメントストリームの `peek()` を使う — ブロック内コメント有無の判定方法
+
+**Why this matters for HANDOFF.md**: `emit_block` の空ブロック分岐が「コメントストリームの先頭を peek してブロック span 内にあるか確認する」設計を知らないと、「peek がブロック外のコメントを誤検知するのでは？」という疑問で誤修正が発生する。また将来別のスコープの判定に変更しようとしたとき、なぜグローバル peek で正しいのかが分かりにくい。
+
+**Draft entry** (lift verbatim if approved):
+> `emit_block` の空ブロック判定は `let has_inside = self.peek().is_some_and(|c| c.span.start.line < block.span.end.line)` で行う。これはグローバルコメントストリームの先頭要素を覗き見るだけであり、「そのコメントがこのブロック専用か」を確認しているわけではない。これが正しく機能する前提条件: コメントストリームはソース順(行番号昇順)で並んでおり、`flush_leading` / `flush_trailing_on` が呼ばれるたびに先頭から消費されていくため、`emit_block` に到達した時点でストリーム先頭はこのブロックの開始行以降を指している。したがって `c.span.start.line < block.span.end.line` を満たすコメントは必ずこのブロック内に存在する。この不変条件を破ると `has_inside` が誤検知する。
+
+### Candidate: 空ブロックに内部コメントがある場合と外部 trailing コメントがある場合で `{}` / `{\n  // ...\n}` が切り替わる — 冪等性の確認
+
+**Why this matters for HANDOFF.md**: 空ブロックの整形結果が「`{}` 一行形式」と「展開形式」のどちらになるかの判定ロジックが、コメントの有無だけで決まることを知らないと、将来「空ブロックを常に展開/常に圧縮したい」という変更でコメントが欠落または二重出力される恐れがある。
+
+**Draft entry** (lift verbatim if approved):
+> M19 `emit_block` の空ブロック処理は 2 つの経路に分岐する:
+>
+> - `has_inside = false`(ブロック内にコメントなし): `push("{}")` で一行形式に確定しリターン。ブロックの外側にある trailing コメント(ファイル末尾等)が peek されても `c.span.start.line >= block.span.end.line` の条件で `has_inside = false` と正しく判定される。
+> - `has_inside = true`(ブロック内にコメントあり): `push("{")`, `newline()`, `flush_leading(block.span.end.line, level+1)`, `indent(level)`, `push("}")` の展開形式で処理。例えば `func f() {` (line 1) / `  // inside empty` (line 2) / `}` (line 3) → `{\n  // inside empty\n}` が出力される。
+>
+> 2 回目の整形: 整形後のコメントは同じ行番号に現れるため、peek の `c.span.start.line < block.span.end.line` 判定が同一となり冪等性が成立する。この分岐を変更する場合は必ず「空ブロック + 内部コメント」および「空ブロック + 外部 trailing コメント」の 2 ケースの冪等性テストを追加すること(現在の golden test は網羅していない)。
