@@ -1,4 +1,10 @@
 {
+  "permissions": {
+    "allow": [
+      "Edit(docs/dev-notes/**)",
+      "Write(docs/dev-notes/**)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
