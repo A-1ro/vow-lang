@@ -31,12 +31,25 @@ mod seed_codes {
     pub const SEED_COUNTEREXAMPLE: &str = "KEI-E4005";
 }
 
-/// 評価器が扱う値(段階1: スカラのみ)。
+/// 評価器が扱う値。
+/// 段階1(M15): スカラ(Int / Bool / String)のみ。
+/// 段階2(M23 / #60): List / Record / Tagged を加え、List 引数を取る集計・計画関数の
+/// `ensures` も generative に上げる。tagged は emit と同様に「型情報を持つ underlying」
+/// として扱い、比較・等値は underlying と同等。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Value {
     Int(i64),
     Bool(bool),
     Str(String),
+    /// `List<T>` の不変な並び。要素は同種(checker が保証)。
+    List(Vec<Value>),
+    /// record 値。フィールド名 → 値。順序は宣言順を保ち、反例の散文に使う。
+    Record {
+        name: String,
+        fields: Vec<(String, Value)>,
+    },
+    /// tagged 型値。emit では underlying を branded していて runtime 上の構造は同じ。
+    Tagged(String, Box<Value>),
 }
 
 impl fmt::Display for Value {
@@ -45,6 +58,27 @@ impl fmt::Display for Value {
             Value::Int(n) => write!(f, "{n}"),
             Value::Bool(b) => write!(f, "{b}"),
             Value::Str(s) => write!(f, "{s:?}"),
+            Value::List(xs) => {
+                write!(f, "[")?;
+                for (i, v) in xs.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{v}")?;
+                }
+                write!(f, "]")
+            }
+            Value::Record { name, fields } => {
+                write!(f, "{name} {{ ")?;
+                for (i, (k, v)) in fields.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{k}: {v}")?;
+                }
+                write!(f, " }}")
+            }
+            Value::Tagged(name, inner) => write!(f, "{name}({inner})"),
         }
     }
 }
@@ -112,11 +146,14 @@ pub fn run_module(module: &ast::Module) -> Vec<PropertyOutcome> {
             _ => None,
         })
         .collect();
+    // M23: record / tagged を解決できる軽量コンテキスト。候補生成の境界は
+    // 「モジュール内の宣言だけ」(import 先の型は段階保守で対象外)。
+    let ctx = DomainCtx::build(module);
 
     let mut out = Vec::new();
     for item in &module.items {
         let ast::Item::Func(f) = item else { continue };
-        if let Some(outcome) = run_function(f, &funcs) {
+        if let Some(outcome) = run_function(f, &funcs, &ctx) {
             out.push(outcome);
         }
     }
@@ -127,14 +164,15 @@ pub fn run_module(module: &ast::Module) -> Vec<PropertyOutcome> {
 fn run_function(
     f: &ast::FuncDecl,
     funcs: &HashMap<&str, &ast::FuncDecl>,
+    ctx: &DomainCtx,
 ) -> Option<PropertyOutcome> {
-    // 対象条件: 純粋(uses なし)・ensures あり・全パラメータがスカラ生成可能。
+    // 対象条件: 純粋(uses なし)・ensures あり・全パラメータがスカラ / List / record 生成可能。
     if !f.uses.is_empty() || f.ensures.is_empty() {
         return None;
     }
     let mut domains: Vec<Vec<Value>> = Vec::new();
     for p in &f.params {
-        domains.push(candidate_values(&p.ty)?);
+        domains.push(candidate_values(&p.ty, ctx, false)?);
     }
 
     // 生成ケース総数(各次元の候補数の積)を、デカルト積を実体化する前に見積もる。
@@ -239,38 +277,171 @@ fn run_function(
     })
 }
 
-/// 型ごとの決定的な候補入力集合。生成不能型(record / Option 等)は `None`(対象外)。
-fn candidate_values(t: &ast::Type) -> Option<Vec<Value>> {
-    if t.path.len() != 1 || !t.args.is_empty() {
-        return None;
-    }
-    match t.path[0].name.as_str() {
-        "Int" => Some(
-            [-100, -10, -3, -2, -1, 0, 1, 2, 3, 10, 100]
-                .iter()
-                .map(|n| Value::Int(*n))
-                .collect(),
-        ),
-        "Bool" => Some(vec![Value::Bool(false), Value::Bool(true)]),
-        "String" => Some(vec![
-            Value::Str(String::new()),
-            Value::Str("a".to_string()),
-            Value::Str("abc".to_string()),
-        ]),
-        _ => None,
+/// モジュール内宣言の軽量コンテキスト(record / type alias を引く)。M23 で
+/// 候補生成が record / tagged を解決するために必要。
+struct DomainCtx<'a> {
+    records: HashMap<&'a str, &'a ast::RecordDecl>,
+    aliases: HashMap<&'a str, &'a ast::TypeAlias>,
+}
+
+impl<'a> DomainCtx<'a> {
+    fn build(module: &'a ast::Module) -> Self {
+        let records: HashMap<&str, &ast::RecordDecl> = module
+            .items
+            .iter()
+            .filter_map(|i| match i {
+                ast::Item::Record(r) => Some((r.name.name.as_str(), r)),
+                _ => None,
+            })
+            .collect();
+        let aliases: HashMap<&str, &ast::TypeAlias> = module
+            .items
+            .iter()
+            .filter_map(|i| match i {
+                ast::Item::TypeAlias(a) => Some((a.name.name.as_str(), a)),
+                _ => None,
+            })
+            .collect();
+        Self { records, aliases }
     }
 }
 
-/// 反例の「小ささ」(最小化用)。Int は絶対値、String は長さの総和。
-fn size_metric(combo: &[Value]) -> i64 {
-    combo
+/// 型ごとの決定的な候補入力集合。生成不能型(Option / Result / enum / 解決不能 import)は
+/// `None`(対象外)。`deep` は List / record の **内部** で使う subdomain への切り替え
+/// フラグで、組み合わせ爆発を抑える。
+fn candidate_values(t: &ast::Type, ctx: &DomainCtx, deep: bool) -> Option<Vec<Value>> {
+    if t.path.len() != 1 {
+        return None;
+    }
+    let root = t.path[0].name.as_str();
+    if t.args.is_empty() {
+        match root {
+            "Int" => Some(int_domain(deep)),
+            "Bool" => Some(vec![Value::Bool(false), Value::Bool(true)]),
+            "String" => Some(str_domain(deep)),
+            r if ctx.records.contains_key(r) => record_candidates(r, ctx),
+            r if ctx.aliases.contains_key(r) => alias_candidates(r, ctx, deep),
+            _ => None,
+        }
+    } else if root == "List" && t.args.len() == 1 {
+        list_candidates(&t.args[0], ctx)
+    } else {
+        None
+    }
+}
+
+fn int_domain(deep: bool) -> Vec<Value> {
+    // 浅い文脈ではエッジ値を含む 11 値、深い文脈(List/Record 内)は 3 値に絞って爆発回避。
+    let arr: &[i64] = if deep {
+        &[-3, 0, 3]
+    } else {
+        &[-100, -10, -3, -2, -1, 0, 1, 2, 3, 10, 100]
+    };
+    arr.iter().map(|n| Value::Int(*n)).collect()
+}
+
+fn str_domain(deep: bool) -> Vec<Value> {
+    if deep {
+        vec![Value::Str("a".to_string())]
+    } else {
+        vec![
+            Value::Str(String::new()),
+            Value::Str("a".to_string()),
+            Value::Str("abc".to_string()),
+        ]
+    }
+}
+
+fn record_candidates(name: &str, ctx: &DomainCtx) -> Option<Vec<Value>> {
+    let rec = ctx.records.get(name)?;
+    let mut field_doms: Vec<(String, Vec<Value>)> = Vec::with_capacity(rec.fields.len());
+    for f in &rec.fields {
+        field_doms.push((f.name.name.clone(), candidate_values(&f.ty, ctx, true)?));
+    }
+    let total = field_doms
         .iter()
-        .map(|v| match v {
-            Value::Int(n) => n.unsigned_abs() as i64,
-            Value::Bool(_) => 0,
-            Value::Str(s) => s.len() as i64,
-        })
-        .sum()
+        .try_fold(1usize, |a, (_, d)| a.checked_mul(d.len()))?;
+    if total > 512 {
+        // record 1 個の候補数が大きすぎると List 化で爆発する。安全側に対象外。
+        return None;
+    }
+    let mut out: Vec<Value> = vec![Value::Record {
+        name: name.to_string(),
+        fields: Vec::new(),
+    }];
+    for (fname, dom) in &field_doms {
+        let mut next = Vec::with_capacity(out.len() * dom.len());
+        for prev in &out {
+            let Value::Record { name: rn, fields } = prev else {
+                unreachable!()
+            };
+            for v in dom {
+                let mut nf = fields.clone();
+                nf.push((fname.clone(), v.clone()));
+                next.push(Value::Record {
+                    name: rn.clone(),
+                    fields: nf,
+                });
+            }
+        }
+        out = next;
+    }
+    Some(out)
+}
+
+fn alias_candidates(name: &str, ctx: &DomainCtx, deep: bool) -> Option<Vec<Value>> {
+    let a = ctx.aliases.get(name)?;
+    let underlying = candidate_values(&a.ty, ctx, deep)?;
+    match &a.tag {
+        Some(_) => Some(
+            underlying
+                .into_iter()
+                .map(|u| Value::Tagged(name.to_string(), Box::new(u)))
+                .collect(),
+        ),
+        None => Some(underlying),
+    }
+}
+
+fn list_candidates(elem_ty: &ast::Type, ctx: &DomainCtx) -> Option<Vec<Value>> {
+    let elem_dom = candidate_values(elem_ty, ctx, true)?;
+    // 長さ 0..=2 を列挙。境界(空・単一・複数)を網羅。長さ 2 で要素のデカルト積が
+    // 大きいと組み合わせ爆発するので、上限 30 を超えるときは「同一要素ペア」のみに絞る。
+    let mut out: Vec<Value> = Vec::with_capacity(1 + elem_dom.len() + elem_dom.len().pow(2));
+    out.push(Value::List(Vec::new()));
+    for v in &elem_dom {
+        out.push(Value::List(vec![v.clone()]));
+    }
+    let pair_total = elem_dom.len().saturating_mul(elem_dom.len());
+    if pair_total <= 30 {
+        for a in &elem_dom {
+            for b in &elem_dom {
+                out.push(Value::List(vec![a.clone(), b.clone()]));
+            }
+        }
+    } else {
+        for v in &elem_dom {
+            out.push(Value::List(vec![v.clone(), v.clone()]));
+        }
+    }
+    Some(out)
+}
+
+/// 反例の「小ささ」(最小化用)。Int は絶対値、String は長さの総和。
+/// List は長さ + 要素の総和、Record はフィールド値の総和、Tagged は underlying。
+fn size_metric(combo: &[Value]) -> i64 {
+    combo.iter().map(value_size).sum()
+}
+
+fn value_size(v: &Value) -> i64 {
+    match v {
+        Value::Int(n) => n.unsigned_abs() as i64,
+        Value::Bool(_) => 0,
+        Value::Str(s) => s.len() as i64,
+        Value::List(xs) => xs.len() as i64 + xs.iter().map(value_size).sum::<i64>(),
+        Value::Record { fields, .. } => fields.iter().map(|(_, v)| value_size(v)).sum(),
+        Value::Tagged(_, inner) => value_size(inner),
+    }
 }
 
 /// 各次元の候補のデカルト積(全組み合わせ)。
@@ -530,10 +701,196 @@ fn eval_expr(
                     }
                     return eval_func_call(callee_fn, &argv, funcs, depth + 1);
                 }
+                // tagged 明示コンストラクタ `T(value)` (M22 / #57)。検査器は callee=Name で
+                // 既に tagged alias と確定しているはず。pbt はこのタグ名情報を持たないので、
+                // 値は引数の underlying をそのまま Tagged(name, underlying) で包んで返す。
+                // ensures の同名比較は Tagged 同士の構造比較で成立する。
+                if args.len() == 1 {
+                    // `Ok` / `Err` / `Some` / `None` 等の組み込みは未対応(段階1のまま)。
+                    let underlying = eval_expr(&args[0], env, funcs, in_ensures, depth)?;
+                    return Ok(Value::Tagged(name.clone(), Box::new(underlying)));
+                }
+                return Err(EvalError::Unsupported);
+            }
+            // List コンビネータのメソッド呼び出し: `xs.method(args...)`
+            if let ast::Expr::Field { base, name, .. } = callee.as_ref() {
+                let recv = eval_expr(base, env, funcs, in_ensures, depth)?;
+                if let Value::List(xs) = &recv {
+                    return eval_list_method(name.name.as_str(), xs, args, env, funcs, depth);
+                }
+                return Err(EvalError::Unsupported);
             }
             Err(EvalError::Unsupported)
         }
-        // 段階1の評価器はスカラのみ(match / record / field / Option / Result は未対応)。
+        // M23: ListLit / RecordLit / Field を評価器に追加。これにより List 引数を取る
+        // 集計・計画関数(`totalStockValue` 等)も generative の対象に入る。
+        ast::Expr::ListLit { elements, .. } => {
+            let mut xs = Vec::with_capacity(elements.len());
+            for el in elements {
+                xs.push(eval_expr(el, env, funcs, in_ensures, depth)?);
+            }
+            Ok(Value::List(xs))
+        }
+        ast::Expr::RecordLit { path, fields, .. } => {
+            // 単一名の record(`R { ... }`)のみ評価する。enum バリアントの record 形は段階1
+            // と同じく対象外(network/database のような外部値が混入することを避ける段階保守)。
+            if path.len() != 1 {
+                return Err(EvalError::Unsupported);
+            }
+            let name = path[0].name.clone();
+            let mut out: Vec<(String, Value)> = Vec::with_capacity(fields.len());
+            for f in fields {
+                let v = match &f.value {
+                    Some(expr) => eval_expr(expr, env, funcs, in_ensures, depth)?,
+                    None => env
+                        .get(&f.name.name)
+                        .cloned()
+                        .ok_or(EvalError::Unsupported)?,
+                };
+                out.push((f.name.name.clone(), v));
+            }
+            Ok(Value::Record { name, fields: out })
+        }
+        ast::Expr::Field { base, name, .. } => {
+            let v = eval_expr(base, env, funcs, in_ensures, depth)?;
+            match v {
+                Value::Record { fields, .. } => fields
+                    .iter()
+                    .find(|(n, _)| n == &name.name)
+                    .map(|(_, val)| val.clone())
+                    .ok_or(EvalError::Unsupported),
+                // List のフィールドアクセスは現状 `length` のみ(契約での `result.length` 等)。
+                Value::List(xs) if name.name == "length" => Ok(Value::Int(xs.len() as i64)),
+                Value::Tagged(_, inner) => match *inner {
+                    Value::Record { fields, .. } => fields
+                        .iter()
+                        .find(|(n, _)| n == &name.name)
+                        .map(|(_, val)| val.clone())
+                        .ok_or(EvalError::Unsupported),
+                    _ => Err(EvalError::Unsupported),
+                },
+                _ => Err(EvalError::Unsupported),
+            }
+        }
+        // 段階1の評価器はスカラのみ(match / Option / Result は未対応)。
+        _ => Err(EvalError::Unsupported),
+    }
+}
+
+/// List コンビネータの評価。`elem` は呼び出し時のレシーバの要素型(emit と同じく
+/// 内部判別子なし: 全要素同種を仮定。Length/isEmpty はゼロ引数、all/any/filter は
+/// 1 引数の関数参照、fold は (init, fn) の 2 引数、get は (index) の 1 引数)。
+fn eval_list_method(
+    method: &str,
+    xs: &[Value],
+    args: &[ast::Expr],
+    env: &HashMap<String, Value>,
+    funcs: &HashMap<&str, &ast::FuncDecl>,
+    depth: usize,
+) -> Result<Value, EvalError> {
+    match method {
+        "length" => {
+            if !args.is_empty() {
+                return Err(EvalError::Unsupported);
+            }
+            Ok(Value::Int(xs.len() as i64))
+        }
+        "isEmpty" => {
+            if !args.is_empty() {
+                return Err(EvalError::Unsupported);
+            }
+            Ok(Value::Bool(xs.is_empty()))
+        }
+        "get" => {
+            // `get(i)` は Option<T> を返すが、段階2の評価器は Option 値を持たないので
+            // Unsupported に倒す(get を使う関数は generative に上げない)。
+            Err(EvalError::Unsupported)
+        }
+        "all" | "any" | "map" | "filter" => {
+            if args.len() != 1 {
+                return Err(EvalError::Unsupported);
+            }
+            // 関数引数は名前付き関数参照(M9 / spec v0.3-collections §4.1)。
+            let fname = match &args[0] {
+                ast::Expr::Name { name, .. } => name.clone(),
+                _ => return Err(EvalError::Unsupported),
+            };
+            let f = funcs
+                .get(fname.as_str())
+                .copied()
+                .ok_or(EvalError::Unsupported)?;
+            if !f.uses.is_empty() {
+                return Err(EvalError::Unsupported);
+            }
+            match method {
+                "all" => {
+                    for x in xs {
+                        match eval_func_call(f, std::slice::from_ref(x), funcs, depth + 1)? {
+                            Value::Bool(true) => {}
+                            Value::Bool(false) => return Ok(Value::Bool(false)),
+                            _ => return Err(EvalError::Unsupported),
+                        }
+                    }
+                    Ok(Value::Bool(true))
+                }
+                "any" => {
+                    for x in xs {
+                        match eval_func_call(f, std::slice::from_ref(x), funcs, depth + 1)? {
+                            Value::Bool(true) => return Ok(Value::Bool(true)),
+                            Value::Bool(false) => {}
+                            _ => return Err(EvalError::Unsupported),
+                        }
+                    }
+                    Ok(Value::Bool(false))
+                }
+                "map" => {
+                    let mut out = Vec::with_capacity(xs.len());
+                    for x in xs {
+                        out.push(eval_func_call(
+                            f,
+                            std::slice::from_ref(x),
+                            funcs,
+                            depth + 1,
+                        )?);
+                    }
+                    Ok(Value::List(out))
+                }
+                "filter" => {
+                    let mut out = Vec::new();
+                    for x in xs {
+                        match eval_func_call(f, std::slice::from_ref(x), funcs, depth + 1)? {
+                            Value::Bool(true) => out.push(x.clone()),
+                            Value::Bool(false) => {}
+                            _ => return Err(EvalError::Unsupported),
+                        }
+                    }
+                    Ok(Value::List(out))
+                }
+                _ => unreachable!(),
+            }
+        }
+        "fold" => {
+            if args.len() != 2 {
+                return Err(EvalError::Unsupported);
+            }
+            let init = eval_expr(&args[0], env, funcs, false, depth)?;
+            let fname = match &args[1] {
+                ast::Expr::Name { name, .. } => name.clone(),
+                _ => return Err(EvalError::Unsupported),
+            };
+            let f = funcs
+                .get(fname.as_str())
+                .copied()
+                .ok_or(EvalError::Unsupported)?;
+            if !f.uses.is_empty() {
+                return Err(EvalError::Unsupported);
+            }
+            let mut acc = init;
+            for x in xs {
+                acc = eval_func_call(f, &[acc, x.clone()], funcs, depth + 1)?;
+            }
+            Ok(acc)
+        }
         _ => Err(EvalError::Unsupported),
     }
 }
