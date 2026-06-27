@@ -248,11 +248,30 @@ fn or_and_remainder_emit_with_kei_int_semantics() {
         "}\n",
     ));
     assert!(out.ts.contains(
-        "return amount === 0 || (amount - Math.trunc(amount / caseSize) * caseSize) === 0;"
+        "return amount === 0 || ((kei$rem$lhs: number, kei$rem$rhs: number): number => kei$rem$lhs - Math.trunc(kei$rem$lhs / kei$rem$rhs) * kei$rem$rhs)(amount, caseSize) === 0;"
     ));
     assert!(out
         .ts
         .contains("condition: \"result == (amount == 0 || amount >= minLot)\","));
+}
+
+#[test]
+fn remainder_operands_are_evaluated_once() {
+    let out = emit(concat!(
+        "module a.b\n",
+        "\n",
+        "import infra.random as Random\n",
+        "\n",
+        "extern Random.next() -> Int uses Random\n",
+        "\n",
+        "func bounded() -> Int\n",
+        "  uses Random\n",
+        "{\n",
+        "  return Random.next() % (Random.next() + 1)\n",
+        "}\n",
+    ));
+    let needle = "return ((kei$rem$lhs: number, kei$rem$rhs: number): number => kei$rem$lhs - Math.trunc(kei$rem$lhs / kei$rem$rhs) * kei$rem$rhs)(Random.next(), Random.next() + 1);";
+    assert!(out.ts.contains(needle), "unexpected TS:\n{}", out.ts);
 }
 
 #[test]

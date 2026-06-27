@@ -1077,15 +1077,16 @@ impl Emitter<'_> {
             self.emit_expr(rhs, Prec::Unary);
             self.out.frag(")");
         } else if op == BinOp::Rem {
-            // Int 剰余は Kei の 0 方向除算と同じ商で定義する。
-            self.out.frag("(");
-            self.emit_expr(lhs, Prec::Additive);
-            self.out.frag(" - Math.trunc(");
-            self.emit_expr(lhs, Prec::Multiplicative);
-            self.out.frag(" / ");
-            self.emit_expr(rhs, Prec::Unary);
-            self.out.frag(") * ");
-            self.emit_expr(rhs, Prec::Multiplicative);
+            // Int 剰余は Kei の 0 方向除算と同じ商で定義する。オペランドが extern
+            // 呼び出し等でも観測可能な再評価を起こさないよう、typed IIFE の引数で
+            // 左右を一度だけ評価してから式を計算する。
+            self.out
+                .frag("((kei$rem$lhs: number, kei$rem$rhs: number): number => ");
+            self.out
+                .frag("kei$rem$lhs - Math.trunc(kei$rem$lhs / kei$rem$rhs) * kei$rem$rhs)(");
+            self.emit_expr(lhs, Prec::Implication);
+            self.out.frag(", ");
+            self.emit_expr(rhs, Prec::Implication);
             self.out.frag(")");
         } else {
             self.emit_expr(lhs, prec);
