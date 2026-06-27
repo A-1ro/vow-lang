@@ -126,7 +126,22 @@ IO
 | tagged型 | branded type(`__keiTag`)+ 同名コンストラクタ関数 |
 | `module` / `import` | モジュールパスとファイルパスの1:1対応のまま相対import(`import { X } from "../core/money"` / `import * as Database from "../infra/database"`) |
 | `Int` の除算 | `Math.trunc(a / b)`(0方向への切り捨て) |
+| `Int` の剰余 | `a - Math.trunc(a / b) * b`(`/` と同じ 0 方向の商で定義) |
 | `implies` | `!(a) \|\| b` |
+
+### 5.1 演算子
+
+| 優先順位(強→弱) | 演算子 | 結合 | 型 |
+|---|---|---|---|
+| postfix | `.` / `()` | 左 | フィールドアクセス・呼び出し |
+| unary | `-x` / `!x` | 右 | `-`: `Int`、`!`: `Bool` |
+| multiplicative | `*` / `/` / `%` | 左 | `Int` |
+| additive | `+` / `-` | 左 | `Int` |
+| comparison | `==` / `!=` / `<` / `>` / `<=` / `>=` | 左 | 比較結果は `Bool` |
+| logical or | `\|\|` | 左 | `Bool` |
+| implication | `implies` | 右 | `Bool` |
+
+`&&` は v0.4 では導入しない。「かつ」は `requires` を複数行に分けるか、`if` で構造化する。
 
 - **非同期の扱い(M4で決着)**: v0.1の出力は全関数同期。非同期は v0.2 以降で `uses Async` としてエフェクト統合を再検討する(§9参照)。
 - 出力TSは人間が読める品質を保つ(デバッグ時のsource of truthはKeiだが、スタックトレースの追跡可能性を確保)。

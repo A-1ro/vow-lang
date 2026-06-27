@@ -238,6 +238,43 @@ fn implies_emits_disjunction() {
 }
 
 #[test]
+fn or_and_remainder_emit_with_kei_int_semantics() {
+    let out = emit(concat!(
+        "func validLot(amount: Int, minLot: Int, caseSize: Int) -> Bool\n",
+        "  requires caseSize > 0\n",
+        "  ensures result == (amount == 0 || amount >= minLot)\n",
+        "{\n",
+        "  return amount == 0 || amount % caseSize == 0\n",
+        "}\n",
+    ));
+    assert!(out
+        .ts
+        .contains("return amount === 0 || amount % caseSize === 0;"));
+    assert!(out
+        .ts
+        .contains("condition: \"result == (amount == 0 || amount >= minLot)\","));
+}
+
+#[test]
+fn remainder_emits_plain_percent() {
+    let out = emit(concat!(
+        "module a.b\n",
+        "\n",
+        "import infra.random as Random\n",
+        "\n",
+        "extern Random.next() -> Int uses Random\n",
+        "\n",
+        "func bounded() -> Int\n",
+        "  uses Random\n",
+        "{\n",
+        "  return Random.next() % (Random.next() + 1)\n",
+        "}\n",
+    ));
+    let needle = "return Random.next() % (Random.next() + 1);";
+    assert!(out.ts.contains(needle), "unexpected TS:\n{}", out.ts);
+}
+
+#[test]
 fn check_errors_reject_emit() {
     let err = kei_emit::emit_module("bad.kei", "func f() -> Int {\n  return missing\n}\n")
         .expect_err("undefined name must reject emit");

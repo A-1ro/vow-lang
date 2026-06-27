@@ -484,6 +484,19 @@ fn eval_expr(
             },
             _ => Err(EvalError::Unsupported),
         },
+        ast::Expr::Binary {
+            op: ast::BinOp::Or,
+            lhs,
+            rhs,
+            ..
+        } => match eval_expr(lhs, env, funcs, in_ensures, depth)? {
+            Value::Bool(true) => Ok(Value::Bool(true)),
+            Value::Bool(false) => match eval_expr(rhs, env, funcs, in_ensures, depth)? {
+                v @ Value::Bool(_) => Ok(v),
+                _ => Err(EvalError::Unsupported),
+            },
+            _ => Err(EvalError::Unsupported),
+        },
         ast::Expr::Binary { op, lhs, rhs, .. } => {
             let l = eval_expr(lhs, env, funcs, in_ensures, depth)?;
             let r = eval_expr(rhs, env, funcs, in_ensures, depth)?;
@@ -534,6 +547,13 @@ fn eval_binary(op: ast::BinOp, l: Value, r: Value) -> Result<Value, EvalError> {
         (Mul, Int(a), Int(b)) => a.checked_mul(b).map(Int).ok_or(EvalError::Trap),
         (Div, Int(_), Int(0)) => Err(EvalError::Trap),
         (Div, Int(a), Int(b)) => a.checked_div(b).map(Int).ok_or(EvalError::Trap),
+        (Rem, Int(_), Int(0)) => Err(EvalError::Trap),
+        (Rem, Int(a), Int(b)) => {
+            let q = a.checked_div(b).ok_or(EvalError::Trap)?;
+            a.checked_sub(q.checked_mul(b).ok_or(EvalError::Trap)?)
+                .map(Int)
+                .ok_or(EvalError::Trap)
+        }
         (Eq, a, b) => Ok(Bool(a == b)),
         (Ne, a, b) => Ok(Bool(a != b)),
         // 順序比較は Int 限定(checker が KEI-E2001 で String/合成型を弾く)。
@@ -541,7 +561,7 @@ fn eval_binary(op: ast::BinOp, l: Value, r: Value) -> Result<Value, EvalError> {
         (Gt, Int(a), Int(b)) => Ok(Bool(a > b)),
         (Le, Int(a), Int(b)) => Ok(Bool(a <= b)),
         (Ge, Int(a), Int(b)) => Ok(Bool(a >= b)),
-        // `Implies` は eval_expr が短絡処理するためここには来ない(到達不能)。
+        // `Or` / `Implies` は eval_expr が短絡処理するためここには来ない(到達不能)。
         _ => Err(EvalError::Unsupported),
     }
 }

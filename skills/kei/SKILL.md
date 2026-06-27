@@ -203,16 +203,17 @@ func classify(u: User) -> String {
 - コメントは `//` の行コメントのみ。
 - 文字列は1行・ダブルクオート。エスケープは `\n \t \r \\ \"` のみ。
 
-### 演算子(これで全部 / v0.1)
+### 演算子(これで全部 / v0.4)
 
 ```text
 比較   ==  !=  <  >  <=  >=
-算術   +  -  *  /            // / は整数では 0 方向への切り捨て(Math.trunc)
-論理   !  implies            // a implies b は「a ならば b」(= !a || b)
+算術   +  -  *  /  %         // / は 0 方向切り捨て、% は同じ商での剰余
+単項   -x  !x                // - は Int、! は Bool
+論理   ||  implies           // a implies b は「a ならば b」(= !a || b)
 その他 =(let束縛)  ->(戻り型)  .(アクセス)
 ```
 
-- **`&&` / `||` / `%` は存在しない。** 「かつ」は `requires` を複数並べるか `if` を入れ子にして表す。「または」「剰余」は v0.1 に無い。`&` を書くと `KEI-E0001 unexpected character`。
+- **`&&` は存在しない。** 「かつ」は `requires` を複数並べるか `if` を入れ子にして表す。`&` を書くと `KEI-E0001 unexpected character`。
 
 ### module と import
 
@@ -666,7 +667,7 @@ tagged 型と基底型、または別の tagged 型を混同した。`type Accou
 
 ### 構文エラー(KEI-E0001 / E0101 / E0103 ほか)
 
-- `KEI-E0001 unexpected character` … `&` `|` `%` `@` など未対応文字。§2 の演算子表以外は使わない。
+- `KEI-E0001 unexpected character` … `&` `@` など未対応文字。§2 の演算子表以外は使わない。
 - `KEI-E0101 unexpected token` … 区切り(`,` `)` `:` など)の欠落。`expected ...` に従って補う。
 - `KEI-E0103 unclosed delimiter` … `{` `(` の閉じ忘れ。span は開き位置を指す。
 - `KEI-E0104 unknown contract clause` … 契約節に `uses`/`requires`/`ensures` 以外の語(例: `use`)。正しい節キーワードに直す。

@@ -1108,7 +1108,7 @@ impl Parser {
     }
 
     fn parse_implies(&mut self, no_struct: bool) -> Option<Expr> {
-        let lhs = self.parse_cmp(no_struct)?;
+        let lhs = self.parse_or(no_struct)?;
         if self.at(T::Implies) {
             self.bump();
             // 右結合
@@ -1120,6 +1120,22 @@ impl Parser {
                 rhs: Box::new(rhs),
                 span,
             });
+        }
+        Some(lhs)
+    }
+
+    fn parse_or(&mut self, no_struct: bool) -> Option<Expr> {
+        let mut lhs = self.parse_cmp(no_struct)?;
+        while self.at(T::OrOr) {
+            self.bump();
+            let rhs = self.parse_cmp(no_struct)?;
+            let span = lhs.span().to(rhs.span());
+            lhs = Expr::Binary {
+                op: BinOp::Or,
+                lhs: Box::new(lhs),
+                rhs: Box::new(rhs),
+                span,
+            };
         }
         Some(lhs)
     }
@@ -1174,6 +1190,7 @@ impl Parser {
             let op = match self.cur().kind {
                 T::Star => BinOp::Mul,
                 T::Slash => BinOp::Div,
+                T::Percent => BinOp::Rem,
                 _ => return Some(lhs),
             };
             self.bump();

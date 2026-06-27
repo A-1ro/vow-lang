@@ -1,6 +1,6 @@
 //! パーサの基本性質テスト。網羅的な入出力契約は tests/golden/syntax/ が担う。
 
-use kei_syntax::ast::{Expr, Item, Stmt};
+use kei_syntax::ast::{BinOp, Expr, Item, Stmt};
 
 #[test]
 fn empty_source_parses_to_empty_module() {
@@ -27,6 +27,52 @@ fn operator_precedence_mul_binds_tighter_than_add() {
     };
     assert_eq!(format!("{op:?}"), "Add");
     assert!(matches!(**rhs, Expr::Binary { .. }));
+}
+
+#[test]
+fn operator_precedence_rem_and_or_are_in_expected_tiers() {
+    let src = "func f(a: Int, b: Int, c: Int) -> Bool {\n  return a + b % c == 0 || a > 10 implies b > 0\n}\n";
+    let result = kei_syntax::parse_module(src);
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    let Item::Func(f) = &result.module.items[0] else {
+        panic!("expected func");
+    };
+    let Stmt::Return(ret) = &f.body.stmts[0] else {
+        panic!("expected return");
+    };
+    let Some(Expr::Binary { op, lhs, rhs, .. }) = &ret.value else {
+        panic!("expected implication");
+    };
+    assert_eq!(*op, BinOp::Implies);
+    assert!(matches!(**lhs, Expr::Binary { op: BinOp::Or, .. }));
+    assert!(matches!(**rhs, Expr::Binary { op: BinOp::Gt, .. }));
+
+    let Expr::Binary {
+        lhs: or_lhs,
+        rhs: or_rhs,
+        ..
+    } = lhs.as_ref()
+    else {
+        panic!("expected or");
+    };
+    assert!(matches!(**or_rhs, Expr::Binary { op: BinOp::Gt, .. }));
+    let Expr::Binary {
+        op: BinOp::Eq,
+        lhs: eq_lhs,
+        ..
+    } = or_lhs.as_ref()
+    else {
+        panic!("expected equality");
+    };
+    let Expr::Binary {
+        op: BinOp::Add,
+        rhs: add_rhs,
+        ..
+    } = eq_lhs.as_ref()
+    else {
+        panic!("expected addition");
+    };
+    assert!(matches!(**add_rhs, Expr::Binary { op: BinOp::Rem, .. }));
 }
 
 #[test]

@@ -385,6 +385,10 @@ fn const_eval(expr: &ast::Expr) -> Option<ConstVal> {
                 (Div, ConstVal::Int(a), ConstVal::Int(b)) if b != 0 => {
                     Some(ConstVal::Int(a.checked_div(b)?))
                 }
+                (Rem, ConstVal::Int(a), ConstVal::Int(b)) if b != 0 => {
+                    let q = a.checked_div(b)?;
+                    Some(ConstVal::Int(a.checked_sub(q.checked_mul(b)?)?))
+                }
                 (Eq, ConstVal::Int(a), ConstVal::Int(b)) => Some(ConstVal::Bool(a == b)),
                 (Ne, ConstVal::Int(a), ConstVal::Int(b)) => Some(ConstVal::Bool(a != b)),
                 (Lt, ConstVal::Int(a), ConstVal::Int(b)) => Some(ConstVal::Bool(a < b)),
@@ -396,6 +400,7 @@ fn const_eval(expr: &ast::Expr) -> Option<ConstVal> {
                 // 文字列定数の等値比較(`requires "a" == "b"` 等の恒偽/恒真を畳む。M17 / #35)。
                 (Eq, ConstVal::Str(a), ConstVal::Str(b)) => Some(ConstVal::Bool(a == b)),
                 (Ne, ConstVal::Str(a), ConstVal::Str(b)) => Some(ConstVal::Bool(a != b)),
+                (Or, ConstVal::Bool(a), ConstVal::Bool(b)) => Some(ConstVal::Bool(a || b)),
                 (Implies, ConstVal::Bool(a), ConstVal::Bool(b)) => Some(ConstVal::Bool(!a || b)),
                 _ => None,
             }
@@ -2999,7 +3004,7 @@ impl FnChecker<'_> {
                 }
                 Ty::Bool
             }
-            Add | Sub | Mul | Div => {
+            Add | Sub | Mul | Div | Rem => {
                 let lok = self.expect_numeric(&lt, lhs.span(), "arithmetic");
                 let rok = self.expect_numeric(&rt, rhs.span(), "arithmetic");
                 if lok && rok && !lt.compatible(&rt) {
@@ -3015,12 +3020,13 @@ impl FnChecker<'_> {
                     lt
                 }
             }
-            Implies => {
+            Or | Implies => {
                 for (t, e) in [(&lt, lhs), (&rt, rhs)] {
                     if !t.compatible(&Ty::Bool) {
+                        let op_text = if matches!(op, Or) { "||" } else { "implies" };
                         self.push(
                             codes::TYPE_MISMATCH,
-                            format!("'implies' requires Bool operands, found '{t}'"),
+                            format!("'{op_text}' requires Bool operands, found '{t}'"),
                             e.span(),
                             vec![direction("Use Bool expressions")],
                         );
@@ -3093,10 +3099,11 @@ pub fn contract_expr_text(e: &ast::Expr) -> String {
         use ast::BinOp::*;
         match op {
             Implies => 0,
-            Eq | Ne => 1,
-            Lt | Gt | Le | Ge => 2,
-            Add | Sub => 3,
-            Mul | Div => 4,
+            Or => 1,
+            Eq | Ne => 2,
+            Lt | Gt | Le | Ge => 3,
+            Add | Sub => 4,
+            Mul | Div | Rem => 5,
         }
     }
     fn bin_op_text(op: ast::BinOp) -> &'static str {
@@ -3112,6 +3119,8 @@ pub fn contract_expr_text(e: &ast::Expr) -> String {
             Sub => "-",
             Mul => "*",
             Div => "/",
+            Rem => "%",
+            Or => "||",
             Implies => "implies",
         }
     }
@@ -3140,7 +3149,7 @@ pub fn contract_expr_text(e: &ast::Expr) -> String {
                 ast::UnaryOp::Neg => "-",
                 ast::UnaryOp::Not => "!",
             };
-            format!("{sym}{}", child(expr, 5))
+            format!("{sym}{}", child(expr, 6))
         }
         ast::Expr::Binary { op, lhs, rhs, .. } => {
             let p = bin_prec(*op);
