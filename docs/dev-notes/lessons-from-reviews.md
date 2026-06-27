@@ -45,3 +45,7 @@ CLAUDE.md に落として、ここからは削除してよい。
 ## PR #72: fix(hooks): grant dev-notes write permission and recover PR #71 loop — 2026-06-27
 
 (no actionable patterns)
+
+## PR #72 (auditor re-run): kei-invariant-auditor PostToolUse — 2026-06-27
+
+(no actionable patterns — hook triggered by invariant auditor `git diff --stat` tool use, not by `gh pr merge`; most recent merged PR #72 already documented above)

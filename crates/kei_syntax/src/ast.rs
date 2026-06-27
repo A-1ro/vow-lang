@@ -13,6 +13,16 @@ pub struct Ident {
     pub span: Span,
 }
 
+/// 1 個の `//` 行コメント(M19)。`text` は `//` の後ろの内容
+/// (末尾改行を含まない)で、フォーマッタは `//` を前置して emit する。
+/// パーサは Comment トークンを副チャネルに退避するため、AST ノードは
+/// コメントを保持しない。`ParseResult::comments` にソース順で並ぶ。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Comment {
+    pub text: String,
+    pub span: Span,
+}
+
 /// 1 ソースファイルのパース結果ルート。
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Module {
@@ -47,6 +57,18 @@ pub enum Item {
     Enum(EnumDecl),
     Func(FuncDecl),
     Extern(ExternDecl),
+}
+
+impl Item {
+    pub fn span(&self) -> Span {
+        match self {
+            Item::TypeAlias(t) => t.span,
+            Item::Record(r) => r.span,
+            Item::Enum(e) => e.span,
+            Item::Func(f) => f.span,
+            Item::Extern(e) => e.span,
+        }
+    }
 }
 
 /// 外部境界の署名宣言(M11)。
@@ -161,6 +183,17 @@ pub enum Stmt {
     If(IfStmt),
     Return(ReturnStmt),
     Expr(ExprStmt),
+}
+
+impl Stmt {
+    pub fn span(&self) -> Span {
+        match self {
+            Stmt::Let(s) => s.span,
+            Stmt::If(s) => s.span,
+            Stmt::Return(s) => s.span,
+            Stmt::Expr(s) => s.span,
+        }
+    }
 }
 
 /// `let x: T = expr else fail expr`

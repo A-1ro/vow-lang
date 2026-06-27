@@ -76,9 +76,13 @@ impl Lexer {
                     self.push(TokenKind::Newline, "\n", start);
                 }
                 '/' if self.peek2() == Some('/') => {
+                    self.bump(); // '/'
+                    self.bump(); // '/'
+                    let mut text = String::new();
                     while self.peek().is_some_and(|c| c != '\n') {
-                        self.bump();
+                        text.push(self.bump());
                     }
+                    self.push(TokenKind::Comment, text, start);
                 }
                 c if c.is_ascii_alphabetic() || c == '_' => self.ident(),
                 c if c.is_ascii_digit() => self.number(),

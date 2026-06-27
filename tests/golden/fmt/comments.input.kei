@@ -1,0 +1,26 @@
+// header before module
+module t.cmt
+
+// before imports
+import core.money { Money }
+// between imports
+import infra.database as Database
+
+// before record
+record Transfer {
+  from: AccountId
+  to: AccountId
+}
+
+// before func
+func f(x: Int) -> Int
+  requires x > 0   // trailing on contract
+  ensures result > x
+{
+  // body leading
+  let y = x + 1
+  // mid-body comment
+  return y
+}
+
+// trailing tail comment

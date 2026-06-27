@@ -86,6 +86,14 @@ fn golden_fmt() {
         if util::ast_json(&before.module) != util::ast_json(&after.module) {
             failures.push(format!("{name}: formatting changed the AST"));
         }
+        // コメント保持(M19): 整形でコメントのテキスト列が変わってはいけない。
+        let before_texts: Vec<&str> = before.comments.iter().map(|c| c.text.as_str()).collect();
+        let after_texts: Vec<&str> = after.comments.iter().map(|c| c.text.as_str()).collect();
+        if before_texts != after_texts {
+            failures.push(format!(
+                "{name}: comments lost or reordered\n  before: {before_texts:?}\n  after:  {after_texts:?}"
+            ));
+        }
     }
 
     assert!(

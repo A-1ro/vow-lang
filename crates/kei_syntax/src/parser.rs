@@ -16,6 +16,10 @@ pub struct Parser {
     tokens: Vec<Token>,
     pos: usize,
     errors: Vec<SyntaxError>,
+    /// コメントトークンはパース文法に無関係なので構築時にフィルタし
+    /// ソース順で退避する(M19)。フォーマッタがソース行から
+    /// leading/trailing を再構築する。
+    comments: Vec<Comment>,
 }
 
 /// 契約節キーワード(typo 検出 KEI-E0104 の照合対象)。
@@ -23,15 +27,28 @@ const CLAUSE_KEYWORDS: [&str; 3] = ["uses", "requires", "ensures"];
 
 impl Parser {
     pub fn new(tokens: Vec<Token>, lex_errors: Vec<SyntaxError>) -> Self {
+        let mut comments = Vec::new();
+        let mut filtered = Vec::with_capacity(tokens.len());
+        for tok in tokens {
+            if tok.kind == T::Comment {
+                comments.push(Comment {
+                    text: tok.text,
+                    span: tok.span,
+                });
+            } else {
+                filtered.push(tok);
+            }
+        }
         Self {
-            tokens,
+            tokens: filtered,
             pos: 0,
             errors: lex_errors,
+            comments,
         }
     }
 
-    pub fn into_errors(self) -> Vec<SyntaxError> {
-        self.errors
+    pub fn into_results(self) -> (Vec<SyntaxError>, Vec<Comment>) {
+        (self.errors, self.comments)
     }
 
     // ---- トークン操作 ----

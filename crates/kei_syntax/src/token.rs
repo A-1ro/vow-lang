@@ -60,6 +60,9 @@ pub enum TokenKind {
     OrOr,
     // 構造
     Newline,
+    /// `//` 行コメント。テキストは `//` の後ろの内容(末尾改行を含まない)。
+    /// パーサ構築時にフィルタされて Comment として副チャネルに退避する(M19)。
+    Comment,
     Eof,
 }
 
@@ -178,6 +181,7 @@ impl TokenKind {
             TokenKind::Int => "integer literal",
             TokenKind::Str => "string literal",
             TokenKind::Newline => "end of line",
+            TokenKind::Comment => "line comment",
             TokenKind::Eof => "end of file",
             other => other.literal().unwrap_or("token"),
         }

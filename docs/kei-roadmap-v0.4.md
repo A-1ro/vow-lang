@@ -10,7 +10,7 @@
 
 | M | テーマ | issue | 優先度 | 状態 | 主な改修クレート |
 |---|---|---|---|---|---|
-| **M19** | `kei fmt` のコメント保持(lossless formatting) | #54 | high | 未着手 | kei_syntax / kei_fmt |
+| **M19** | `kei fmt` のコメント保持(lossless formatting) | #54 | high | ✅ 実装済み | kei_syntax / kei_fmt |
 | **M20** | import 境界の型定義解決(record/enum/tagged) | #55 | high | 未着手 | kei_check / kei_cli |
 | **M21** | 論理和 `\|\|` と剰余 `%` | #58 | medium | ✅ 実装済み | kei_syntax / kei_check / kei_fmt / kei_emit |
 | **M22** | List リテラル + tagged 明示構築 | #57 | medium | 未着手 | kei_syntax / kei_check / kei_emit |
