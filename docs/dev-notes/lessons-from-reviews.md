@@ -45,3 +45,19 @@ CLAUDE.md に落として、ここからは削除してよい。
 ## PR #72: fix(hooks): grant dev-notes write permission and recover PR #71 loop — 2026-06-27
 
 (no actionable patterns)
+
+## PR #75: feat(syntax,check,emit,fmt): list literals and explicit tagged ctors (M22 / #57) — 2026-06-27
+
+(no actionable patterns)
+
+> **Note**: この hook は PostToolUse (Bash) で発火した。`tool_input.command` に `gh pr merge` が含まれないため最近マージ済み PR を特定しようとしたが、`gh` CLI がこの実行環境に存在しないため PR レビューコメントの取得が不可能だった。セッションのトランスクリプト上では `/code-review xhigh` スキルが発火した直後(最初の Bash ツール呼び出し後)に hook が割り込んだ状態であり、レビュー結果はまだ生成されていなかった。抽出できるレビューパターンが存在しないため、actionable patterns なしとする。
+
+- **Pattern**: `PostToolUse` hook はスキル途中でも発火する
+  **Source**: PR #75 の `/code-review xhigh` 実行中(session b0387495)に hook が 2 度発火した事実
+  **Lesson**: `PostToolUse:Bash` hook は `gh pr merge` 以外の Bash 呼び出し後にも発火するため、`tool_input.command` を必ず確認して `gh pr merge <N>` を含まない場合は early-exit すべき。現状は毎回 lessons-from-reviews.md に空エントリが追記される無駄が発生している。hook スクリプト冒頭に `[[ "$COMMAND" != *"gh pr merge"* ]] && exit 0` のようなガードを入れるか、`match` 条件を設定に追加することで回避できる。
+
+## Hook fire: fmt idempotency test — 2026-06-28 (session b0387495, tool_use_id toulu_01L7CxWqDUR6AELia6U88v7o)
+
+(no actionable patterns)
+
+> **Note**: `tool_input.command` は `cargo run -p kei_cli --bin kei -- fmt /dev/stdin` であり `gh pr merge` を含まない。`gh` CLI も環境に存在しないため PR レビューコメント取得不可。このエントリ自体が「guard なしで hook が発火し続けている」という繰り返し警告であり、上記 PR #75 の教訓（`PostToolUse:Bash` hook に early-exit ガードを追加する）がまだ実施されていないことを示している。

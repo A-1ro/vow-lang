@@ -61,3 +61,25 @@
          バージョン言及は機能 PR 側で更新する慣例(本 PR ではなく PR #69 が担当)。
          これらも PR body に明記されているため HANDOFF.md 昇格不要と判断。
 -->
+
+## PR #75: feat(syntax,check,emit,fmt): list literals and explicit tagged ctors (M22 / #57) — 2026-06-27
+
+### Candidate: 空リスト `[]` は `Ty::List(Unknown)` — エラーではなく遅延具体化
+**Why this matters for HANDOFF.md**: 将来 List 型を扱う推論拡張をするとき、空リテラルの型が `Unknown` 基底で渡ってくることを知らないと型エラーの原因究明で迷う。
+**Draft entry** (lift verbatim if approved):
+> `infer_list_lit` で要素が空の場合、`Ty::List(Unknown)` を返す(エラーにしない)。空 `[]` は `let xs: List<Int> = []` のように let の型注釈や関数の引数位置・戻り型位置で `Unknown` が具体型に unify されることで意味を持つ。この「遅延具体化」方針を取ったため、空リストを注釈無しで使う箇所があると型エラーではなく `Unknown` のまま下流まで流れる可能性がある。将来 List の型推論を拡張する場合、この起点を把握しておくこと(`crates/kei_check/src/check.rs` の `infer_list_lit`)。
+
+### Candidate: tagged 明示コンストラクタの emit は無変更 — `emit_alias` が既にTS関数を生成済み
+**Why this matters for HANDOFF.md**: `ProductId("P-001")` という Kei 構文が TS に変換されるとき「なぜ emit.rs に特別なコードが要らないのか」が分かりにくく、将来 tagged 型の emit を修正しようとしたとき見落とす可能性がある。
+**Draft entry** (lift verbatim if approved):
+> `type ProductId = tagged string` の alias 宣言に対し、`emit_alias` が `export function ProductId(value: string): ProductId { ... }` という TS コンストラクタ関数をすでに出力している。そのため Kei の `ProductId("P-001")` は **通常の Call ノードとして** emit されるだけで足り、`emit_expr` 側に tagged-ctor 専用の特別ロジックは一切不要。この「構文糖 → 通常 Call → 既存 TS 関数」の対応を知らないと、emit のどこを読んでも tagged ctor 変換コードが見つからず困惑する。エントリポイントは `crates/kei_check/src/check.rs` の `call_named` / `NameKind::Alias` 分岐で型を解決し、emit は従来の Call 経路に任せる設計。
+
+### Candidate: List リテラルの要素 emit に `Prec::Implication` を使う理由
+**Why this matters for HANDOFF.md**: 他の場所で要素を emit するとき誤って低い Prec を使うと record リテラル / tagged ctor が不要な括弧なしで出て ambiguity が生じる恐れがあり、逆に高すぎる Prec を使うと必要な括弧が落ちる。
+**Draft entry** (lift verbatim if approved):
+> `Expr::ListLit` の各要素を `emit_expr` に渡すときは `Prec::Implication` を指定する(M22 実装: `crates/kei_emit/src/emit.rs`)。これは「リスト要素には record リテラルや tagged ctor が来る可能性があり、それらは高めの Prec で処理されるが、カンマを含む構文は括弧が必要になる場合がある」ため、emit_expr 側の親 Prec 判定に委ねる最上位に近い値を渡す設計。PR #69 の教訓「演算子の Prec 変更は全 emit 呼び出し側に波及する」と合わせて参照のこと。
+
+### Candidate: `infer_list_lit` は先頭要素を正とし、後続を先頭に合わせる単方向 unify
+**Why this matters for HANDOFF.md**: 双方向 unify への切り替えや「最も具体的な型への統合」戦略への変更を検討するとき、現行の非対称設計の理由と限界を把握する必要がある。
+**Draft entry** (lift verbatim if approved):
+> `infer_list_lit`(M22)は先頭要素の推論結果を「期待型」とし、後続要素を `check_assign(first, e_i)` で合わせる単方向 unify を採用している。これは `check_assign` が既存の単一方向 API であることと、先頭を権威とする方がエラーメッセージが直感的(「2 番目の要素が期待型と合わない」と言える)であることの両方による選択。将来双方向 unify(most-specific-supertype)が必要になる場合はこの関数を置き換える起点となる。`crates/kei_check/src/check.rs` `infer_list_lit` 参照。
