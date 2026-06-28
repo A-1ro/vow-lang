@@ -1,6 +1,11 @@
-//! M23 / #60: List / record / tagged 引数の generative 検証が機能することを
+//! M23 / #60: List / record / tagged 引数の bounded 検証が機能することを
 //! 固定する。スカラだけだった段階1 と違い、`List<R>` を入力に取る集計・計画
 //! 関数の `ensures` も反例探索の対象に入る。
+//!
+//! ※ PR #76 review 反映: List/record 引数は部分サンプル(長さ 0..=2 など)で
+//!    しか網羅できないため、verification level は `Generative`(全数)ではなく
+//!    `Bounded`(部分検査)で報告される。テスト名・コメントの "generative" は
+//!    歴史的経緯で残る("bounded への昇格" の方が正確)。
 
 use kei_check::pbt::run_module;
 
@@ -102,6 +107,51 @@ fn list_of_record_argument_lifts_to_generative() {
         total.passed,
         "non-negative fold over List<Product>-like should be clean: {:?}",
         total.counterexample
+    );
+}
+
+/// PR #76 review: List 引数を持つ関数の verification は `Bounded`(部分検査)
+/// であり、`Generative`(全数)とは区別される。スカラのみの関数とは振る舞いが
+/// 異なることを CheckReport レベルで固定する。
+#[test]
+fn list_argument_lifts_to_bounded_not_generative() {
+    use kei_check::{check_module_report_with, CheckOptions, Verification};
+
+    let src = "module t\n\
+               func plus(acc: Int, x: Int) -> Int { return acc + x }\n\
+               func nonNeg(x: Int) -> Bool { return x >= 0 }\n\
+               // List 引数 → Bounded\n\
+               func total(xs: List<Int>) -> Int\n  requires xs.all(nonNeg)\n  ensures result >= 0\n{\n  return xs.fold(0, plus)\n}\n\
+               // スカラのみ → Generative\n\
+               func incr(n: Int) -> Int\n  requires n >= 0\n  ensures result > n\n{\n  return n + 1\n}\n";
+    let m = module(src);
+    let report = check_module_report_with(
+        "t.kei",
+        &m,
+        CheckOptions {
+            generative: true,
+            ..CheckOptions::default()
+        },
+    );
+    let total_ens = report
+        .contracts
+        .iter()
+        .find(|c| c.func == "total" && c.expr == "result >= 0")
+        .expect("total ensures expected");
+    assert_eq!(
+        total_ens.verification,
+        Verification::Bounded,
+        "List arg must lift only to Bounded (not Generative)"
+    );
+    let incr_ens = report
+        .contracts
+        .iter()
+        .find(|c| c.func == "incr" && c.expr == "result > n")
+        .expect("incr ensures expected");
+    assert_eq!(
+        incr_ens.verification,
+        Verification::Generative,
+        "scalar-only function should still lift to Generative"
     );
 }
 

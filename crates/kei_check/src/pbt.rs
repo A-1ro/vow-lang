@@ -13,7 +13,7 @@
 //! 関数は静かに対象外(`generative` には上がらず `runtime` のまま)。生成・判定ロジックは
 //! ここ(kei_check)に置き、kei_cli は委譲のみ(CLAUDE.md)。
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use kei_syntax::ast;
@@ -36,7 +36,12 @@ mod seed_codes {
 /// 段階2(M23 / #60): List / Record / Tagged を加え、List 引数を取る集計・計画関数の
 /// `ensures` も generative に上げる。tagged は emit と同様に「型情報を持つ underlying」
 /// として扱い、比較・等値は underlying と同等。
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// `PartialEq` は手書き(PR #76 review): record の field 順は構築経路で変わる
+/// (`record_candidates` は宣言順、`RecordLit` 評価はソース順)ので derived な
+/// positional 比較では同値判定が偽陽性 counterexample を生む。同じ name + 同じ
+/// (field name → value) 集合なら等値とする構造比較に倒す。
+#[derive(Debug, Clone)]
 pub enum Value {
     Int(i64),
     Bool(bool),
@@ -51,6 +56,37 @@ pub enum Value {
     /// tagged 型値。emit では underlying を branded していて runtime 上の構造は同じ。
     Tagged(String, Box<Value>),
 }
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Value::Int(a), Value::Int(b)) => a == b,
+            (Value::Bool(a), Value::Bool(b)) => a == b,
+            (Value::Str(a), Value::Str(b)) => a == b,
+            (Value::List(a), Value::List(b)) => a == b,
+            (
+                Value::Record {
+                    name: an,
+                    fields: af,
+                },
+                Value::Record {
+                    name: bn,
+                    fields: bf,
+                },
+            ) => {
+                if an != bn || af.len() != bf.len() {
+                    return false;
+                }
+                af.iter()
+                    .all(|(k, v)| bf.iter().any(|(k2, v2)| k == k2 && v == v2))
+            }
+            (Value::Tagged(an, av), Value::Tagged(bn, bv)) => an == bn && av == bv,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Value {}
 
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -105,6 +141,10 @@ pub struct PropertyOutcome {
     pub cases_checked: usize,
     /// 反例(最小化済み入力 + 破れた ensures のソース表記)。`passed` なら `None`。
     pub counterexample: Option<CounterExample>,
+    /// 部分検査(List 長 0..=2 など bounded サンプル)で通った場合 `true`。
+    /// `apply_generative` がこのフラグを見て `Verification::Generative`(全数)と
+    /// `Verification::Bounded`(部分)を選び分ける(PR #76 review)。
+    pub bounded: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -171,8 +211,16 @@ fn run_function(
         return None;
     }
     let mut domains: Vec<Vec<Value>> = Vec::new();
+    // 部分検査かどうか(PR #76 review): List 型 or 解決済み record/alias 型を
+    // パラメータに持つ関数は bounded サンプルでしか検証できない。
+    let mut bounded = false;
     for p in &f.params {
-        domains.push(candidate_values(&p.ty, ctx, false)?);
+        if is_bounded_param_ty(&p.ty, ctx) {
+            bounded = true;
+        }
+        // 各パラメータ独立で循環ガードを始める(パラメータ間は別物)。
+        let mut visiting = HashSet::new();
+        domains.push(candidate_values(&p.ty, ctx, false, &mut visiting)?);
     }
 
     // 生成ケース総数(各次元の候補数の積)を、デカルト積を実体化する前に見積もる。
@@ -204,12 +252,17 @@ fn run_function(
             .collect();
 
         // requires を満たす入力だけを検査対象にする(満たさない入力は捨てる)。
+        // PR #76 review: `Err(Precondition)` は **この入力の評価過程で別関数の
+        // requires が壊れた** ことを意味する。これは「その入力での前提評価が
+        // 行えなかった」だけで、関数全体を対象外にする必要はない。当該入力だけ
+        // 捨てて次へ進む(他の入力で生成的検証が成立する余地を残す)。`Unsupported`
+        // は評価器が扱えない構文に触れたことなので、関数全体の前提評価信頼性が
+        // 揺らぐ → 過信せず対象外。
         match all_hold(&f.requires, &env, funcs) {
             Ok(false) => continue,
             Ok(true) => {}
-            // 契約自体が評価不能 / 前提評価が破綻 → 対象外(過信して generative に上げない)。
-            Err(EvalError::Unsupported) | Err(EvalError::Precondition(_)) => return None,
-            Err(EvalError::Trap) => continue,
+            Err(EvalError::Unsupported) => return None,
+            Err(EvalError::Precondition(_)) | Err(EvalError::Trap) => continue,
         }
 
         // 関数本体を評価して result を得る。呼び出し先の requires 違反(throw)は反例。
@@ -274,7 +327,29 @@ fn run_function(
         passed: counterexample.is_none(),
         cases_checked,
         counterexample,
+        bounded,
     })
+}
+
+/// パラメータ型が部分検査(List 長 0..=2 / record 小ドメイン cartesian)に
+/// なるかを判定(PR #76 review)。プリミティブ(Int/Bool/String)とその
+/// alias は generative(全数 enumerable)とみなす。
+fn is_bounded_param_ty(t: &ast::Type, ctx: &DomainCtx) -> bool {
+    if t.path.len() != 1 {
+        return false;
+    }
+    let root = t.path[0].name.as_str();
+    if root == "List" {
+        return true;
+    }
+    if ctx.records.contains_key(root) {
+        return true;
+    }
+    if let Some(a) = ctx.aliases.get(root) {
+        // tagged alias の underlying が bounded ならそれも bounded。
+        return is_bounded_param_ty(&a.ty, ctx);
+    }
+    false
 }
 
 /// モジュール内宣言の軽量コンテキスト(record / type alias を引く)。M23 で
@@ -309,7 +384,17 @@ impl<'a> DomainCtx<'a> {
 /// 型ごとの決定的な候補入力集合。生成不能型(Option / Result / enum / 解決不能 import)は
 /// `None`(対象外)。`deep` は List / record の **内部** で使う subdomain への切り替え
 /// フラグで、組み合わせ爆発を抑える。
-fn candidate_values(t: &ast::Type, ctx: &DomainCtx, deep: bool) -> Option<Vec<Value>> {
+///
+/// `visiting` は **現在展開中の record / alias 名** を覚える循環ガード(PR #76 review):
+/// `record Node { next: Node }` や `type A = B; type B = A` のような自己参照型に対して、
+/// 旧実装はスタックオーバーフローでクラッシュしていた。再入した型は対象外 (None) に倒し、
+/// 関数を generative から静かに脱落させる(過信して反例なしに昇格させない)。
+fn candidate_values(
+    t: &ast::Type,
+    ctx: &DomainCtx,
+    deep: bool,
+    visiting: &mut HashSet<String>,
+) -> Option<Vec<Value>> {
     if t.path.len() != 1 {
         return None;
     }
@@ -319,21 +404,23 @@ fn candidate_values(t: &ast::Type, ctx: &DomainCtx, deep: bool) -> Option<Vec<Va
             "Int" => Some(int_domain(deep)),
             "Bool" => Some(vec![Value::Bool(false), Value::Bool(true)]),
             "String" => Some(str_domain(deep)),
-            r if ctx.records.contains_key(r) => record_candidates(r, ctx),
-            r if ctx.aliases.contains_key(r) => alias_candidates(r, ctx, deep),
+            r if ctx.records.contains_key(r) => record_candidates(r, ctx, visiting),
+            r if ctx.aliases.contains_key(r) => alias_candidates(r, ctx, deep, visiting),
             _ => None,
         }
     } else if root == "List" && t.args.len() == 1 {
-        list_candidates(&t.args[0], ctx)
+        list_candidates(&t.args[0], ctx, visiting)
     } else {
         None
     }
 }
 
 fn int_domain(deep: bool) -> Vec<Value> {
-    // 浅い文脈ではエッジ値を含む 11 値、深い文脈(List/Record 内)は 3 値に絞って爆発回避。
+    // 浅い文脈ではエッジ値を含む 11 値、深い文脈(List/Record 内)は 5 値に絞って爆発回避。
+    // PR #76 review: 深い領域も「ゼロ周辺」(`-1, 0, 1`)+「大きめの境界」(`-100, 100`)を
+    // 残す。`[-3, 0, 3]` だけだと `result != -200`/オーバーフロー領域が踏まれない。
     let arr: &[i64] = if deep {
-        &[-3, 0, 3]
+        &[-100, -1, 0, 1, 100]
     } else {
         &[-100, -10, -3, -2, -1, 0, 1, 2, 3, 10, 100]
     };
@@ -342,7 +429,9 @@ fn int_domain(deep: bool) -> Vec<Value> {
 
 fn str_domain(deep: bool) -> Vec<Value> {
     if deep {
-        vec![Value::Str("a".to_string())]
+        // PR #76 review: 深い領域でも **空文字** は境界として残す
+        // (`requires items.all(nonEmpty)` のような契約が踏まれるように)。
+        vec![Value::Str(String::new()), Value::Str("a".to_string())]
     } else {
         vec![
             Value::Str(String::new()),
@@ -352,46 +441,81 @@ fn str_domain(deep: bool) -> Vec<Value> {
     }
 }
 
-fn record_candidates(name: &str, ctx: &DomainCtx) -> Option<Vec<Value>> {
+fn record_candidates(
+    name: &str,
+    ctx: &DomainCtx,
+    visiting: &mut HashSet<String>,
+) -> Option<Vec<Value>> {
+    // 循環ガード(PR #76 review): 自己参照(`record Node { next: Node }`)で
+    // 同じ record を再展開しようとしたら None で打ち切る(対象外)。
+    if !visiting.insert(name.to_string()) {
+        return None;
+    }
     let rec = ctx.records.get(name)?;
     let mut field_doms: Vec<(String, Vec<Value>)> = Vec::with_capacity(rec.fields.len());
     for f in &rec.fields {
-        field_doms.push((f.name.name.clone(), candidate_values(&f.ty, ctx, true)?));
+        let dom = match candidate_values(&f.ty, ctx, true, visiting) {
+            Some(d) => d,
+            None => {
+                visiting.remove(name);
+                return None;
+            }
+        };
+        field_doms.push((f.name.name.clone(), dom));
     }
+    visiting.remove(name);
     let total = field_doms
         .iter()
         .try_fold(1usize, |a, (_, d)| a.checked_mul(d.len()))?;
     if total > 512 {
         // record 1 個の候補数が大きすぎると List 化で爆発する。安全側に対象外。
+        // PR #76 review: 現状この経路で None が返ると関数全体が PBT 対象外になり、
+        // ContractInfo の verification が `Runtime` のまま残る(ユーザには「なぜ
+        // bounded に上がらない?」が見えない無言の脱落)。skip 理由を ContractInfo に
+        // 載せる API 変更は大きいので、CLI レベルでの可視化は別 PR(follow-up)で扱う。
         return None;
     }
-    let mut out: Vec<Value> = vec![Value::Record {
-        name: name.to_string(),
-        fields: Vec::new(),
-    }];
-    for (fname, dom) in &field_doms {
-        let mut next = Vec::with_capacity(out.len() * dom.len());
-        for prev in &out {
-            let Value::Record { name: rn, fields } = prev else {
-                unreachable!()
-            };
-            for v in dom {
-                let mut nf = fields.clone();
-                nf.push((fname.clone(), v.clone()));
-                next.push(Value::Record {
-                    name: rn.clone(),
-                    fields: nf,
-                });
-            }
-        }
-        out = next;
-    }
-    Some(out)
+    // 全フィールド域のデカルト積 → `Value::Record` 列。`cartesian` ヘルパに
+    // 委譲して二重実装を避ける(PR #76 review)。
+    let combos = cartesian(
+        &field_doms
+            .iter()
+            .map(|(_, d)| d.clone())
+            .collect::<Vec<_>>(),
+    );
+    Some(
+        combos
+            .into_iter()
+            .map(|combo| {
+                let fields: Vec<(String, Value)> = field_doms
+                    .iter()
+                    .zip(combo)
+                    .map(|((fname, _), v)| (fname.clone(), v))
+                    .collect();
+                Value::Record {
+                    name: name.to_string(),
+                    fields,
+                }
+            })
+            .collect(),
+    )
 }
 
-fn alias_candidates(name: &str, ctx: &DomainCtx, deep: bool) -> Option<Vec<Value>> {
+fn alias_candidates(
+    name: &str,
+    ctx: &DomainCtx,
+    deep: bool,
+    visiting: &mut HashSet<String>,
+) -> Option<Vec<Value>> {
+    // 循環ガード(`type A = B; type B = A`)。同じ alias を再展開しようとしたら
+    // None で打ち切る(PR #76 review)。
+    if !visiting.insert(name.to_string()) {
+        return None;
+    }
     let a = ctx.aliases.get(name)?;
-    let underlying = candidate_values(&a.ty, ctx, deep)?;
+    let underlying = candidate_values(&a.ty, ctx, deep, visiting);
+    visiting.remove(name);
+    let underlying = underlying?;
     match &a.tag {
         Some(_) => Some(
             underlying
@@ -403,16 +527,29 @@ fn alias_candidates(name: &str, ctx: &DomainCtx, deep: bool) -> Option<Vec<Value
     }
 }
 
-fn list_candidates(elem_ty: &ast::Type, ctx: &DomainCtx) -> Option<Vec<Value>> {
-    let elem_dom = candidate_values(elem_ty, ctx, true)?;
+fn list_candidates(
+    elem_ty: &ast::Type,
+    ctx: &DomainCtx,
+    visiting: &mut HashSet<String>,
+) -> Option<Vec<Value>> {
+    let elem_dom = candidate_values(elem_ty, ctx, true, visiting)?;
     // 長さ 0..=2 を列挙。境界(空・単一・複数)を網羅。長さ 2 で要素のデカルト積が
     // 大きいと組み合わせ爆発するので、上限 30 を超えるときは「同一要素ペア」のみに絞る。
-    let mut out: Vec<Value> = Vec::with_capacity(1 + elem_dom.len() + elem_dom.len().pow(2));
+    // PR #76 review: 容量見積は実際の push 回数に合わせる(else 分岐の同一ペアモードでは
+    // n + n の倍数だけ。`Vec::with_capacity(1 + n + n.pow(2))` は record 512 元から
+    // 流れて来ると ~262K スロットの過剰確保になる)。
+    let pair_total = elem_dom.len().saturating_mul(elem_dom.len());
+    let length2_count = if pair_total <= 30 {
+        pair_total
+    } else {
+        elem_dom.len()
+    };
+    let cap = 1 + elem_dom.len() + length2_count;
+    let mut out: Vec<Value> = Vec::with_capacity(cap);
     out.push(Value::List(Vec::new()));
     for v in &elem_dom {
         out.push(Value::List(vec![v.clone()]));
     }
-    let pair_total = elem_dom.len().saturating_mul(elem_dom.len());
     if pair_total <= 30 {
         for a in &elem_dom {
             for b in &elem_dom {
@@ -445,6 +582,12 @@ fn value_size(v: &Value) -> i64 {
 }
 
 /// 各次元の候補のデカルト積(全組み合わせ)。
+///
+/// PR #76 review TODO: 現状は最大 100K combo を Vec で全物化する。1 個ずつ消費
+/// するだけのループで使う場合、ピークメモリが膨らむ。mixed-radix iterator 化が
+/// 望ましいが、`run_function` の反例最小化が後段で再走査するので即時値消費の
+/// 単純 iterator では足りない。`failures: Vec<(Vec<Value>, ...)>` 側を見直す
+/// follow-up が必要。
 fn cartesian(domains: &[Vec<Value>]) -> Vec<Vec<Value>> {
     let mut acc: Vec<Vec<Value>> = vec![Vec::new()];
     for dom in domains {
@@ -701,22 +844,34 @@ fn eval_expr(
                     }
                     return eval_func_call(callee_fn, &argv, funcs, depth + 1);
                 }
-                // tagged 明示コンストラクタ `T(value)` (M22 / #57)。検査器は callee=Name で
-                // 既に tagged alias と確定しているはず。pbt はこのタグ名情報を持たないので、
-                // 値は引数の underlying をそのまま Tagged(name, underlying) で包んで返す。
-                // ensures の同名比較は Tagged 同士の構造比較で成立する。
-                if args.len() == 1 {
-                    // `Ok` / `Err` / `Some` / `None` 等の組み込みは未対応(段階1のまま)。
-                    let underlying = eval_expr(&args[0], env, funcs, in_ensures, depth)?;
-                    return Ok(Value::Tagged(name.clone(), Box::new(underlying)));
-                }
+                // tagged 明示コンストラクタ `T(value)`(M22 / #57)の評価は段階1では
+                // 未対応(Unsupported)。PR #76 review: かつてここで「1-arg Name 呼び出し
+                // すべてを `Value::Tagged(name, underlying)` に包む」フォールバックを
+                // 置いていたが、`Ok(x)` / `Err(x)` / `Some(x)` / ユーザ定義 record 名
+                // などが誤って Tagged 化され、`Value::Record` との等値判定が偽陽性
+                // counterexample を生む。tagged 名を解決するには module コンテキスト
+                // (DomainCtx::aliases)を eval_expr まで持ち回す必要があるため、段階保守
+                // として一律 Unsupported に倒す。tagged 引数の関数自体は candidate_values
+                // が `Value::Tagged` を生成するので、let/return/Field 経路では透過する。
                 return Err(EvalError::Unsupported);
             }
-            // List コンビネータのメソッド呼び出し: `xs.method(args...)`
+            // List コンビネータのメソッド呼び出し: `xs.method(args...)`。
+            // PR #76 review: tagged alias で wrap された List(`type Items = List<Int>
+            // tagged "Items"`)も同じ呼び出しを受けるので、Tagged を透過してから
+            // 判定する。
             if let ast::Expr::Field { base, name, .. } = callee.as_ref() {
                 let recv = eval_expr(base, env, funcs, in_ensures, depth)?;
-                if let Value::List(xs) = &recv {
-                    return eval_list_method(name.name.as_str(), xs, args, env, funcs, depth);
+                let unwrapped = unwrap_tagged(&recv);
+                if let Value::List(xs) = unwrapped {
+                    return eval_list_method(
+                        name.name.as_str(),
+                        xs,
+                        args,
+                        env,
+                        funcs,
+                        in_ensures,
+                        depth,
+                    );
                 }
                 return Err(EvalError::Unsupported);
             }
@@ -760,7 +915,17 @@ fn eval_expr(
                     .map(|(_, val)| val.clone())
                     .ok_or(EvalError::Unsupported),
                 // List のフィールドアクセスは現状 `length` のみ(契約での `result.length` 等)。
+                // PR #76 review: tagged で包まれた List も同じく拾う。
                 Value::List(xs) if name.name == "length" => Ok(Value::Int(xs.len() as i64)),
+                Value::Tagged(_, inner)
+                    if matches!(*inner, Value::List(_)) && name.name == "length" =>
+                {
+                    if let Value::List(xs) = *inner {
+                        Ok(Value::Int(xs.len() as i64))
+                    } else {
+                        unreachable!()
+                    }
+                }
                 Value::Tagged(_, inner) => match *inner {
                     Value::Record { fields, .. } => fields
                         .iter()
@@ -786,6 +951,7 @@ fn eval_list_method(
     args: &[ast::Expr],
     env: &HashMap<String, Value>,
     funcs: &HashMap<&str, &ast::FuncDecl>,
+    in_ensures: bool,
     depth: usize,
 ) -> Result<Value, EvalError> {
     match method {
@@ -822,10 +988,13 @@ fn eval_list_method(
             if !f.uses.is_empty() {
                 return Err(EvalError::Unsupported);
             }
+            // PR #76 review: 4 メソッドが同形のループだったので apply ヘルパに
+            // 委譲して per-element 評価の重複を解消する。Bool 消費は各分岐側で行う。
+            let apply = |x: &Value| eval_func_call(f, std::slice::from_ref(x), funcs, depth + 1);
             match method {
                 "all" => {
                     for x in xs {
-                        match eval_func_call(f, std::slice::from_ref(x), funcs, depth + 1)? {
+                        match apply(x)? {
                             Value::Bool(true) => {}
                             Value::Bool(false) => return Ok(Value::Bool(false)),
                             _ => return Err(EvalError::Unsupported),
@@ -835,7 +1004,7 @@ fn eval_list_method(
                 }
                 "any" => {
                     for x in xs {
-                        match eval_func_call(f, std::slice::from_ref(x), funcs, depth + 1)? {
+                        match apply(x)? {
                             Value::Bool(true) => return Ok(Value::Bool(true)),
                             Value::Bool(false) => {}
                             _ => return Err(EvalError::Unsupported),
@@ -846,19 +1015,14 @@ fn eval_list_method(
                 "map" => {
                     let mut out = Vec::with_capacity(xs.len());
                     for x in xs {
-                        out.push(eval_func_call(
-                            f,
-                            std::slice::from_ref(x),
-                            funcs,
-                            depth + 1,
-                        )?);
+                        out.push(apply(x)?);
                     }
                     Ok(Value::List(out))
                 }
                 "filter" => {
                     let mut out = Vec::new();
                     for x in xs {
-                        match eval_func_call(f, std::slice::from_ref(x), funcs, depth + 1)? {
+                        match apply(x)? {
                             Value::Bool(true) => out.push(x.clone()),
                             Value::Bool(false) => {}
                             _ => return Err(EvalError::Unsupported),
@@ -873,7 +1037,10 @@ fn eval_list_method(
             if args.len() != 2 {
                 return Err(EvalError::Unsupported);
             }
-            let init = eval_expr(&args[0], env, funcs, false, depth)?;
+            // PR #76 review: init を `in_ensures=false` 固定で評価していたため、
+            // `ensures result == xs.fold(old(seed), addFn)` のように init に
+            // `old(...)` を入れると Unsupported で落ちていた。外側の文脈を伝播する。
+            let init = eval_expr(&args[0], env, funcs, in_ensures, depth)?;
             let fname = match &args[1] {
                 ast::Expr::Name { name, .. } => name.clone(),
                 _ => return Err(EvalError::Unsupported),
@@ -895,9 +1062,23 @@ fn eval_list_method(
     }
 }
 
+/// Tagged を underlying まで剥がす(PR #76 review)。pbt の比較・算術・List
+/// メソッドは「tagged は underlying と等価」が前提なので、入口で透過する。
+fn unwrap_tagged(v: &Value) -> &Value {
+    let mut cur = v;
+    while let Value::Tagged(_, inner) = cur {
+        cur = inner;
+    }
+    cur
+}
+
 fn eval_binary(op: ast::BinOp, l: Value, r: Value) -> Result<Value, EvalError> {
     use ast::BinOp::*;
     use Value::{Bool, Int};
+    // PR #76 review: tagged スカラの算術・比較は underlying と同等扱い。
+    // 入口でアンラップしてから既存パターンに乗せる。
+    let l = unwrap_tagged(&l).clone();
+    let r = unwrap_tagged(&r).clone();
     match (op, l, r) {
         (Add, Int(a), Int(b)) => a.checked_add(b).map(Int).ok_or(EvalError::Trap),
         (Sub, Int(a), Int(b)) => a.checked_sub(b).map(Int).ok_or(EvalError::Trap),
