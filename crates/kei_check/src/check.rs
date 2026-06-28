@@ -208,13 +208,21 @@ fn apply_generative(
 ) {
     for outcome in crate::pbt::run_module(module) {
         if outcome.passed {
-            // 反例ゼロ: この関数の ensures(runtime 止まり)を generative へ格上げ。
+            // 反例ゼロ: この関数の ensures(runtime 止まり)を格上げ。
+            // PR #76 review: List / record / tagged 引数を持つ関数は
+            // 候補ドメインが部分サンプルなので、generative(全数)ではなく
+            // bounded(部分検査)に倒す。
+            let level = if outcome.bounded {
+                Verification::Bounded
+            } else {
+                Verification::Generative
+            };
             for c in contracts.iter_mut() {
                 if c.func == outcome.func
                     && c.kind == ContractKind::Ensures
                     && c.verification == Verification::Runtime
                 {
-                    c.verification = Verification::Generative;
+                    c.verification = level;
                 }
             }
         } else if let Some(ce) = &outcome.counterexample {

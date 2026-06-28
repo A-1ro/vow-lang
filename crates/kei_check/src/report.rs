@@ -57,7 +57,11 @@ impl ContractKind {
 #[serde(rename_all = "lowercase")]
 pub enum Verification {
     Static,
+    /// 全生成入力(Int の境界値や Bool の全域)で反例ゼロ。**universal coverage**。
     Generative,
+    /// 部分サンプル(List 長 0..=2、record の小ドメイン cartesian)で反例ゼロ。
+    /// 全数検査ではないので generative とは区別する(PR #76 review)。
+    Bounded,
     Runtime,
     Trusted,
     Unchecked,
@@ -68,6 +72,7 @@ impl Verification {
         match self {
             Verification::Static => "static",
             Verification::Generative => "generative",
+            Verification::Bounded => "bounded",
             Verification::Runtime => "runtime",
             Verification::Trusted => "trusted",
             Verification::Unchecked => "unchecked",
