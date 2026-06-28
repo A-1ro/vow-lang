@@ -1,3 +1,5 @@
+// Money / core.money は spec v0.1 §2.4 の架空型・架空モジュール(stdlib に実在しない)。
+// 実プロジェクトでは Int(最小通貨単位)か自前 type Money = Int tagged "Money" を使うこと。
 module effects.transfer
 
 import core.money { AccountId, Money }

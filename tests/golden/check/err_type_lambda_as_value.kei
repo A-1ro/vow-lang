@@ -1,0 +1,10 @@
+module collections.lambda_as_value
+
+record Item {
+  qty: Int
+}
+
+func bad(items: List<Item>) -> Int {
+  let f = p => p.qty + 1
+  return items.length
+}

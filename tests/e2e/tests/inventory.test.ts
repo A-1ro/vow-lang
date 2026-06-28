@@ -43,7 +43,7 @@ describe("collections/inventory", () => {
     expect(firstProduct([]).isNone).toBe(true);
   });
 
-  it("requires products.all(hasNonNegativeQuantity) の違反は構造化エラー", () => {
+  it("requires products.all(p => p.quantity >= 0) の違反は構造化エラー(M25 lambda)", () => {
     const negative: readonly Product[] = [
       { id: "x", quantity: -1, unitPrice: 10, reorderLevel: 2 },
     ];
@@ -57,6 +57,7 @@ describe("collections/inventory", () => {
     const violation = thrown as KeiContractViolation;
     expect(violation.clause).toBe("requires");
     expect(violation.func).toBe("totalStockValue");
-    expect(violation.condition).toBe("products.all(hasNonNegativeQuantity)");
+    // M25 / #59: 使い捨て述語をその場のラムダで書くことで合意書原則が直読みできる。
+    expect(violation.condition).toBe("products.all(p => p.quantity >= 0)");
   });
 });

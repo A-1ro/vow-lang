@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E3001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Move the effectful call out of the lambda, or use a named function inside the function body"
+      }
+    ],
+    "message": "call to 'logItem' (uses Audit.Log) is not allowed inside a lambda; combinator lambdas must be pure",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 35,
+        "line": 20
+      },
+      "file": "tests/golden/check/err_effect_lambda_pure.kei",
+      "start": {
+        "col": 25,
+        "line": 20
+      }
+    }
+  }
+]

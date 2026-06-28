@@ -121,6 +121,7 @@ extern Audit.Log.record(entry: TransferReceipt) uses Audit.Log
 - 戻り型・`uses` は省略可(省略時はそれぞれ Unit / エフェクトなし)。
 - `extern` は **検査専用**。TS には何も出力しない(呼び出し側は従来どおり対応する
   TS 呼び出し/import に素直に写る)。
+- 上例の `Money` / `AccountId` は **v0.1 §2.4** の架空型(stdlib に実在しない)。実プロジェクトでは `Int` 最小通貨単位、または自前定義の `type Money = Int tagged "Money"` を用いる。
 
 ### 2.2 意味論
 

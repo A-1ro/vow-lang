@@ -282,6 +282,10 @@ impl<'a> RuntimeUses<'a> {
                     self.expr(el);
                 }
             }
+            // M25 / #59: ラムダ body 内も走査(`xs.map(p => Some(p.id))` で Some の
+            // ランタイム import を拾うため)。パラメータは TS の素のシンボル名なので
+            // ランタイム import 対象にならない。
+            ast::Expr::Lambda { body, .. } => self.expr(body),
         }
     }
 }
@@ -910,6 +914,21 @@ impl Emitter<'_> {
                 }
                 self.out.frag("]");
             }
+            // M25 / #59: コンビネータ引数ラムダを TS アロー関数へ写す。
+            // 単項でも一律 `(p) => body` の括弧付きで出す(JS の `p => body` と等価で、
+            // ラムダがコンビネータ実引数として `.map(p => body)` の連鎖中に入ったときに
+            // パーサが必要とする最小形)。body は最小限の括弧で済むよう Prec::Implication で出す。
+            ast::Expr::Lambda { params, body, .. } => {
+                self.out.frag("(");
+                for (i, p) in params.iter().enumerate() {
+                    if i > 0 {
+                        self.out.frag(", ");
+                    }
+                    self.out.frag(&p.name);
+                }
+                self.out.frag(") => ");
+                self.emit_expr(body, Prec::Implication);
+            }
         }
     }
 
@@ -1180,6 +1199,10 @@ fn collect_old_exprs(ensures: &[ast::Expr]) -> Vec<&ast::Expr> {
                     walk(el, out);
                 }
             }
+            // M25 / #59: ラムダ body も走査対象。`ensures xs.all(p => old(seed) > 0)`
+            // のような contract 中の lambda 内 old() は外側で評価するため、収集対象に含める
+            // (キャプチャ禁止ルールにより `old` 自体は contract 文脈で許される)。
+            ast::Expr::Lambda { body, .. } => walk(body, out),
             _ => {}
         }
     }

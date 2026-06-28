@@ -15,9 +15,9 @@
 | **M21** | 論理和 `\|\|` と剰余 `%` | #58 | medium | ✅ 実装済み | kei_syntax / kei_check / kei_fmt / kei_emit |
 | **M22** | List リテラル + tagged 明示構築 | #57 | medium | ✅ 実装済み | kei_syntax / kei_check / kei_emit |
 | **M23** | List / record 引数の generative 検証 | #60 | medium | ✅ 実装済み | kei_check / kei_cli |
-| **M24** | 外部状態事後条件の再検証ケース拡充 | #56 | high | v0.3 実装済み・追試待ち | kei_emit / e2e |
-| **M25** | コンビネータ引数位置限定ラムダ | #59 | low | 設計待ち | kei_syntax / kei_check / kei_emit |
-| **M26** | 金額表現(`Money` 実在化 or 最小通貨単位の明文化) | #61 | low | 未着手 | spec / examples |
+| **M24** | 外部状態事後条件の再検証ケース拡充 | #56 | high | ✅ 在庫ドメイン e2e 追加(stock_direct.kei + 反例 3 種) | examples / tests/e2e |
+| **M25** | コンビネータ引数位置限定ラムダ | #59 | low | ✅ 実装済み(構文 `=>` / キャプチャ禁止 / 純粋限定 / List コンビネータ引数位置のみ。`let f = ラムダ` は KEI-E2001 維持) | kei_syntax / kei_check / kei_emit / kei_fmt |
+| **M26** | 金額表現(`Money` 実在化 or 最小通貨単位の明文化) | #61 | low | ✅ 短期完了(spec §2.4 注記 + examples ヘッダ。Money 実在化 / Decimal は v0.5+ で別途) | spec / examples |
 | **M27** | 単項演算子表の整合(`-x` / `!x`) | #62 | low | ✅ 実装済み | spec / skill / golden |
 
 順序の論拠:

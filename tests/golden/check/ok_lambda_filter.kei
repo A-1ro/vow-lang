@@ -1,0 +1,17 @@
+module collections.lambda_ok
+
+record Item {
+  qty: Int
+}
+
+func keepPositive(items: List<Item>) -> List<Item> {
+  return items.filter(p => p.qty > 0)
+}
+
+func anyNegative(items: List<Item>) -> Bool {
+  return items.any(p => p.qty < 0)
+}
+
+func sumQty(items: List<Item>) -> Int {
+  return items.fold(0, (acc, p) => acc + p.qty)
+}

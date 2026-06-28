@@ -294,6 +294,15 @@ pub enum Expr {
         elements: Vec<Expr>,
         span: Span,
     },
+    /// コンビネータ引数位置限定の純粋ラムダ(M25 / #59)。
+    /// `p => expr` / `(a, b) => expr`。body は単一式のみ。第一級関数値ではなく、
+    /// List コンビネータ(map/filter/fold/all/any)の引数位置でだけ意味を持つ。
+    /// それ以外の位置に出現したら kei_check が KEI-E2001 を返す。
+    Lambda {
+        params: Vec<Ident>,
+        body: Box<Expr>,
+        span: Span,
+    },
 }
 
 impl Expr {
@@ -309,7 +318,8 @@ impl Expr {
             | Expr::Binary { span, .. }
             | Expr::RecordLit { span, .. }
             | Expr::Match { span, .. }
-            | Expr::ListLit { span, .. } => *span,
+            | Expr::ListLit { span, .. }
+            | Expr::Lambda { span, .. } => *span,
         }
     }
 }

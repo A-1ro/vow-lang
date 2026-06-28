@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Pass 'threshold' through the lambda parameter, or compute it outside the combinator"
+      }
+    ],
+    "message": "lambda cannot reference 'threshold' from the enclosing function; lambdas may only use their own parameters and top-level functions",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 42,
+        "line": 8
+      },
+      "file": "tests/golden/check/err_type_lambda_capture.kei",
+      "start": {
+        "col": 33,
+        "line": 8
+      }
+    }
+  }
+]

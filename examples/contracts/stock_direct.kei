@@ -1,0 +1,61 @@
+module contracts.stock_direct
+
+import infra.database as Database
+
+type ProductId = String tagged "ProductId"
+
+extern query Database.quantityOf(product: ProductId) -> Int
+extern Database.setQuantity(product: ProductId, qty: Int) uses Database.Write
+
+func shipStock(product: ProductId, amount: Int) -> Int
+  uses Database.Write
+  requires amount > 0
+  requires Database.quantityOf(product) >= amount
+  ensures Database.quantityOf(product) == old(Database.quantityOf(product)) - amount
+{
+  let current: Int = Database.quantityOf(product)
+  Database.setQuantity(product, current - amount)
+  return current - amount
+}
+
+func receiveStock(product: ProductId, amount: Int) -> Int
+  uses Database.Write
+  requires amount > 0
+  ensures Database.quantityOf(product) == old(Database.quantityOf(product)) + amount
+{
+  let current: Int = Database.quantityOf(product)
+  Database.setQuantity(product, current + amount)
+  return current + amount
+}
+
+func shipStockOffByOne(product: ProductId, amount: Int) -> Int
+  uses Database.Write
+  requires amount > 0
+  requires Database.quantityOf(product) >= amount
+  ensures Database.quantityOf(product) == old(Database.quantityOf(product)) - amount
+{
+  let current: Int = Database.quantityOf(product)
+  Database.setQuantity(product, current - amount - 1)
+  return current - amount - 1
+}
+
+func shipStockForgot(product: ProductId, amount: Int) -> Int
+  uses Database.Write
+  requires amount > 0
+  requires Database.quantityOf(product) >= amount
+  ensures Database.quantityOf(product) == old(Database.quantityOf(product)) - amount
+{
+  let current: Int = Database.quantityOf(product)
+  return current - amount
+}
+
+func shipStockWrongId(product: ProductId, other: ProductId, amount: Int) -> Int
+  uses Database.Write
+  requires amount > 0
+  requires Database.quantityOf(product) >= amount
+  ensures Database.quantityOf(product) == old(Database.quantityOf(product)) - amount
+{
+  let current: Int = Database.quantityOf(other)
+  Database.setQuantity(other, current - amount)
+  return current - amount
+}

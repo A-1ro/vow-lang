@@ -1,0 +1,9 @@
+module collections.lambda_capture
+
+record Item {
+  qty: Int
+}
+
+func atLeast(items: List<Item>, threshold: Int) -> Bool {
+  return items.all(p => p.qty > threshold)
+}

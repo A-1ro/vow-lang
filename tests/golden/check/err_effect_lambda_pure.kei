@@ -1,0 +1,21 @@
+module collections.lambda_pure
+
+import infra.audit as Audit
+
+record Item {
+  id: String
+}
+
+extern Audit.record(item: Item) -> Item uses Audit.Log
+
+func logItem(item: Item) -> Item
+  uses Audit.Log
+{
+  return Audit.record(item)
+}
+
+func logAll(items: List<Item>) -> List<Item>
+  uses Audit.Log
+{
+  return items.map(p => logItem(p))
+}

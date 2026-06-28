@@ -12,38 +12,18 @@ record ReorderPlan {
   orderQuantity: Int
 }
 
-func hasNonNegativeQuantity(product: Product) -> Bool {
-  return product.quantity >= 0
-}
-
-func hasNonNegativeUnitPrice(product: Product) -> Bool {
-  return product.unitPrice >= 0
-}
-
-func addProductValue(acc: Int, product: Product) -> Int {
-  return acc + product.quantity * product.unitPrice
-}
-
-func needsReorder(product: Product) -> Bool {
-  return product.quantity < product.reorderLevel
-}
-
-func toReorderPlan(product: Product) -> ReorderPlan {
-  return ReorderPlan { product: product.id, orderQuantity: product.reorderLevel - product.quantity }
-}
-
 func totalStockValue(products: List<Product>) -> Int
-  requires products.all(hasNonNegativeQuantity)
-  requires products.all(hasNonNegativeUnitPrice)
+  requires products.all(p => p.quantity >= 0)
+  requires products.all(p => p.unitPrice >= 0)
   ensures result >= 0
 {
-  return products.fold(0, addProductValue)
+  return products.fold(0, (acc, p) => acc + p.quantity * p.unitPrice)
 }
 
 func planAllReorders(products: List<Product>) -> List<ReorderPlan>
   ensures result.length <= products.length
 {
-  return products.filter(needsReorder).map(toReorderPlan)
+  return products.filter(p => p.quantity < p.reorderLevel).map(p => ReorderPlan { product: p.id, orderQuantity: p.reorderLevel - p.quantity })
 }
 
 func firstProduct(products: List<Product>) -> Option<Product> {

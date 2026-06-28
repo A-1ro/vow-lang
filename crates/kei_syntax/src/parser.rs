@@ -69,6 +69,17 @@ impl Parser {
         tok
     }
 
+    /// 現在位置から `offset` 個先のトークン種を覗く(コメントは事前にフィルタ済み)。
+    /// 範囲外なら `None`。M25(ラムダ)の `Ident =>` / `RParen =>` 判定に使う。
+    fn peek_kind(&self, offset: usize) -> Option<T> {
+        let i = self.pos + offset;
+        if i < self.tokens.len() {
+            Some(self.tokens[i].kind)
+        } else {
+            None
+        }
+    }
+
     fn eat(&mut self, kind: T) -> bool {
         if self.at(kind) {
             self.bump();
@@ -1536,6 +1547,95 @@ impl Parser {
         })
     }
 
+    /// コンビネータ引数位置限定の純粋ラムダ(M25 / #59)。
+    ///
+    /// 構文: `p => expr` / `(a, b) => expr`。呼び出し時の現在トークンは
+    /// 単項なら `Ident`(直後が `=>`)、複数なら `(`(`try_parse_paren_lambda` が
+    /// 事前検証済み)。body は単一式のみで、`{...}` 開始は構文エラーを吐いて回復する。
+    ///
+    /// 位置限定(引数位置のみ許可)とキャプチャ・エフェクトの検査は kei_check の責務。
+    /// パーサは構文だけを通し、出現位置の妥当性は AST 後段で判定する。
+    fn parse_lambda(&mut self) -> Option<Expr> {
+        let (params, start_span) = if self.at(T::LParen) {
+            // `(a, b) =>`: `(` を消費して識別子並びを読み、`)` を消費する。
+            let open = self.bump();
+            let mut params: Vec<Ident> = Vec::new();
+            loop {
+                if self.at(T::RParen) {
+                    break;
+                }
+                let p = self.expect_ident("a lambda parameter")?;
+                params.push(p);
+                if !self.eat(T::Comma) {
+                    break;
+                }
+            }
+            self.expect(T::RParen);
+            (params, open.span)
+        } else {
+            // `p =>`: 単項。`Ident` を吸って 1 引数のラムダ。
+            let tok = self.bump();
+            let ident = Ident {
+                name: tok.text,
+                span: tok.span,
+            };
+            (vec![ident], tok.span)
+        };
+        // `=>` を消費。
+        if !self.expect(T::FatArrow) {
+            return None;
+        }
+        // body は単一式のみ。`{` で始まるブロックは禁止(M25 設計: v0.4 段階)。
+        if self.at(T::LBrace) {
+            let tok = self.cur().clone();
+            self.error(
+                codes::UNEXPECTED_TOKEN,
+                "lambda body must be a single expression; '{' blocks are not supported".to_string(),
+                tok.span,
+                FixHint::direction("Write a single expression after '=>'"),
+            );
+            return None;
+        }
+        let body = self.parse_expr(false)?;
+        let span = start_span.to(body.span());
+        Some(Expr::Lambda {
+            params,
+            body: Box::new(body),
+            span,
+        })
+    }
+
+    /// `(` 位置で「複数引数ラムダ `(a, b) => expr`」になっているかを peek だけで判定し、
+    /// 確定したらラムダをパースする。`(expr)` の grouping と曖昧なくするための辺。
+    /// マッチしなければ `None` を返し、位置は据え置く(呼び出し側が grouping を試す)。
+    ///
+    /// 受理形: `( )` / `( Ident )` / `( Ident, Ident, ... )` の直後が `=>` のとき。
+    /// それ以外(中に式・`a + b`・`Ident.Ident`・末尾カンマ・改行など)は grouping 扱い。
+    fn try_parse_paren_lambda(&mut self) -> Option<Expr> {
+        // pos[0] は `(`。pos[1] 以降をスキャン。
+        let mut i = self.pos + 1;
+        // 0 個または `Ident (Comma Ident)*` を許す。
+        if self.tokens.get(i).map(|t| t.kind) == Some(T::Ident) {
+            i += 1;
+            while self.tokens.get(i).map(|t| t.kind) == Some(T::Comma) {
+                i += 1;
+                if self.tokens.get(i).map(|t| t.kind) == Some(T::Ident) {
+                    i += 1;
+                } else {
+                    return None;
+                }
+            }
+        }
+        // `)` の直後が `=>` で確定。
+        if self.tokens.get(i).map(|t| t.kind) != Some(T::RParen) {
+            return None;
+        }
+        if self.tokens.get(i + 1).map(|t| t.kind) != Some(T::FatArrow) {
+            return None;
+        }
+        self.parse_lambda()
+    }
+
     fn parse_primary(&mut self) -> Option<Expr> {
         let tok = self.cur().clone();
         match tok.kind {
@@ -1561,6 +1661,9 @@ impl Parser {
                     span: tok.span,
                 })
             }
+            // 単項ラムダ `p => expr`(M25 / #59)。lookahead 1 で確定。
+            // `Ident` の直後が `FatArrow` ならラムダ、そうでなければ通常の名前参照。
+            T::Ident if self.peek_kind(1) == Some(T::FatArrow) => self.parse_lambda(),
             T::Ident => {
                 self.bump();
                 Some(Expr::Name {
@@ -1569,6 +1672,12 @@ impl Parser {
                 })
             }
             T::LParen => {
+                // 複数引数ラムダ `(a, b) => expr` の可能性を先に試す(M25 / #59)。
+                // パーン内が空 / `Ident (, Ident)*` で `)` の直後が `=>` のときだけ確定。
+                // それ以外は通常のカッコ式へフォールバックする(位置を戻す)。
+                if let Some(lambda) = self.try_parse_paren_lambda() {
+                    return Some(lambda);
+                }
                 self.bump();
                 let expr = self.parse_expr(false)?;
                 self.expect(T::RParen);
