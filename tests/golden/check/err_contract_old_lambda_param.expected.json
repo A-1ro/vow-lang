@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E4002",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Move 'old(...)' outside the combinator, e.g. 'let snap = old(seed); xs.all(p => p > snap)'"
+      }
+    ],
+    "message": "'old(...)' inside a lambda body may not reference a lambda parameter; 'old' captures the snapshot at function entry where the parameter does not yet exist",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 37,
+        "line": 8
+      },
+      "file": "tests/golden/check/err_contract_old_lambda_param.kei",
+      "start": {
+        "col": 27,
+        "line": 8
+      }
+    }
+  }
+]

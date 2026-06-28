@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Convert the receiver to a 'List<T>' before calling 'map'"
+      }
+    ],
+    "message": "'map' is a List<T> combinator; receiver has type 'Cart' and does not support it",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 18,
+        "line": 8
+      },
+      "file": "tests/golden/check/err_type_lambda_non_list_receiver.kei",
+      "start": {
+        "col": 15,
+        "line": 8
+      }
+    }
+  }
+]

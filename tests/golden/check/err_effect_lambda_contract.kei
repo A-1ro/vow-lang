@@ -1,0 +1,23 @@
+module collections.lambda_contract_effect
+
+import infra.database as Database
+
+record Item {
+  id: String
+  qty: Int
+}
+
+extern Database.lookup(id: String) -> Int uses Database.Read
+
+func lookupQty(id: String) -> Int
+  uses Database.Read
+{
+  return Database.lookup(id)
+}
+
+func bad(items: List<Item>) -> List<Item>
+  uses Database.Read
+  ensures result.all(p => lookupQty(p.id) > 0)
+{
+  return items
+}

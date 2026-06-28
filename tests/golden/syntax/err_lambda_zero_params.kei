@@ -1,0 +1,5 @@
+module test.lambda_zero
+
+func bad(items: List<Int>) -> Bool {
+  return items.all(() => true)
+}

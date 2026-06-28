@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Compute the value outside the combinator, e.g. 'let r = result' before the lambda"
+      }
+    ],
+    "message": "'result' is not accessible from lambda bodies; it is bound only at the ensures clause level",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 40,
+        "line": 8
+      },
+      "file": "tests/golden/check/err_type_lambda_capture_result.kei",
+      "start": {
+        "col": 34,
+        "line": 8
+      }
+    }
+  }
+]

@@ -1,0 +1,9 @@
+module collections.lambda_arity_and_body
+
+record Item {
+  qty: Int
+}
+
+func bad(items: List<Item>) -> List<Item> {
+  return items.filter((p, q) => p.qty > notDefined)
+}

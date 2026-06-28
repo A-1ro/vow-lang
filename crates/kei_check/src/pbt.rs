@@ -22,6 +22,12 @@ use crate::check::contract_expr_text;
 use crate::report::{ContractInfo, ContractKind, Verification};
 use crate::{Diagnostic, Fix, Position, Severity, Span};
 
+/// F4 / M25: `eval_list_method` の per-element apply 関数(map / filter / all / any 用)。
+/// `Box<dyn Fn>` で Name 経路と Lambda 経路の閉包形状の差を均す。
+type ApplyOne<'a> = Box<dyn Fn(&Value) -> Result<Value, EvalError> + 'a>;
+/// F4 / M25: `eval_list_method` の fold 用 apply 関数(`acc` と要素を取る)。
+type ApplyTwo<'a> = Box<dyn Fn(Value, &Value) -> Result<Value, EvalError> + 'a>;
+
 mod seed_codes {
     /// シードファイルの文法エラー(期待値フィールド混入を含む)。
     pub const SEED_GRAMMAR: &str = "KEI-E4006";
@@ -976,21 +982,41 @@ fn eval_list_method(
             if args.len() != 1 {
                 return Err(EvalError::Unsupported);
             }
-            // 関数引数は名前付き関数参照(M9 / spec v0.3-collections §4.1)。
-            let fname = match &args[0] {
-                ast::Expr::Name { name, .. } => name.clone(),
+            // F4 / M25: 関数引数は名前付き関数参照 **または** lambda(spec §2.5)。
+            // 両者で per-element 適用関数(`apply`)を Box<dyn Fn> として組み、
+            // all/any/map/filter の本体ロジックは引き続き共有する。
+            // lambda は pure scope なので外側 env を持ち込まず、param のみ bind。
+            let apply: ApplyOne<'_> = match &args[0] {
+                ast::Expr::Name { name, .. } => {
+                    let f = funcs
+                        .get(name.as_str())
+                        .copied()
+                        .ok_or(EvalError::Unsupported)?;
+                    if !f.uses.is_empty() {
+                        return Err(EvalError::Unsupported);
+                    }
+                    Box::new(move |x: &Value| {
+                        eval_func_call(f, std::slice::from_ref(x), funcs, depth + 1)
+                    })
+                }
+                ast::Expr::Lambda {
+                    params: lparams,
+                    body,
+                    ..
+                } => {
+                    if lparams.len() != 1 {
+                        return Err(EvalError::Unsupported);
+                    }
+                    let pname = lparams[0].name.clone();
+                    Box::new(move |x: &Value| {
+                        // キャプチャ禁止: lambda 専用 env を都度作る(外側 env は持ち込まない)。
+                        let mut lenv = HashMap::new();
+                        lenv.insert(pname.clone(), x.clone());
+                        eval_expr(body, &lenv, funcs, in_ensures, depth + 1)
+                    })
+                }
                 _ => return Err(EvalError::Unsupported),
             };
-            let f = funcs
-                .get(fname.as_str())
-                .copied()
-                .ok_or(EvalError::Unsupported)?;
-            if !f.uses.is_empty() {
-                return Err(EvalError::Unsupported);
-            }
-            // PR #76 review: 4 メソッドが同形のループだったので apply ヘルパに
-            // 委譲して per-element 評価の重複を解消する。Bool 消費は各分岐側で行う。
-            let apply = |x: &Value| eval_func_call(f, std::slice::from_ref(x), funcs, depth + 1);
             match method {
                 "all" => {
                     for x in xs {
@@ -1041,20 +1067,42 @@ fn eval_list_method(
             // `ensures result == xs.fold(old(seed), addFn)` のように init に
             // `old(...)` を入れると Unsupported で落ちていた。外側の文脈を伝播する。
             let init = eval_expr(&args[0], env, funcs, in_ensures, depth)?;
-            let fname = match &args[1] {
-                ast::Expr::Name { name, .. } => name.clone(),
+            // F4 / M25: fold の関数引数も Name | Lambda の両対応。
+            let apply: ApplyTwo<'_> = match &args[1] {
+                ast::Expr::Name { name, .. } => {
+                    let f = funcs
+                        .get(name.as_str())
+                        .copied()
+                        .ok_or(EvalError::Unsupported)?;
+                    if !f.uses.is_empty() {
+                        return Err(EvalError::Unsupported);
+                    }
+                    Box::new(move |acc: Value, x: &Value| {
+                        eval_func_call(f, &[acc, x.clone()], funcs, depth + 1)
+                    })
+                }
+                ast::Expr::Lambda {
+                    params: lparams,
+                    body,
+                    ..
+                } => {
+                    if lparams.len() != 2 {
+                        return Err(EvalError::Unsupported);
+                    }
+                    let accname = lparams[0].name.clone();
+                    let elname = lparams[1].name.clone();
+                    Box::new(move |acc: Value, x: &Value| {
+                        let mut lenv = HashMap::new();
+                        lenv.insert(accname.clone(), acc);
+                        lenv.insert(elname.clone(), x.clone());
+                        eval_expr(body, &lenv, funcs, in_ensures, depth + 1)
+                    })
+                }
                 _ => return Err(EvalError::Unsupported),
             };
-            let f = funcs
-                .get(fname.as_str())
-                .copied()
-                .ok_or(EvalError::Unsupported)?;
-            if !f.uses.is_empty() {
-                return Err(EvalError::Unsupported);
-            }
             let mut acc = init;
             for x in xs {
-                acc = eval_func_call(f, &[acc, x.clone()], funcs, depth + 1)?;
+                acc = apply(acc, x)?;
             }
             Ok(acc)
         }

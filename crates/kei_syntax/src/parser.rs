@@ -1581,6 +1581,25 @@ impl Parser {
             };
             (vec![ident], tok.span)
         };
+        // F0 / M25: 0 引数ラムダは spec §2.5 に無いので構文段階で弾く。
+        // `() => expr` を許すと意味論(キャプチャ禁止・純粋限定)上の意義が薄く
+        // (定数式しか書けない)、コンビネータ引数位置でも arity 0 を期待する
+        // メソッドが存在しないため、ここで KEI-E0101 として拒否して
+        // 「単項 `p => expr` / 複数 `(a, b) => expr` のいずれかにせよ」と促す。
+        if params.is_empty() {
+            let here = self.cur().span;
+            self.error(
+                codes::UNEXPECTED_TOKEN,
+                "lambda must have at least one parameter; spec §2.5 allows 'p => expr' (single) or '(a, b) => expr' (multiple)".to_string(),
+                start_span,
+                FixHint::replace(
+                    "Add a lambda parameter, e.g. 'p => ...'",
+                    Span::point(here.start),
+                    "p",
+                ),
+            );
+            return None;
+        }
         // `=>` を消費。
         if !self.expect(T::FatArrow) {
             return None;
