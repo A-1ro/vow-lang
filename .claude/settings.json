@@ -2,7 +2,20 @@
   "permissions": {
     "allow": [
       "Edit(docs/dev-notes/**)",
-      "Write(docs/dev-notes/**)"
+      "Write(docs/dev-notes/**)",
+      "Workflow(kei-code-review)",
+      "mcp__github__pull_request_review_write",
+      "mcp__github__add_comment_to_pending_review",
+      "Edit(crates/**)",
+      "Write(crates/**)",
+      "Edit(runtime/**)",
+      "Write(runtime/**)",
+      "Edit(.claude/hooks/**)",
+      "Write(.claude/hooks/**)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)",
+      "Bash(git restore:*)"
     ]
   },
   "hooks": {
@@ -39,6 +52,14 @@
             "if": "Bash(gh pr merge*)",
             "timeout": 180,
             "statusMessage": "Extracting post-merge HANDOFF.md candidates (Sonnet)…"
+          },
+          {
+            "type": "agent",
+            "prompt": "Read the file .claude/hooks/post-pr-create-review.prompt.md and follow its instructions exactly. Do not commit, push, or modify any file. Hook input JSON: $ARGUMENTS",
+            "model": "claude-sonnet-4-6",
+            "if": "Bash(gh pr create*)",
+            "timeout": 1800,
+            "statusMessage": "Running kei-code-review on the new PR (high)…"
           }
         ]
       }
