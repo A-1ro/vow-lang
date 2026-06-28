@@ -222,6 +222,115 @@ OK 例:
 `docs/dogfood/<date>-<task>.md` 等で残すか、関連 Issue に貼る。改善後に**同じお題**で
 再ドッグフードして差分を測れば、改善が効いたかが KPI として出る(回数減・総評上昇)。
 
+### 4. 次バージョン Issue 化(オプション・人手承認必須)
+
+スキル呼び出し時に `--create-issues <milestone>`(例: `--create-issues v0.5`)が
+渡された場合のみ起動し、それ以外は Step 4 全体をスキップして従来通り Step 3 で終わる。
+起動時は Step 3 の振り分け結果を Issue 候補に変換し、**人間承認を経て**から
+`gh issue create` / `gh issue comment` する。**自動投稿は絶対に行わない**(初回
+ノイズを防ぐため、承認ゲートを必ず通す)。
+
+#### 4-a. 候補生成
+
+Step 3 で振り分けた観測 1 項目 = Issue 候補 1 件。複数バケツに該当するなら最上位
+(spec / SKILL.md → Diagnostic → fix → 索引)1 つに割り当てる。
+
+各候補の構造:
+
+```
+title:     [dogfood/<bucket-slug>] <観測の短い要約 (30 字以内)>
+body:      ## お題
+           <Step 1 で確定したお題の原文 1-3 文>
+
+           ## 観測した摩擦
+           <フィードバックの該当項目を原文引用>
+
+           ## 推奨改善先
+           <振り分け表「行先」セルをそのまま転記>
+
+           ## 関連
+           - `docs/dogfood/<date>-<task>.md`(元 dogfood セッションの最終応答全文。
+             Step 3 line 222 で作成済みのスナップショットへの相対リンク)
+labels:    dogfood, from-v<元バージョン>, <bucket-slug>, severity:<level>
+milestone: <引数で指定>
+severity:  (label として明示する。判定は構造化フィードバック 6 項目から機械的に導く)
+           high   = サブエージェントが完了条件 (`kei_check` エラーゼロ) に到達せず断念した、
+                    または Diagnostic を信じて書いた結果 `kei_check` が新規エラーを返した
+           medium = 完了条件には到達したが、取説に無い知識を推測で穴埋めした、
+                    または fix を 2 回以上連鎖で迂回した
+           low    = 完了条件に到達し推測も連鎖も無く、純粋に UX 改善余地のみ
+```
+
+`bucket-slug` は振り分け表の左列を kebab-case 化
+(`docs-discoverability` / `spec-completeness` / `diagnostic-clarity` /
+`fix-chain` / `mcp-indexing` / `diagnostic-schema-sync`)。
+
+#### 4-b. 既存 Issue との dedup
+
+各候補について:
+
+```
+gh issue list --milestone <X> --state open --search "<title の主要キーワード>" \
+  --json number,title
+```
+
+`--milestone` は milestone の **title (`v0.5` 形式) を直接受け付ける**(number 変換不要)。
+タイトル類似(主要キーワード 2 つ以上一致)があれば、その候補を **「Issue #N に
+追記コメント」** に差し替える。本文は body をそのまま使用。dedup 判定はあくまで
+ヒントなので、最終判断は人間承認に委ねる。
+
+#### 4-c. 人間承認
+
+候補を全件まとめて表示(create N 件、comment M 件)。各候補に番号を振り、以下を
+返してもらう:
+
+- `全部` — 全候補を実行
+- `#1, #3 だけ` — 指定 ID のみ実行
+- `全部却下` — 何もしない
+- `#2 はタイトルを X に変えて` — 指定 ID をユーザー指示通り編集。**編集適用後の候補を
+  必ず再表示して最終 yes/no を取り直す**(自然言語編集の parse 誤りで意図と違う Issue が
+  立つのを防ぐ。この再確認サブステップを経ずに `gh` を呼ぶことは禁止)
+
+承認待ちが完了するまで `gh issue create` / `gh issue comment` を**絶対に実行しない**。
+万一 LLM がこの hard rule を violation しようとした場合、OS レベルの permission prompt
+が二段目の防壁として働く(本リポジトリの `.claude/settings.json` には `Bash(gh issue
+create:*)` / `Bash(gh issue comment:*)` を**意図的に追加していない** — 承認済みなら
+ユーザーは prompt に `y` で返すだけだが、未承認の violation は OS 段で止まる)。
+
+#### 4-d. 実行
+
+承認分のみ。`--label` は **flag を複数回並べる**(カンマ区切り 1 個では単一ラベル扱い):
+
+- create: `gh issue create --title "<title>" --body "<body>" --label <l1> --label <l2> ... --milestone <X>`
+- comment: `gh issue comment <N> --body "<body>"`
+
+各成功で URL を表示。**いずれかの `gh` 呼び出しが non-zero exit したら以後の create / comment
+を即停止**してユーザーに報告する(milestone / labels 不存在、rate limit、auth 切れ、network、
+`--label` typo、HTTP 5xx など要因を問わず一律 halt-and-report。半分だけ立った Issue と
+エラーログの後始末をユーザーに押し付けるより安全)。
+
+#### 4-e. 最終応答
+
+`gh issue comment` の出力は親 issue URL のみで、コメントアンカー (`#issuecomment-<id>`)
+は付かない点に注意:
+
+```
+Issue 化: created [#101, #102], commented [#88], skipped [候補#4 はユーザー却下]
+URLs:
+- https://github.com/A-1ro/kei-lang/issues/101
+- https://github.com/A-1ro/kei-lang/issues/102
+- https://github.com/A-1ro/kei-lang/issues/88  (新コメント追加)
+```
+
+#### 4-f. 守るべき制約
+
+- milestone が存在しないときは `gh api repos/.../milestones` で確認し、自動作成しない
+  (milestone のスコープ定義は人間の意思決定)
+- 元バージョン(`from-v<X>`)は **dogfood を実行した時点の最新リリースタグ**
+  (`gh release view --json tagName --jq .tagName` で取得)。判別不能なら人間に聞く
+- 同一 dogfood セッション内で重複候補(同じ観測を 2 件にまとめてしまった)が出たら
+  4-a の段階で 1 件に統合する。Issue tracker の同一観測重複は dedup より前に潰す
+
 ---
 
 ## このリポジトリ(Kei)での注意事項
