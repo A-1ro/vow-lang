@@ -16,7 +16,9 @@
       "Bash(git commit:*)",
       "Bash(git push)",
       "Bash(git restore:*)",
-      "Bash(gh pr merge:*)"
+      "Bash(gh pr merge:*)",
+      "Bash(gh issue create:*)",
+      "Bash(gh issue comment:*)"
     ]
   },
   "hooks": {

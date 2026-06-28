@@ -222,6 +222,99 @@ OK 例:
 `docs/dogfood/<date>-<task>.md` 等で残すか、関連 Issue に貼る。改善後に**同じお題**で
 再ドッグフードして差分を測れば、改善が効いたかが KPI として出る(回数減・総評上昇)。
 
+### 4. 次バージョン Issue 化(オプション・人手承認必須)
+
+スキル呼び出し時に `--create-issues <milestone>`(例: `--create-issues v0.5`)が
+渡されたら、Step 3 の振り分け結果を Issue 候補に変換し、**人間承認を経て**から
+`gh issue create` / `gh issue comment` する。**自動投稿は絶対に行わない**(初回
+ノイズを防ぐため、承認ゲートを必ず通す)。
+
+#### 4-a. 候補生成
+
+Step 3 で振り分けた観測 1 項目 = Issue 候補 1 件。複数バケツに該当するなら最上位
+(spec / SKILL.md → Diagnostic → fix → 索引)1 つに割り当てる。
+
+各候補の構造:
+
+```
+title:     [dogfood/<bucket-slug>] <観測の短い要約 (30 字以内)>
+body:      ## お題
+           <Step 1 で確定したお題の原文 1-3 文>
+
+           ## 観測した摩擦
+           <フィードバックの該当項目を原文引用>
+
+           ## 推奨改善先
+           <振り分け表「行先」セルをそのまま転記>
+
+           ## 関連
+           - 元 dogfood セッションの最終応答(全文)
+labels:    dogfood, from-v<元バージョン>, <bucket-slug>
+milestone: <引数で指定>
+severity:  high   = 取説/MCP に到達できず詰まった、Diagnostic が誤誘導
+           medium = 取説に無くて推測した、fix の連鎖で迂回
+           low    = UX 改善余地のみ
+```
+
+`bucket-slug` は振り分け表の左列を kebab-case 化
+(`docs-discoverability` / `spec-completeness` / `diagnostic-clarity` /
+`fix-chain` / `mcp-indexing` / `diagnostic-schema-sync`)。
+
+#### 4-b. 既存 Issue との dedup
+
+各候補について:
+
+```
+gh issue list --milestone <X> --state open --search "<title の主要キーワード>" \
+  --json number,title
+```
+
+タイトル類似(主要キーワード 2 つ以上一致)があれば、その候補を **「Issue #N に
+追記コメント」** に差し替える。本文は body をそのまま使用。dedup 判定はあくまで
+ヒントなので、最終判断は人間承認に委ねる。
+
+#### 4-c. 人間承認
+
+候補を全件まとめて表示(create N 件、comment M 件)。各候補に番号を振り、以下を
+返してもらう:
+
+- `全部` — 全候補を実行
+- `#1, #3 だけ` — 指定 ID のみ実行
+- `全部却下` — 何もしない
+- `#2 はタイトルを X に変えて` — 指定 ID をユーザー指示通り編集
+
+承認待ちが完了するまで `gh issue create` / `gh issue comment` を**絶対に実行しない**。
+
+#### 4-d. 実行
+
+承認分のみ:
+
+- create: `gh issue create --title "<title>" --body "<body>" --label "<labels>" --milestone <X>`
+- comment: `gh issue comment <N> --body "<body>"`
+
+各成功で URL を表示。失敗(milestone 不存在 / labels 不存在 / network)は continue せず
+**即報告してユーザーの指示を仰ぐ**(失敗 Issue を後から手で削除させるより安全)。
+
+#### 4-e. 最終応答
+
+```
+Issue 化: created [#101, #102], commented [#88], skipped [候補#4 はユーザー却下]
+URLs:
+- https://github.com/A-1ro/kei-lang/issues/101
+- https://github.com/A-1ro/kei-lang/issues/102
+- https://github.com/A-1ro/kei-lang/issues/88#issuecomment-...
+```
+
+#### 4-f. 守るべき制約
+
+- `--create-issues` 引数が **無い場合は Step 4 全体をスキップ**(従来通り Step 3 で終わる)
+- milestone が存在しないときは `gh api repos/.../milestones` で確認し、自動作成しない
+  (milestone のスコープ定義は人間の意思決定)
+- 元バージョン(`from-v<X>`)は **dogfood を実行した時点の最新リリースタグ**
+  (`gh release view --json tagName --jq .tagName` で取得)。判別不能なら人間に聞く
+- 同一 dogfood セッション内で重複候補(同じ観測を 2 件にまとめてしまった)が出たら
+  4-a の段階で 1 件に統合する。Issue tracker の同一観測重複は dedup より前に潰す
+
 ---
 
 ## このリポジトリ(Kei)での注意事項
