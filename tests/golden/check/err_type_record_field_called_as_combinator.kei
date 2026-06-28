@@ -1,0 +1,9 @@
+module collections.field_combinator
+
+record Bag {
+  map: Int
+}
+
+func bad(b: Bag) -> Int {
+  return b.map(p => p)
+}

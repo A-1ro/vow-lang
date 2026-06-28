@@ -294,6 +294,22 @@ pub enum Expr {
         elements: Vec<Expr>,
         span: Span,
     },
+    /// コンビネータ引数位置限定の純粋ラムダ(M25 / #59)。
+    /// `p => expr` / `(a, b) => expr`。body は単一式のみ。第一級関数値ではなく、
+    /// List コンビネータ(map/filter/fold/all/any)の引数位置でだけ意味を持つ。
+    /// それ以外の位置に出現したら kei_check が KEI-E2001 を返す。
+    Lambda {
+        params: Vec<Ident>,
+        body: Box<Expr>,
+        span: Span,
+    },
+    /// パーサが既に構文エラー(SyntaxError)を発火済みの位置に置く sentinel([6])。
+    /// 例: 0 引数ラムダ `() => expr` は `KEI-E0101` を発火した後 `Expr::Error` を返す。
+    /// 下流 walker(check / emit / fmt / pbt)は **no-op** で扱い、Lambda の `params`
+    /// が空という半妥当 AST を引きずらない設計にする(N0 で導入した銀弾を撤去するため)。
+    Error {
+        span: Span,
+    },
 }
 
 impl Expr {
@@ -309,7 +325,9 @@ impl Expr {
             | Expr::Binary { span, .. }
             | Expr::RecordLit { span, .. }
             | Expr::Match { span, .. }
-            | Expr::ListLit { span, .. } => *span,
+            | Expr::ListLit { span, .. }
+            | Expr::Lambda { span, .. }
+            | Expr::Error { span } => *span,
         }
     }
 }

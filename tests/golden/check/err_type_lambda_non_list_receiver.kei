@@ -1,0 +1,9 @@
+module collections.lambda_non_list_receiver
+
+record Cart {
+  total: Int
+}
+
+func bad(cart: Cart) -> Int {
+  return cart.map(p => p.total)
+}

@@ -1,0 +1,11 @@
+module collections.old_in_requires_lambda
+
+record Item {
+  qty: Int
+}
+
+func f(xs: List<Item>) -> Bool
+  requires xs.all(p => old(p.qty) > 0)
+{
+  return true
+}

@@ -620,6 +620,12 @@ fn prec(expr: &Expr) -> u8 {
         | Expr::Name { .. }
         | Expr::Match { .. }
         | Expr::ListLit { .. } => 7,
+        // M25 / #59: ラムダは最弱結合(明示的に括弧で囲まないと演算子と曖昧)。
+        // 実際の出現位置はコンビネータ引数 ` (...)` の中だけなので括弧は不要に倒れる。
+        Expr::Lambda { .. } => 0,
+        // [6]: パーサが既にエラーを報告済みの sentinel。整形は元位置の括弧と同じ強度に倒し、
+        // 整形済みテキストは「(...)」風の最小プレースホルダーで返す(下の expr_text 側)。
+        Expr::Error { .. } => 7,
     }
 }
 
@@ -707,6 +713,21 @@ fn expr_text(expr: &Expr, min_prec: u8, no_struct: bool, level: usize) -> String
                 .collect();
             format!("[{}]", elems.join(", "))
         }
+        // M25 / #59: ラムダの整形。単項なら丸括弧なし、複数なら丸括弧必須。
+        // body は最弱結合 (0) で出す(コンビネータ引数 `(...)` の内側に居るので括弧は不要)。
+        Expr::Lambda { params, body, .. } => {
+            let body_text = expr_text(body, 0, false, level);
+            if params.len() == 1 {
+                format!("{} => {}", params[0].name, body_text)
+            } else {
+                let ps: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
+                format!("({}) => {}", ps.join(", "), body_text)
+            }
+        }
+        // [6]: パーサ既報告 sentinel。再整形対象になるのは構文エラーを含むファイルで、
+        // そもそも `kei fmt` を通すべき状態ではない。安全側として `/* error */` を出して
+        // 構文崩壊を可視化する(整形済みファイルが再パースで再びエラーになるが意図的)。
+        Expr::Error { .. } => "/* error */".to_string(),
     }
 }
 

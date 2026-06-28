@@ -1,0 +1,11 @@
+module collections.old_lambda_param
+
+record Item {
+  qty: Int
+}
+
+func keepPositive(xs: List<Item>) -> List<Item>
+  ensures result.all(p => old(p.qty) > 0)
+{
+  return xs.filter(p => p.qty > 0)
+}

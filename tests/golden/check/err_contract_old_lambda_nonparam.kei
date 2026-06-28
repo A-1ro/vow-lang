@@ -1,0 +1,11 @@
+module collections.old_lambda_nonparam
+
+import infra.database as Database
+
+extern query Database.maxLimit() -> Int
+
+func f(xs: List<Int>) -> Bool
+  ensures xs.all(p => p < old(Database.maxLimit()))
+{
+  return xs.all(p => p < 100)
+}

@@ -1,0 +1,5 @@
+module collections.lambda_ts_reserved
+
+func bad(xs: List<Int>) -> Bool {
+  return xs.all(class => class > 0)
+}

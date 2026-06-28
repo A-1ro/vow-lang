@@ -1,0 +1,46 @@
+[
+  {
+    "code": "KEI-E3001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Move the effectful call out of the lambda, or use a named function inside the function body"
+      }
+    ],
+    "message": "call to 'lookupQty' (uses Database.Read) is not allowed inside a lambda; combinator lambdas must be pure",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 42,
+        "line": 20
+      },
+      "file": "tests/golden/check/err_effect_lambda_contract.kei",
+      "start": {
+        "col": 27,
+        "line": 20
+      }
+    }
+  },
+  {
+    "code": "KEI-E4001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Move the effectful call into the function body"
+      }
+    ],
+    "message": "call to 'lookupQty' (uses Database.Read) is not allowed in a contract; contract expressions must be pure",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 42,
+        "line": 20
+      },
+      "file": "tests/golden/check/err_effect_lambda_contract.kei",
+      "start": {
+        "col": 27,
+        "line": 20
+      }
+    }
+  }
+]

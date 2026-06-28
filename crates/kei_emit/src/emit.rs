@@ -282,6 +282,12 @@ impl<'a> RuntimeUses<'a> {
                     self.expr(el);
                 }
             }
+            // M25 / #59: ラムダ body 内も走査(`xs.map(p => Some(p.id))` で Some の
+            // ランタイム import を拾うため)。パラメータは TS の素のシンボル名なので
+            // ランタイム import 対象にならない。
+            ast::Expr::Lambda { body, .. } => self.expr(body),
+            // [6]: parser 既報告 sentinel。RuntimeUses 収集は無視する。
+            ast::Expr::Error { .. } => {}
         }
     }
 }
@@ -910,6 +916,36 @@ impl Emitter<'_> {
                 }
                 self.out.frag("]");
             }
+            // M25 / #59: コンビネータ引数ラムダを TS アロー関数へ写す。
+            // 単項でも一律 `(p) => body` の括弧付きで出す(JS の `p => body` と等価で、
+            // ラムダがコンビネータ実引数として `.map(p => body)` の連鎖中に入ったときに
+            // パーサが必要とする最小形)。body は最小限の括弧で済むよう Prec::Implication で出す。
+            //
+            // F9: 親文脈の優先度が `Implication` より厳しい(== ラムダが式の途中に居る)
+            // と二段防御で括弧で包む。今は check が引数位置以外を弾くため到達しないが、
+            // 仕様拡張時に lambda が `let x = ...` 等で書ける将来に備える。
+            ast::Expr::Lambda { params, body, .. } => {
+                let needs_paren = parent > Prec::Implication;
+                if needs_paren {
+                    self.out.frag("(");
+                }
+                self.out.frag("(");
+                for (i, p) in params.iter().enumerate() {
+                    if i > 0 {
+                        self.out.frag(", ");
+                    }
+                    self.out.frag(&p.name);
+                }
+                self.out.frag(") => ");
+                self.emit_expr(body, Prec::Implication);
+                if needs_paren {
+                    self.out.frag(")");
+                }
+            }
+            // [6]: parser 既報告 sentinel。emit に到達するのは check が pass した時のみで、
+            // SyntaxError があれば CLI が exit 1 する。万一到達した場合は `undefined` を出して
+            // tsc 段階で確実に検出されるようにする(silent な無効化を避ける)。
+            ast::Expr::Error { .. } => self.out.frag("undefined"),
         }
     }
 
@@ -1180,6 +1216,12 @@ fn collect_old_exprs(ensures: &[ast::Expr]) -> Vec<&ast::Expr> {
                     walk(el, out);
                 }
             }
+            // F3 / M25: ラムダ境界で走査を**停止する**。lambda body 内の `old(...)` は
+            // emit が関数入口で `kei$old$N` に bind するため、引数が lambda param を参照
+            // していると ReferenceError になる。check 側で `forbid_old_capturing_lambda_param`
+            // が静的に弾くが、emit 側でも収集を止めることで二段防御する。
+            // ラムダの外で書く `let snap = old(xs); xs.all(p => p > snap)` パターンに誘導される。
+            ast::Expr::Lambda { .. } => {}
             _ => {}
         }
     }

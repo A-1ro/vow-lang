@@ -13,6 +13,7 @@ const balances = new Map<string, Money>();
 export function reset(): void {
   balances.clear();
   available.clear();
+  quantities.clear();
 }
 
 export function seed(account: AccountId, balance: Money): void {
@@ -65,4 +66,21 @@ export function setAvailable(book: string, count: number): void {
 // 状態は変えない論理的読み取り。examples/contracts/borrow_direct.kei の契約が呼ぶ。
 export function availableOf(book: string): number {
   return available.get(book) ?? 0;
+}
+
+// 製品在庫(examples/contracts/stock_direct.kei の extern 署名に対応)。
+const quantities = new Map<string, number>();
+
+export function seedQuantity(product: string, qty: number): void {
+  quantities.set(product, qty);
+}
+
+export function setQuantity(product: string, qty: number): void {
+  quantities.set(product, qty);
+}
+
+// 純粋観測子(extern query)に対応: 在庫数をそのまま返す(未登録は 0)。
+// 状態は変えない論理的読み取り。examples/contracts/stock_direct.kei の契約が呼ぶ。
+export function quantityOf(product: string): number {
+  return quantities.get(product) ?? 0;
 }

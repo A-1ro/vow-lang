@@ -1,0 +1,46 @@
+[
+  {
+    "code": "KEI-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Use 1 lambda parameter(s)"
+      }
+    ],
+    "message": "lambda for 'filter' takes 1 parameter(s), found 2",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 51,
+        "line": 8
+      },
+      "file": "tests/golden/check/err_type_lambda_arity_and_body.kei",
+      "start": {
+        "col": 23,
+        "line": 8
+      }
+    }
+  },
+  {
+    "code": "KEI-E1001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Define or import 'notDefined'"
+      }
+    ],
+    "message": "undefined name 'notDefined'",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 51,
+        "line": 8
+      },
+      "file": "tests/golden/check/err_type_lambda_arity_and_body.kei",
+      "start": {
+        "col": 41,
+        "line": 8
+      }
+    }
+  }
+]

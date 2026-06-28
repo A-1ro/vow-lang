@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Pass the lambda directly to a combinator, or define a top-level function"
+      }
+    ],
+    "message": "lambdas are only allowed as arguments to List combinators (map, filter, fold, all, any); functions are not first-class values in Kei",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 25,
+        "line": 8
+      },
+      "file": "tests/golden/check/err_type_lambda_as_value.kei",
+      "start": {
+        "col": 11,
+        "line": 8
+      }
+    }
+  }
+]

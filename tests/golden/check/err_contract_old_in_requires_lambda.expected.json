@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E4002",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Move this condition to an 'ensures' clause"
+      }
+    ],
+    "message": "'old(...)' is only available in 'ensures' clauses",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 34,
+        "line": 8
+      },
+      "file": "tests/golden/check/err_contract_old_in_requires_lambda.kei",
+      "start": {
+        "col": 24,
+        "line": 8
+      }
+    }
+  }
+]

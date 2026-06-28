@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Access the field value without parentheses: write '<receiver>.map'"
+      }
+    ],
+    "message": "'map' is a field of type 'Int' on record 'Bag'; it cannot be called as a function",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 15,
+        "line": 8
+      },
+      "file": "tests/golden/check/err_type_record_field_called_as_combinator.kei",
+      "start": {
+        "col": 12,
+        "line": 8
+      }
+    }
+  }
+]

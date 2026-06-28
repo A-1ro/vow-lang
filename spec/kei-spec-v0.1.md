@@ -82,6 +82,46 @@ import infra.database as Database
 - **import 境界の型解決(v0.4 / M20)**: `kei check <file>` は `module a.b.c` 宣言と入力ファイルのパスから project root を逆算し(親を `path` の段数だけ遡る)、`import a.b { X }` を `<root>/a/b.kei` まで解決する。対象モジュールが見つかれば、import した record / enum / type alias は通常のローカル型と同じ検査経路に乗り、フィールド名タイプミスは `KEI-E2002`、フィールド型誤用は `KEI-E2001`、enum match の非網羅は `KEI-E2007` で検出される。解決できない import(ファイル不在 / パース失敗 / 循環)は従来通り **opaque**(`Ty::Unknown`)として扱い、検査をブロックしない。namespace 別名 import(`import x.y as N`)は将来拡張のため M20 でも opaque のまま据え置く。
 - **List リテラルと tagged 明示構築(v0.4 / M22)**: `[a, b, c]` で `List<T>` を直接構築できる(`T` は要素から推論。空 `[]` は文脈の型注釈から決まる)。`type Id = Base tagged "Id"` で導入した tagged 型は **同名コンストラクタ呼び出し** `Id(value)` で明示構築でき、`value` の型は `Base` と互換であること(不一致は `KEI-E2001`)。素の `Base → tagged` 代入は引き続き `KEI-E2005` でブロックする(構築点を常に明示する規律を保つ)。`enum`・`record` のコンストラクタはそれぞれ専用構文(`E.V(...)` / `R { ... }`)を持ち、tagged だけが「関数呼び出しの形での値構築」を持つ例外。
 
+### 2.4 数値型と金額表現(v0.4 / #61)
+
+v0.1 の組み込み数値型は **`Int`(i64 相当)のみ**。浮動小数・固定小数点は持たない。金額・評価額・税率の按分などはすべて `Int` で表現する。
+
+- **金額は最小通貨単位の `Int` で持つ** ことを規約とする(円なら銭でなく円、ドルならセント)。境界(ホスト TS / 表示)で必要なら換算する。
+- **`Money` / `core.money` は仕様上の架空型・架空モジュール**。`§2.1` `§2.2` `§2.3` の例で `Money` `AccountId` `core.money` が登場するが、これらは「合意書としての契約」を読みやすくするための**説明用**であり、stdlib に **実装されていない**。実プロジェクトでは次のいずれかを採る:
+  - `Int`(最小通貨単位)をそのまま使う(最小コスト・推奨)。
+  - 自プロジェクトの `core/money.kei` 等で `type Money = Int tagged "Money"` を自前定義する(`§2.3` の M22 構築規則に従い、`Money(0)` で値を作る。`Money.zero` のような静的メンバアクセスは Kei 構文に**無い**)。
+- **固定小数点(`Decimal`)・stdlib `core.money` の実在化**は v0.5 以降で別途検討する(本仕様の射程外)。丸め規約・等価性・契約での扱いを設計する必要があり、コレクション(`§10`)とは独立に進められる。
+
+`examples/contracts/withdraw.kei` と `examples/effects/transfer.kei` は架空 `Money` 例として残しており、e2e は `tests/e2e/stubs/core/money.ts` の差し替えで動かす。実装プロジェクトでこの形を踏襲しないこと。
+
+### 2.5 コンビネータ引数位置限定ラムダ(v0.4 / M25 / #59)
+
+`List<T>` のコンビネータ(`map` / `filter` / `fold` / `all` / `any`)の引数位置に限り、その場で **純粋ラムダ** `p => expr` / `(a, b) => expr` を書ける。「一度しか使わない述語/射影をその場で読める形にして、`requires` を読むだけで不変条件が把握できる」状態を目指す射(合意書原則の強化)。
+
+```kei
+func totalStockValue(products: List<Product>) -> Int
+  requires products.all(p => p.quantity >= 0)
+  requires products.all(p => p.unitPrice >= 0)
+  ensures result >= 0
+{
+  return products.fold(0, (acc, p) => acc + p.quantity * p.unitPrice)
+}
+```
+
+合意条件:
+
+- **構文**: `p => expr`(単項)/ `(a, b) => expr`(複数)。**body は単一式**。`{ ... }` ブロック禁止(M25 段階の射程)。**0 引数 `() => expr` は不許可**(`KEI-E0101`、F0)— キャプチャ禁止 + 純粋限定下では定数式しか書けず、コンビネータの arity も 0 を期待しないため、構文段階で弾く。
+- **位置**: List コンビネータの引数位置のみ。`let f = (ラムダ)` / `return ラムダ` / 任意の非コンビネータ引数位置のラムダは `KEI-E2001`(関数は値ではない)を維持。受信側が `List<T>` でないコンビネータ風呼び出し(`cart.map(...)`)は専用診断「`map` is a List<T> combinator」を出す(F7)。
+- **キャプチャ**: 禁止。ラムダ body 内で参照できるのは **ラムダパラメータ + トップレベル関数 + import** のみ。外側関数の `let` / parameter 参照は `KEI-E2001`(明示的に「キャプチャ不可」と診断)。特に `result`(ensures の特殊束縛)も lambda 内からは見えない(F1 / 「`result` is not accessible from lambda bodies」)。
+- **エフェクト**: 純粋限定。ラムダ body 内で `uses` 付き関数を呼んだら `KEI-E3001`(外側関数の `uses` 包含があっても許さない。契約式と同じ純粋スコープ)。契約の中の lambda が effectful 呼び出しを含む場合は `KEI-E3001` + `KEI-E4001`(契約純粋性)の両方が出る(F6 / 二重診断は意図的)。
+- **`old(...)` は lambda body 内で一律禁止**(N3 / [0] / `KEI-E4002`、ensures モード限定)。`old` は関数入口で 1 回評価される(emit が `kei$old$N` に bind する)のに対し、lambda body は呼び出しごとに評価される — 時相が根本的に整合しない。引数が lambda param を参照するか否かに関わらず、`old(p.qty)` も `old(Database.maxLimit())` も等しく違反。したがって `xs.all(p => p < old(maxLimit()))` のような契約は書けない。代替: lambda body をトップレベル関数に切り出して `old(...)` 値を引数で渡すか、契約から `old` を取り除いて別の不変条件で表現する。emit 側は二段防御として `collect_old_exprs` を lambda 境界で停止する。
+- **TS 予約語**: lambda パラメータ名が TS 予約語(`class`, `var`, `null`, `this`, `function`, `delete`, `typeof`, `let`, `await`, `async` 等)と衝突したら `KEI-E2001`([4])。Kei 自体は予約していないが、emit 後の `(class) => ...` は `tsc` が parse 不能になるため check 段階で弾く。検出単位は v0.4 では lambda パラメータのみ(将来 let / 関数パラメータ全般に拡張可)。
+- **0 引数禁止**: `() => expr` は構文段階で `KEI-E0101` ([6])。parser が `Expr::Error` sentinel を返し、下流 walker は no-op で扱う。
+- **第一級関数値ではない**: ラムダは「コンビネータ引数位置の構文糖」であり、値として保存・再利用はできない(M9 / spec §10 「案 2: 第一級関数値を導入しない」を維持)。
+- **ネスト可能**: `xss.fold(0, (acc, xs) => acc + xs.fold(0, (a, x) => a + x))` のように内側のコンビネータ引数位置に再度 lambda を書ける。キャプチャ禁止・純粋限定は外側にも一段ずつ独立に効く(内側 lambda から外側 lambda の param を参照することはできない)。
+
+合意書原則への影響: 述語/射影が `requires` の上に直書きされることで、`products.all(p => p.quantity >= 0)` のように **その関数が前提とする不変条件** をその場で読める。トップレベルに `hasNonNegativeQuantity` のような使い捨て関数を散布する必要が無くなる(命名の汚染を避けつつ、契約は依然として静的に解析可能)。
+
 ## 3. エフェクトシステム(v0.1の範囲)
 
 ### 3.1 意味論

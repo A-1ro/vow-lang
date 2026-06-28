@@ -1,0 +1,39 @@
+[
+  {
+    "code": "KEI-E0101",
+    "fixes": [
+      {
+        "edits": [
+          {
+            "new_text": "p",
+            "span": {
+              "end": {
+                "col": 21,
+                "line": 4
+              },
+              "file": "tests/golden/syntax/err_lambda_zero_params.kei",
+              "start": {
+                "col": 21,
+                "line": 4
+              }
+            }
+          }
+        ],
+        "title": "Add a lambda parameter, e.g. 'p => ...'"
+      }
+    ],
+    "message": "lambda must have at least one parameter; spec §2.5 allows 'p => expr' (single) or '(a, b) => expr' (multiple)",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 21,
+        "line": 4
+      },
+      "file": "tests/golden/syntax/err_lambda_zero_params.kei",
+      "start": {
+        "col": 20,
+        "line": 4
+      }
+    }
+  }
+]

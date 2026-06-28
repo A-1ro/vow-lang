@@ -1,0 +1,32 @@
+[
+  {
+    "code": "KEI-E2001",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Extract the lambda body into a top-level function that takes 'result' explicitly, and reference that function from the contract"
+      },
+      {
+        "edits": [],
+        "title": "Restructure the ensures to not need per-element access to 'result' (e.g. compare aggregate properties: 'result.length == products.length')"
+      },
+      {
+        "edits": [],
+        "title": "Known v0.4 limitation: ensures that mix per-element lambda predicates with 'result' are not expressible"
+      }
+    ],
+    "message": "'result' is not accessible from lambda bodies; it is bound only at the ensures clause level",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 40,
+        "line": 8
+      },
+      "file": "tests/golden/check/err_type_lambda_capture_result.kei",
+      "start": {
+        "col": 34,
+        "line": 8
+      }
+    }
+  }
+]

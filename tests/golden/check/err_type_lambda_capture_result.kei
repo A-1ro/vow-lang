@@ -1,0 +1,11 @@
+module collections.lambda_capture_result
+
+record Item {
+  qty: Int
+}
+
+func bad(items: List<Item>) -> Int
+  ensures items.all(p => p.qty > result)
+{
+  return 0
+}

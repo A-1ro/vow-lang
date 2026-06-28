@@ -1,3 +1,7 @@
+// Money / core.money は spec v0.1 §2.4 の架空型・架空モジュール(stdlib に実在しない)。
+// 実プロジェクトでは Int(最小通貨単位)か自前 type Money = Int tagged "Money" を使うこと。
+// ※ 本例の `Money.zero` は架空 core.money の opaque import 経由で field 解決が静的に
+// 通っているだけで、推奨形ではない。実プロジェクトでは tagged Int を `Money(0)` で構築すること。
 module contracts.withdraw
 
 import core.money { AccountId, Money }

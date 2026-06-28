@@ -97,6 +97,7 @@ pub fn check_module_with_resolver(
                 scopes: Vec::new(),
                 opts,
                 list_ops: None,
+                lambda_floor: None,
             }
             .check();
         }
@@ -151,6 +152,7 @@ pub fn list_op_spans_with_resolver(
                 scopes: Vec::new(),
                 opts: CheckOptions::default(),
                 list_ops: Some(&mut spans),
+                lambda_floor: None,
             }
             .check();
         }
@@ -1178,6 +1180,14 @@ struct FnChecker<'a> {
     /// List コンビネータのメソッド呼び出し位置(Call span の開始 line,col)を収集する
     /// 任意のシンク(M9 / emit の権威的な型情報)。通常検査では `None`。
     list_ops: Option<&'a mut HashSet<(u32, u32)>>,
+    /// コンビネータ引数ラムダの中にいるときに `Some(floor)` を持つ(M25 / #59)。
+    /// `floor` は `scopes` のインデックス。ラムダ body 内のシンボル解決は
+    /// `scopes[floor..]` だけを参照する(外側関数のローカルをキャプチャしない)。
+    /// ネストラムダ(`fold(0, (acc, xs) => xs.fold(0, (a, x) => a + x))`)に対応するため、
+    /// `check_combinator_lambda_arg` で `prev_floor = self.lambda_floor` を退避して
+    /// 内側用 floor を立てる save/restore パターンを使う。Option は「現在ラムダ中か」
+    /// を示すフラグであって、ネストの深さは scopes の深さで暗黙に表現される。
+    lambda_floor: Option<usize>,
 }
 
 impl FnChecker<'_> {
@@ -1500,6 +1510,25 @@ impl FnChecker<'_> {
                 span,
             } => self.infer_match(scrutinee, arms, *span),
             ast::Expr::ListLit { elements, span } => self.infer_list_lit(elements, *span),
+            // ラムダ式は List コンビネータの引数位置でのみ意味を持つ(M25 / #59)。
+            // ここに来た時点で「コンビネータ引数以外の位置」に出現したことが確定するため、
+            // KEI-E2001 を出して値推論は Unknown に倒す。`check_combinator_fn_arg` は
+            // ラムダを別経路で先に処理してこの infer 経路に降りないようにする。
+            ast::Expr::Lambda { span, .. } => {
+                self.push(
+                    codes::TYPE_MISMATCH,
+                    "lambdas are only allowed as arguments to List combinators (map, filter, fold, all, any); functions are not first-class values in Kei"
+                        .to_string(),
+                    *span,
+                    vec![direction(
+                        "Pass the lambda directly to a combinator, or define a top-level function",
+                    )],
+                );
+                Ty::Unknown
+            }
+            // [6]: パーサが既に SyntaxError を報告済みの sentinel。型情報を持たないので
+            // 黙って Ty::Unknown に倒す。check 側で追加の diagnostic を上げないことが契約。
+            ast::Expr::Error { .. } => Ty::Unknown,
         }
     }
 
@@ -1532,7 +1561,10 @@ impl FnChecker<'_> {
     }
 
     fn lookup_scope(&self, name: &str) -> Option<Ty> {
-        self.scopes
+        // M25 / #59: ラムダ body 内ではキャプチャ禁止。`lambda_floor` 以降のスコープ
+        // (= ラムダパラメータ)だけを参照する。外側関数のローカル / パラメータは見えない。
+        let floor = self.lambda_floor.unwrap_or(0);
+        self.scopes[floor..]
             .iter()
             .rev()
             .find_map(|scope| scope.get(name).cloned())
@@ -1541,6 +1573,63 @@ impl FnChecker<'_> {
     fn infer_name(&mut self, name: &str, span: SynSpan) -> Ty {
         if let Some(t) = self.lookup_scope(name) {
             return t;
+        }
+        // M25 / #59: ラムダ body 内でキャプチャ禁止。lookup_scope は floor 以降しか
+        // 見えないため、ここで「外側スコープには存在するが lambda_floor で隔離されている」
+        // ケースを検出し、明示的に「キャプチャ不可」エラーを出す(KEI-E2001 に分類)。
+        // F1: `result` だけは ensures の特殊束縛なので、誤導的な「キャプチャ」より
+        // 「lambda 内から result は見えない」と明確に伝える。
+        if let Some(floor) = self.lambda_floor {
+            if self.scopes[..floor].iter().any(|s| s.contains_key(name)) {
+                if name == "result" {
+                    // [1]: 旧 fix「let r = result before the lambda」は ensures 節で `let` を
+                    // 書けないため実現不能。`result` を lambda 越しに参照する設計そのものが
+                    // v0.4 段階の射程外なので、その旨を明示する。
+                    self.push(
+                        codes::TYPE_MISMATCH,
+                        "'result' is not accessible from lambda bodies; it is bound only at the ensures clause level"
+                            .to_string(),
+                        span,
+                        vec![
+                            direction(
+                                "Extract the lambda body into a top-level function that takes 'result' explicitly, and reference that function from the contract",
+                            ),
+                            direction(
+                                "Restructure the ensures to not need per-element access to 'result' (e.g. compare aggregate properties: 'result.length == products.length')",
+                            ),
+                            direction(
+                                "Known v0.4 limitation: ensures that mix per-element lambda predicates with 'result' are not expressible",
+                            ),
+                        ],
+                    );
+                } else {
+                    let name = name.to_string();
+                    // [1]: 旧 fix「Inline the value if it is a constant」「Use 'fold' …」
+                    // 「Refactor …」は本体内 lambda(ヘルパ関数で wrap して call すれば
+                    // capture せずに済むケース)を語らず、契約節の lambda には適用困難。
+                    // 実行可能な選択肢に揃える: (a) 本体に降ろして外で計算してから lambda 引数の
+                    // 元になる値を構成、(b) lambda を取らない別形に直す、(c) 既知の v0.4 制約。
+                    self.push(
+                        codes::TYPE_MISMATCH,
+                        format!(
+                            "lambda cannot reference '{name}' from the enclosing function; lambdas may only use their own parameters and top-level functions"
+                        ),
+                        span,
+                        vec![
+                            direction(format!(
+                                "Move the lambda body to a top-level function that takes '{name}' as an explicit parameter, and call that function from the lambda"
+                            )),
+                            direction(format!(
+                                "Capture '{name}' before the call site and pass it as the receiver / fold seed (e.g. 'items.fold({name}, (acc, p) => ...)')"
+                            )),
+                            direction(
+                                "Known v0.4 limitation: per-element predicates that depend on outer locals must be refactored away from lambdas",
+                            ),
+                        ],
+                    );
+                }
+                return Ty::Unknown;
+            }
         }
         if self.mode == Mode::Requires && name == "result" {
             self.push(
@@ -1836,6 +1925,57 @@ impl FnChecker<'_> {
                     if let Ty::List(elem) = base_ty.clone() {
                         return self.list_method(&elem, vname, args, span);
                     }
+                    // F7 / M25: 受信側が `List<T>` でないのに `map`/`filter`/`fold`/`all`/`any`
+                    // を呼んでいるケースを専用に診断する。lambda 引数を `infer` に降ろすと
+                    // 「lambdas are only allowed in combinators」と誤導的な二次エラーが出るため、
+                    // ここで先に「receiver is not a List」を出して、lambda 引数は capture / 純粋性
+                    // だけ走らせ、E2001 二重発火を抑える。
+                    //
+                    // [2]: ただし receiver が **record で同名 field を持つ** 場合は F7 文面が
+                    // 「List に変換せよ」と誤誘導する(`record Bag { map: Int }` で `b.map(...)`
+                    // と書いたユーザは field を関数として呼んでいる)。field 解決を先に試して、
+                    // 当たれば「field を関数として呼べない」専用診断を出す。
+                    if is_list_combinator_name(&vname.name) && base_ty != Ty::Unknown {
+                        if let Ty::Record(r) = &base_ty {
+                            let fields = self.env.records.get(r).cloned().unwrap_or_default();
+                            if let Some((_, fty)) = fields.iter().find(|(n, _)| n == &vname.name) {
+                                let fty = fty.clone();
+                                let m = vname.name.clone();
+                                let r = r.clone();
+                                self.push(
+                                    codes::TYPE_MISMATCH,
+                                    format!(
+                                        "'{m}' is a field of type '{fty}' on record '{r}'; it cannot be called as a function"
+                                    ),
+                                    vname.span,
+                                    vec![direction(format!(
+                                        "Access the field value without parentheses: write '<receiver>.{m}'"
+                                    ))],
+                                );
+                                for a in args {
+                                    self.check_combinator_arg_for_body_diags(a);
+                                }
+                                return Ty::Unknown;
+                            }
+                        }
+                        self.push(
+                            codes::TYPE_MISMATCH,
+                            format!(
+                                "'{}' is a List<T> combinator; receiver has type '{base_ty}' and does not support it",
+                                vname.name
+                            ),
+                            vname.span,
+                            vec![direction(format!(
+                                "Convert the receiver to a 'List<T>' before calling '{}'",
+                                vname.name
+                            ))],
+                        );
+                        // 引数の body 検査だけ走らせる(lambda の capture / 純粋性は拾いたい)。
+                        for a in args {
+                            self.check_combinator_arg_for_body_diags(a);
+                        }
+                        return Ty::Unknown;
+                    }
                     let callee_ty = self.field_on(&base_ty, vname);
                     return self.call_value(&callee_ty, args, span);
                 }
@@ -2030,6 +2170,9 @@ impl FnChecker<'_> {
     /// 導入せず、トップレベル/同一モジュールの**純粋関数名**だけを引数位置で許す。
     /// 期待シグネチャ(params -> ret)と照合し、関数のエフェクトを呼び出し元へ
     /// 推移伝播する(契約式なら副作用は KEI-E4001)。戻り型を返す(map / fold の U 決定用)。
+    ///
+    /// M25 / #59: 引数位置にラムダ式が来た場合は `check_combinator_lambda_arg` に委譲する。
+    /// ラムダは「キャプチャ禁止 + 純粋」の純粋スコープでパラメータ型を埋め body を検査する。
     fn check_combinator_fn_arg(
         &mut self,
         arg: &ast::Expr,
@@ -2038,15 +2181,23 @@ impl FnChecker<'_> {
         method: &str,
         span: SynSpan,
     ) -> Ty {
+        if let ast::Expr::Lambda {
+            params: lparams,
+            body,
+            span: lspan,
+        } = arg
+        {
+            return self.check_combinator_lambda_arg(lparams, body, *lspan, params, ret, method);
+        }
         let ast::Expr::Name { name, span: nspan } = arg else {
             self.infer(arg);
             self.push(
                 codes::TYPE_MISMATCH,
                 format!(
-                    "'{method}' expects a named function reference here; functions are not first-class values in Kei"
+                    "'{method}' expects a named function reference or a lambda here; functions are not first-class values in Kei"
                 ),
                 arg.span(),
-                vec![direction("Pass a top-level function name, e.g. 'xs.map(toItem)'")],
+                vec![direction("Pass a top-level function name or a lambda, e.g. 'xs.map(p => p.id)'")],
             );
             return Ty::Unknown;
         };
@@ -2107,6 +2258,154 @@ impl FnChecker<'_> {
         // 関数のエフェクトを呼び出し元へ推移伝播(§8.1。契約式なら KEI-E4001)。
         self.check_call_effects(&sig.effects, name, span);
         sig.ret.clone()
+    }
+
+    /// F7 / M25: receiver が List でないと確定したコンビネータ風呼び出しの引数を
+    /// 「lambda が引数位置に居る前提」で body だけ検査する(`Expr::Lambda` の infer arm が
+    /// 走るとミスリーディングな『lambdas only allowed in combinators』が二重発火するため)。
+    /// 期待型が未知なので、ラムダパラメータは全部 Unknown 扱いで body を走らせるだけ。
+    /// 非ラムダ引数は通常通り infer する。
+    fn check_combinator_arg_for_body_diags(&mut self, arg: &ast::Expr) {
+        if let ast::Expr::Lambda { params, body, .. } = arg {
+            // body 内のキャプチャ・純粋性違反を捕捉するため、Unknown のラムダスコープを
+            // 一段積んで infer を走らせる。
+            let mut lscope = HashMap::new();
+            for p in params {
+                lscope.insert(p.name.clone(), Ty::Unknown);
+            }
+            let prev_floor = self.lambda_floor;
+            self.scopes.push(lscope);
+            self.lambda_floor = Some(self.scopes.len() - 1);
+            self.infer(body);
+            self.lambda_floor = prev_floor;
+            self.scopes.pop();
+        } else {
+            self.infer(arg);
+        }
+    }
+
+    /// コンビネータ引数位置のラムダ `p => expr` / `(a, b) => expr` を検査する(M25 / #59)。
+    ///
+    /// - 引数個数: 期待 `expected_params.len()` と一致しなければ KEI-E2001
+    /// - パラメータ型: 期待型をそのままラムダパラメータに割り当てる(注釈構文は v0.4 で無し)
+    /// - キャプチャ禁止: `lambda_floor` を立てて外側スコープの変数を見えなくする
+    /// - 純粋限定: `check_call_effects` がラムダ内のエフェクト呼び出しを KEI-E3001 で弾く
+    /// - 戻り型: body を infer して期待戻り型と照合(map / fold の U を決定)
+    fn check_combinator_lambda_arg(
+        &mut self,
+        lparams: &[ast::Ident],
+        body: &ast::Expr,
+        lspan: SynSpan,
+        expected_params: &[Ty],
+        expected_ret: Option<&Ty>,
+        method: &str,
+    ) -> Ty {
+        let arity_ok = lparams.len() == expected_params.len();
+        // [6]: 0 引数ラムダは parser が `Expr::Error` sentinel で短絡するため、ここには
+        // 1 個以上の params を持つ `Expr::Lambda` だけが届く。旧 N0 銀弾(`lparams.is_empty()`
+        // 早期 return)は不要になった。debug_assert で前提を明示しておく。
+        debug_assert!(
+            !lparams.is_empty(),
+            "0-arg lambdas are routed through Expr::Error; check_combinator_lambda_arg never sees empty params"
+        );
+        if !arity_ok {
+            self.push(
+                codes::TYPE_MISMATCH,
+                format!(
+                    "lambda for '{method}' takes {} parameter(s), found {}",
+                    expected_params.len(),
+                    lparams.len()
+                ),
+                lspan,
+                vec![direction(format!(
+                    "Use {} lambda parameter(s)",
+                    expected_params.len()
+                ))],
+            );
+            // F5: arity 不一致でも body の検査は続行する(body 内の未定義名やキャプチャ
+            // 違反を一括で出すため)。期待型は埋められないので Ty::Unknown で全パラメータを
+            // 仮置きする。キャプチャ禁止・純粋限定の検査も同じ経路で動く。
+        }
+        // パラメータ名の重複チェック(`(a, a) => ...`)。重複は単純な KEI-E1003。
+        for i in 0..lparams.len() {
+            for j in (i + 1)..lparams.len() {
+                if lparams[i].name == lparams[j].name {
+                    let name = &lparams[j].name;
+                    self.push(
+                        codes::DUPLICATE_DEF,
+                        format!("duplicate lambda parameter '{name}'"),
+                        lparams[j].span,
+                        vec![direction("Rename one of the parameters")],
+                    );
+                }
+            }
+        }
+        // [4] / M25: TS 予約語と衝突するラムダパラメータを弾く。Kei では予約語でない
+        // 名前(`class` / `var` / `null` / `this` ...)でも、emit 後の `(class) => ...`
+        // は tsc が parse できない。check 段階で先に弾いて、ビルドが TS 側で死ぬ事故を
+        // 構造的に防ぐ。検出単位はラムダパラメータのみ(将来 let / 関数パラメータに拡張可)。
+        for lp in lparams {
+            if is_ts_reserved_word(&lp.name) {
+                let name = lp.name.clone();
+                self.push(
+                    codes::TYPE_MISMATCH,
+                    format!(
+                        "lambda parameter '{name}' collides with a TypeScript reserved word; the emitted TS would not parse"
+                    ),
+                    lp.span,
+                    vec![direction(format!(
+                        "Rename '{name}' to a non-reserved name (e.g. 'item', '{name}1')"
+                    ))],
+                );
+            }
+        }
+        // N3 + [3]: ensures 内 lambda body の `old(...)` は **一律禁止**(KEI-E4002)。
+        // 「old は関数入口で 1 回評価」「lambda は per-call 評価」という時相が根本的に
+        // 噛み合わないため、`old(p.qty)` も `old(Database.maxLimit())` も等しく違反。
+        // requires モードでは別の既存検査(`'old(...)' is only available in 'ensures' clauses`)が
+        // すでに optimal な診断を出すため、ここで重ねて発火させず ensures に限定する([3] 二重発火回避)。
+        if matches!(self.mode, Mode::Ensures) {
+            forbid_old_inside_lambda_body(body, self.diags, self.env);
+        }
+        // ラムダパラメータを 1 段のスコープとして積む。`lambda_floor` を立てて
+        // この位置より外のスコープは lookup_scope から見えなくする(キャプチャ禁止)。
+        let mut lscope = HashMap::new();
+        for (lp, expected) in lparams.iter().zip(expected_params) {
+            // arity 不一致時は expected が足りない/余るので、足りない分は Unknown で
+            // 仮置きする(余る分は無視)。
+            lscope.insert(lp.name.clone(), expected.clone());
+        }
+        if !arity_ok {
+            for lp in lparams.iter().skip(expected_params.len()) {
+                lscope.insert(lp.name.clone(), Ty::Unknown);
+            }
+        }
+        let prev_floor = self.lambda_floor;
+        self.scopes.push(lscope);
+        self.lambda_floor = Some(self.scopes.len() - 1);
+        let body_ty = self.infer(body);
+        self.lambda_floor = prev_floor;
+        self.scopes.pop();
+        if !arity_ok {
+            // arity 不一致時は戻り型確定もできないので Unknown を返す(map / fold 連鎖の
+            // 二重診断を防ぐ)。
+            return Ty::Unknown;
+        }
+        if let Some(expected_ret) = expected_ret {
+            if !body_ty.compatible(expected_ret) {
+                self.push(
+                    codes::TYPE_MISMATCH,
+                    format!(
+                        "lambda for '{method}' must return '{expected_ret}', found '{body_ty}'"
+                    ),
+                    body.span(),
+                    vec![direction(format!(
+                        "Make the lambda body return '{expected_ret}'"
+                    ))],
+                );
+            }
+        }
+        body_ty
     }
 
     fn call_named(&mut self, name: &str, nspan: SynSpan, args: &[ast::Expr], span: SynSpan) -> Ty {
@@ -2353,37 +2652,27 @@ impl FnChecker<'_> {
 
     /// 呼び出し先(ローカル関数 / extern)の宣言エフェクトを呼び出し元の uses に
     /// 照合する。本体では未宣言を E3001、契約式では副作用を E4001。
+    /// M25 / #59 + F6: 「契約式の中の lambda」が両方の制約を持つので、early return せず
+    /// 両方の経路で個別に push する。lambda は純粋限定(E3001)・契約は副作用禁止(E4001)、
+    /// 双方が同時に違反するケース(`ensures xs.all(p => effectful(p))`)で 2 件出す。
     fn check_call_effects(&mut self, effects: &[String], callee: &str, span: SynSpan) {
-        if self.mode == Mode::Body {
-            // 呼び出し先の宣言エフェクトが呼び出し元の uses に包含されているか
-            // (推移的伝播 + 階層包含判定)。
-            for eff in effects {
-                if self.sig.effects.iter().any(|d| effects::covers(d, eff)) {
-                    continue;
-                }
-                let caller = &self.func.name.name;
-                let fix = match self.sig.uses_end {
-                    Some(end) => Fix {
-                        title: format!("Add '{eff}' to uses clause"),
-                        edits: vec![TextEdit {
-                            span: self.env.span(SynSpan::point(end)),
-                            new_text: format!(", {eff}"),
-                        }],
-                    },
-                    None => direction(format!("Add 'uses {eff}' to '{caller}'")),
-                };
-                self.env.push(
-                    self.diags,
-                    codes::EFFECT_UNDECLARED,
-                    format!(
-                        "effect '{eff}' used but not declared in 'uses' clause of '{caller}' (required by call to '{callee}')"
-                    ),
-                    span,
-                    vec![fix],
-                );
-            }
-        } else if !effects.is_empty() {
-            // 契約純粋性検査: 契約式の中ではエフェクトを持つ呼び出しを禁止(spec §4)。
+        // (1) ラムダ body 内のエフェクト呼び出し(E3001、文脈を文面で明示)。
+        //     外側関数の uses 包含は判定しない(あっても許さない)。
+        if self.lambda_floor.is_some() && !effects.is_empty() {
+            self.push(
+                codes::EFFECT_UNDECLARED,
+                format!(
+                    "call to '{callee}' (uses {}) is not allowed inside a lambda; combinator lambdas must be pure",
+                    effects.join(", ")
+                ),
+                span,
+                vec![direction(
+                    "Move the effectful call out of the lambda, or use a named function inside the function body",
+                )],
+            );
+        }
+        // (2) 契約式の中のエフェクト呼び出し(E4001)。lambda の中にいる時も契約は契約。
+        if matches!(self.mode, Mode::Requires | Mode::Ensures) && !effects.is_empty() {
             self.push(
                 codes::IMPURE_CONTRACT,
                 format!(
@@ -2392,6 +2681,39 @@ impl FnChecker<'_> {
                 ),
                 span,
                 vec![direction("Move the effectful call into the function body")],
+            );
+        }
+        // ラムダ body 内 / 契約式内は通常の uses 伝播を行わない(早期 return)。
+        // 上の (1) (2) でカバー済みで、本体の caller への伝播はそもそも意味を持たない。
+        if self.lambda_floor.is_some() || matches!(self.mode, Mode::Requires | Mode::Ensures) {
+            return;
+        }
+        // ここに来るのは Mode::Body かつラムダ外。本体内呼び出しの uses 伝播判定。
+        // 呼び出し先の宣言エフェクトが呼び出し元の uses に包含されているか
+        // (推移的伝播 + 階層包含判定)。
+        for eff in effects {
+            if self.sig.effects.iter().any(|d| effects::covers(d, eff)) {
+                continue;
+            }
+            let caller = &self.func.name.name;
+            let fix = match self.sig.uses_end {
+                Some(end) => Fix {
+                    title: format!("Add '{eff}' to uses clause"),
+                    edits: vec![TextEdit {
+                        span: self.env.span(SynSpan::point(end)),
+                        new_text: format!(", {eff}"),
+                    }],
+                },
+                None => direction(format!("Add 'uses {eff}' to '{caller}'")),
+            };
+            self.env.push(
+                self.diags,
+                codes::EFFECT_UNDECLARED,
+                format!(
+                    "effect '{eff}' used but not declared in 'uses' clause of '{caller}' (required by call to '{callee}')"
+                ),
+                span,
+                vec![fix],
             );
         }
     }
@@ -3256,6 +3578,125 @@ fn direction(title: impl Into<String>) -> Fix {
     }
 }
 
+/// `List<T>` 上のコンビネータ名(M9 / spec v0.3-collections §9・spec §2.5)。
+/// F7: 非 List receiver でこれらを呼んでいる場合に、専用の「receiver is not List」
+/// 診断を出すか判定するために使う。`length` / `isEmpty` / `get` はコールバックを
+/// 取らないので、ここでは除外している(誤検出を避けるため)。
+fn is_list_combinator_name(name: &str) -> bool {
+    matches!(name, "map" | "filter" | "fold" | "all" | "any")
+}
+
+/// [4] / M25: lambda パラメータ名が TS 予約語と衝突するかを判定する。Kei では予約語でない
+/// 名前(`class` / `function` / `var` / `null` / `this` ...)でも、emit 後の TS では
+/// `tsc` が parse 不能になる(`(class) => class > 0` は SyntaxError)。check 段階で弾く。
+///
+/// 対象は **lambda パラメータ限定**(段階的導入)。将来、let 束縛 / 関数パラメータ全般に
+/// 拡張する場合は同じヘルパを再利用する。リストは ES2022 + TS 固有の strict mode reserved。
+fn is_ts_reserved_word(name: &str) -> bool {
+    matches!(
+        name,
+        // ES core reserved
+        "break" | "case" | "catch" | "class" | "const" | "continue" | "debugger" | "default"
+        | "delete" | "do" | "else" | "enum" | "export" | "extends" | "false" | "finally"
+        | "for" | "function" | "if" | "import" | "in" | "instanceof" | "new" | "null"
+        | "return" | "super" | "switch" | "this" | "throw" | "true" | "try" | "typeof"
+        | "var" | "void" | "while" | "with" | "yield"
+        // TS / strict-mode reserved
+        | "let" | "static" | "implements" | "interface" | "package" | "private"
+        | "protected" | "public" | "await" | "async"
+    )
+}
+
+/// N3 / M25: contract 文脈の lambda body に **`old(...)` が含まれていないか** を再帰走査する。
+/// emit は contract 中の `old(expr)` を **関数入口で評価して `kei$old$N` に bind** するため、
+/// 呼び出しごとに評価される lambda body の中から `kei$old$N` を参照しても、closure 内では
+/// 同名のバインディングが存在せず実行時 `ReferenceError` になる。
+///
+/// 旧版(F3)は「arg が lambda param を参照するときだけ」弾いていたが、
+/// `old(Database.maxLimit())` / `old(42)` / shorthand RecordLit のように
+/// param を文字列上参照しない `old` が見逃される穴があった。N3 で
+/// 「old は関数入口で 1 回評価」「lambda は per-call 評価」という時相が
+/// 根本的に噛み合わないため、引数の中身に関わらず **一律で KEI-E4002 を出す**。
+///
+/// ネストラムダの中身は内側ラムダの check で個別に walk されるため、ここでは
+/// スキップ(同じ違反の二重発火回避)。
+fn forbid_old_inside_lambda_body(body: &ast::Expr, diags: &mut Vec<Diagnostic>, env: &Env) {
+    fn walk(expr: &ast::Expr, diags: &mut Vec<Diagnostic>, env: &Env) {
+        match expr {
+            ast::Expr::Call { callee, args, span } => {
+                if let ast::Expr::Name { name, .. } = callee.as_ref() {
+                    if name == "old" {
+                        env.push(
+                            diags,
+                            codes::CONTRACT_CONSTRUCT,
+                            "'old(...)' is not allowed inside a lambda body; 'old' is evaluated once at function entry, but lambda bodies are evaluated per element — the two time-frames do not align".to_string(),
+                            *span,
+                            // [1]: 旧 fix「let prev = old(seed); xs.all(p => p > prev)」は
+                            // 契約節で `let` を書けないため実現不能。実現可能な選択肢に揃える:
+                            // (a) lambda body を関数化して外で `old` を取り回す、
+                            // (b) 契約を refactor して per-element + old の組合せを避ける、
+                            // (c) 既知の v0.4 制約として明示。
+                            vec![
+                                direction(
+                                    "Move the lambda body to a top-level function that takes the captured 'old' value as a parameter, and call it from the contract before the lambda",
+                                ),
+                                direction(
+                                    "Restructure the contract to not need per-element comparison against an 'old' value (e.g. capture the bound before the function call and pass it in as a parameter)",
+                                ),
+                                direction(
+                                    "Known v0.4 limitation: cross-element invariants with 'old' inside lambdas are not expressible",
+                                ),
+                            ],
+                        );
+                        // arg の中も走査しない: `old(...)` 自体が違反点で、入れ子の `old(old(x))`
+                        // を二重に報告しても情報量が増えない(外側 1 件で根本原因を示せる)。
+                        return;
+                    }
+                }
+                walk(callee, diags, env);
+                for a in args {
+                    walk(a, diags, env);
+                }
+            }
+            ast::Expr::Field { base, .. } => walk(base, diags, env),
+            ast::Expr::Unary { expr, .. } => walk(expr, diags, env),
+            ast::Expr::Binary { lhs, rhs, .. } => {
+                walk(lhs, diags, env);
+                walk(rhs, diags, env);
+            }
+            ast::Expr::RecordLit { fields, .. } => {
+                for f in fields {
+                    if let Some(v) = &f.value {
+                        walk(v, diags, env);
+                    }
+                }
+            }
+            ast::Expr::Match {
+                scrutinee, arms, ..
+            } => {
+                walk(scrutinee, diags, env);
+                for a in arms {
+                    walk(&a.body, diags, env);
+                }
+            }
+            ast::Expr::ListLit { elements, .. } => {
+                for e in elements {
+                    walk(e, diags, env);
+                }
+            }
+            // ネストラムダ本体は内側ラムダの check で別途 walk される(二重発火回避)。
+            ast::Expr::Lambda { .. } => {}
+            // [6]: parser 既報告 sentinel。何もしない。
+            ast::Expr::Error { .. } => {}
+            ast::Expr::Name { .. }
+            | ast::Expr::Int { .. }
+            | ast::Expr::Str { .. }
+            | ast::Expr::Bool { .. } => {}
+        }
+    }
+    walk(body, diags, env);
+}
+
 /// 契約式の Kei ソース表記の**唯一の正規実装**(#32)。
 ///
 /// `CheckReport.contracts[].expr`(検証レポート)と実行時 `KeiContractViolation.condition`
@@ -3369,6 +3810,22 @@ pub fn contract_expr_text(e: &ast::Expr) -> String {
             let elems: Vec<String> = elements.iter().map(contract_expr_text).collect();
             format!("[{}]", elems.join(", "))
         }
+        // M25 / #59: ラムダの contract 表記。kei_fmt の整形と同じく単項は丸括弧なし、
+        // 複数は丸括弧必須。body はそのまま埋め込む(複雑な式は contract_expr_text が
+        // 内部で必要な括弧を補う)。
+        ast::Expr::Lambda { params, body, .. } => {
+            let body_text = contract_expr_text(body);
+            if params.len() == 1 {
+                format!("{} => {}", params[0].name, body_text)
+            } else {
+                let ps: Vec<&str> = params.iter().map(|p| p.name.as_str()).collect();
+                format!("({}) => {}", ps.join(", "), body_text)
+            }
+        }
+        // [6]: parser 既報告 sentinel。contract レポートには「<error>」のプレースホルダーを残す。
+        // 実行時 condition 文字列としては不正だが、本パスは構文エラーがある時しか来ないので
+        // どのみち実行可能 TS を生成しない(emit が syntax_diagnostics 時点で exit 1)。
+        ast::Expr::Error { .. } => "<error>".to_string(),
     }
 }
 

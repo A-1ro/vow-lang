@@ -1,0 +1,32 @@
+[
+  {
+    "code": "KEI-E4002",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Move the lambda body to a top-level function that takes the captured 'old' value as a parameter, and call it from the contract before the lambda"
+      },
+      {
+        "edits": [],
+        "title": "Restructure the contract to not need per-element comparison against an 'old' value (e.g. capture the bound before the function call and pass it in as a parameter)"
+      },
+      {
+        "edits": [],
+        "title": "Known v0.4 limitation: cross-element invariants with 'old' inside lambdas are not expressible"
+      }
+    ],
+    "message": "'old(...)' is not allowed inside a lambda body; 'old' is evaluated once at function entry, but lambda bodies are evaluated per element — the two time-frames do not align",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 37,
+        "line": 8
+      },
+      "file": "tests/golden/check/err_contract_old_lambda_param.kei",
+      "start": {
+        "col": 27,
+        "line": 8
+      }
+    }
+  }
+]

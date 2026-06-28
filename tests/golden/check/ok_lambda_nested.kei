@@ -1,0 +1,9 @@
+module collections.lambda_nested
+
+func sumAll(xss: List<List<Int>>) -> Int {
+  return xss.fold(0, (acc, xs) => acc + xs.fold(0, (a, x) => a + x))
+}
+
+func anyEmpty(xss: List<List<Int>>) -> Bool {
+  return xss.any(xs => xs.isEmpty())
+}
