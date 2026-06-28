@@ -1,0 +1,6 @@
+module inventory
+
+record Product {
+  id: Int
+  name: String
+}

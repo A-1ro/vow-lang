@@ -32,7 +32,15 @@ pub fn run(
     // 意味検査をかけず、構文 Diagnostic だけを返す(契約レポートも出さない)。
     let parsed = kei_syntax::parse_module(&source);
     let mut report = if parsed.errors.is_empty() {
-        kei_check::check_module_report_with(&name, &parsed.module, opts)
+        // M20: `module a.b.c` から project root を逆算し、可能なら import 先を解決する。
+        // root が割り出せない / 解決できないファイルは従来どおり opaque で検査続行。
+        match crate::resolve::derive_root(file, &parsed.module) {
+            Some(root) => {
+                let resolver = crate::resolve::FsModuleResolver::new(root);
+                kei_check::check_module_report_with_resolver(&name, &parsed.module, opts, &resolver)
+            }
+            None => kei_check::check_module_report_with(&name, &parsed.module, opts),
+        }
     } else {
         CheckReport {
             diagnostics: kei_check::syntax_diagnostics(&name, &parsed.errors),

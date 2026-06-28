@@ -79,6 +79,7 @@ import infra.database as Database
 
 - importは全て明示。ワイルドカードなし。再エクスポートなし。
 - モジュールパスはファイルパスと1:1対応。
+- **import 境界の型解決(v0.4 / M20)**: `kei check <file>` は `module a.b.c` 宣言と入力ファイルのパスから project root を逆算し(親を `path` の段数だけ遡る)、`import a.b { X }` を `<root>/a/b.kei` まで解決する。対象モジュールが見つかれば、import した record / enum / type alias は通常のローカル型と同じ検査経路に乗り、フィールド名タイプミスは `KEI-E2002`、フィールド型誤用は `KEI-E2001`、enum match の非網羅は `KEI-E2007` で検出される。解決できない import(ファイル不在 / パース失敗 / 循環)は従来通り **opaque**(`Ty::Unknown`)として扱い、検査をブロックしない。namespace 別名 import(`import x.y as N`)は将来拡張のため M20 でも opaque のまま据え置く。
 
 ## 3. エフェクトシステム(v0.1の範囲)
 

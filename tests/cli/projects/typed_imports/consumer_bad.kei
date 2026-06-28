@@ -1,0 +1,7 @@
+module consumer_bad
+
+import inventory { Product }
+
+func describe(p: Product) -> Int {
+  return p.nonexistentField
+}

@@ -227,6 +227,7 @@ import infra.database as Database         // 名前空間に別名を付けて i
 - import は**全て明示**。ワイルドカード・再エクスポート禁止。
 - モジュールパスはファイルパスと 1:1(`payments.transfer` ↔ `payments/transfer.kei`)。`module` のパス各セグメントに予約語(`fail` 等)は使えない(`KEI-E0102`)。
 - 暗黙の import は無い。使う外部名は必ず import する。
+- **import した型は v0.4 から検査される(M20)**: `import a.b { Product }` のように名前を明示した record / enum / type alias は、`kei check` が `module` 宣言とファイルパスから project root を逆算して対象 `.kei` を解決する。`Product` の存在しないフィールドへのアクセスは `KEI-E2002`、フィールド型誤用は `KEI-E2001`、enum match の非網羅は `KEI-E2007` で検出される。対象ファイルが見つからない場合は従来通り opaque(検査素通り)。
 - `as` で別名 import した名前空間配下のメンバ呼び出し(`Database.fetchBalance(...)` 等)は、既定では **opaque** 扱い。`check` は外部モジュールの実体を解決しないので、戻り型を気にせず呼べて check も通る(本体ロジックは自分で正しく組むこと)。
 - **境界を検証したいなら `extern` 署名を宣言する(v0.2)。** `extern Time.now() -> Int uses Clock` のように外部関数の戻り型・エフェクトを宣言すると、その呼び出しは opaque でなくなり、戻り型が型検査に伝播し、エフェクトが呼び出し元の `uses` へ推移伝播する(宣言漏れは `KEI-E3001`)。`extern` は import の後・モジュール先頭の宣言群に置く。詳細は §3「外部境界(extern)」と `spec/kei-spec-v0.2.md` §2。
 

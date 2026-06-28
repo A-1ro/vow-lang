@@ -20,6 +20,7 @@ mod cli;
 mod fmt;
 mod mcp;
 mod render;
+mod resolve;
 mod test;
 
 use cli::{Command, UsageError, USAGE};

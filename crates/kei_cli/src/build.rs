@@ -44,13 +44,17 @@ pub fn run(dir: &Path, out_dir: Option<&Path>, source_map: bool) -> Result<u8, U
     }
 
     // 全ファイルを先に検査(all-or-nothing)。1 件でもエラーなら何も書かない。
+    // M20: `kei build <dir>` は `<dir>` を共通の project root とみなして
+    // resolver を 1 つ作り、全 emit 呼び出しで共有する(import 解決と
+    // List メソッド検出を `kei check` と整合させる)。
+    let resolver = crate::resolve::FsModuleResolver::new(dir.to_path_buf());
     let mut outputs: Vec<EmitOutput> = Vec::new();
     let mut failures: Vec<(String, Vec<Diagnostic>)> = Vec::new();
     for file in &files {
         let source = std::fs::read_to_string(file)
             .map_err(|e| UsageError(format!("cannot read {}: {e}", file.display())))?;
         let rel = rel_path(dir, file);
-        match kei_emit::emit_module(&rel, &source) {
+        match kei_emit::emit_module_with_resolver(&rel, &source, &resolver) {
             Ok(out) => outputs.push(out),
             Err(diags) => failures.push((source, diags)),
         }

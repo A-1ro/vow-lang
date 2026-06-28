@@ -16,7 +16,7 @@
 mod emit;
 mod sourcemap;
 
-use kei_check::Diagnostic;
+use kei_check::{Diagnostic, ModuleResolver, NoopResolver};
 
 /// 1 モジュールのトランスパイル結果。
 #[derive(Debug, Clone)]
@@ -32,14 +32,30 @@ pub struct EmitOutput {
 /// 1 ソースファイルをトランスパイルする。`file` はリポジトリルートからの相対パスで、
 /// Diagnostic の span と source map の `sources` の双方に使われる。
 pub fn emit_module(file: &str, source: &str) -> Result<EmitOutput, Vec<Diagnostic>> {
+    emit_module_with_resolver(file, source, &NoopResolver)
+}
+
+/// [`emit_module`] に import 解決リゾルバを与えた版(M20 / #55)。`check_module` と
+/// `list_op_spans` の両方を同じリゾルバで通すので、import 先 record の `List`
+/// フィールドに対するメソッド呼び出しが検査・emit で一致して扱われる。
+pub fn emit_module_with_resolver(
+    file: &str,
+    source: &str,
+    resolver: &dyn ModuleResolver,
+) -> Result<EmitOutput, Vec<Diagnostic>> {
     let parsed = kei_syntax::parse_module(source);
     let mut diags = kei_check::syntax_diagnostics(file, &parsed.errors);
-    diags.extend(kei_check::check_module(file, &parsed.module));
+    diags.extend(kei_check::check_module_with_resolver(
+        file,
+        &parsed.module,
+        kei_check::CheckOptions::default(),
+        resolver,
+    ));
     if !diags.is_empty() {
         return Err(diags);
     }
     // List コンビネータ呼び出しの位置を検査器から受け取り、emit はこれだけを根拠に
     // 配列メソッドへ写す(構文ヒューリスティックではなく権威的な型情報。M9)。
-    let list_ops = kei_check::list_op_spans(&parsed.module);
+    let list_ops = kei_check::list_op_spans_with_resolver(&parsed.module, resolver);
     Ok(emit::emit_checked(file, source, &parsed.module, &list_ops))
 }

@@ -810,3 +810,43 @@ fn kei_test_builds_then_runs_contracts() {
         "the contract violation must surface KeiContractViolation:\n{combined}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// M20: import 境界の型解決(#55)
+// ---------------------------------------------------------------------------
+
+/// `kei check <file>` がファイルの `module` 宣言から project root を逆算し、
+/// `import` 先の record を解決して **存在しないフィールド** を検出する。
+/// 正常系は同じ仕組みで素通りすることも対で固定する。
+#[test]
+fn typed_imports_consumer_good_is_clean() {
+    let run = run_kei(&[
+        "check",
+        "tests/cli/projects/typed_imports/consumer_good.kei",
+    ]);
+    assert_eq!(
+        run.code, 0,
+        "valid import of a typed record should be clean: code={} stdout={:?} stderr={:?}",
+        run.code, run.stdout, run.stderr
+    );
+}
+
+#[test]
+fn typed_imports_consumer_bad_detects_unknown_field() {
+    let run = run_kei(&["check", "tests/cli/projects/typed_imports/consumer_bad.kei"]);
+    assert_eq!(
+        run.code, 1,
+        "unknown field on imported record must exit 1: stderr={:?}",
+        run.stderr
+    );
+    assert!(
+        run.stdout.contains("KEI-E2002"),
+        "expected KEI-E2002 on imported record field access: stdout={:?}",
+        run.stdout
+    );
+    assert!(
+        run.stdout.contains("nonexistentField"),
+        "diagnostic should name the missing field: stdout={:?}",
+        run.stdout
+    );
+}

@@ -1,0 +1,7 @@
+module consumer_good
+
+import inventory { Product }
+
+func describe(p: Product) -> Int {
+  return p.id
+}

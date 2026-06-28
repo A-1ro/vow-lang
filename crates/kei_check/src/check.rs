@@ -13,6 +13,7 @@ use kei_syntax::ast;
 use kei_syntax::{Position as SynPosition, Span as SynSpan};
 
 use crate::effects;
+use crate::imports::{ModuleResolver, NoopResolver, ResolvedTypeDef, ResolvedVariant};
 use crate::report::{CheckReport, ContractInfo, ContractKind, Verification};
 use crate::types::Ty;
 use crate::{Diagnostic, Fix, Position, Severity, Span, SuggestedContract, TextEdit};
@@ -70,8 +71,21 @@ pub fn check_module(file: &str, module: &ast::Module) -> Vec<Diagnostic> {
 
 /// [`check_module`] にオプションを与えた版(M16)。strict-extern 等の opt-in 検査を制御する。
 pub fn check_module_with(file: &str, module: &ast::Module, opts: CheckOptions) -> Vec<Diagnostic> {
+    check_module_with_resolver(file, module, opts, &NoopResolver)
+}
+
+/// [`check_module_with`] に import 解決リゾルバを与えた版(M20 / #55)。
+/// `resolver` が `import` 先の型定義(record / enum / type alias)を返せば、
+/// その名前は内部表に直接展開され、フィールドアクセスや match 網羅性が
+/// 通常通り検査される。`None` を返す import は従来通り opaque。
+pub fn check_module_with_resolver(
+    file: &str,
+    module: &ast::Module,
+    opts: CheckOptions,
+    resolver: &dyn ModuleResolver,
+) -> Vec<Diagnostic> {
     let mut diags = Vec::new();
-    let (env, fn_sigs) = Env::build(file, module, &mut diags);
+    let (env, fn_sigs) = Env::build(file, module, &mut diags, resolver);
     for (item, sig) in module.items.iter().zip(&fn_sigs) {
         if let (ast::Item::Func(f), Some(sig)) = (item, sig) {
             FnChecker {
@@ -106,10 +120,25 @@ pub fn check_module_with(file: &str, module: &ast::Module, opts: CheckOptions) -
 /// emit はこの**権威的な型情報**だけを根拠に `get`/`fold`/`all`/`any`/`isEmpty` を配列メソッドへ
 /// 写す(構文だけでレシーバが List か判別すると、外部呼び出しの連鎖や同名フィールドを誤写する)。
 /// 検査器(型推論)そのものを使って収集するので、検査の再実装にはならない。
+///
+/// resolver なしの版(後方互換)。import 由来の型は opaque 扱いなので、
+/// import 先 record の `List` フィールドに対するメソッド呼び出しは
+/// 検出されない(emit が外部呼び出しとして写す)。M20 / #55 と整合的に
+/// 解決させたい場合は [`list_op_spans_with_resolver`] を使う。
 pub fn list_op_spans(module: &ast::Module) -> std::collections::HashSet<(u32, u32)> {
+    list_op_spans_with_resolver(module, &NoopResolver)
+}
+
+/// [`list_op_spans`] に import 解決リゾルバを与えた版(M20 / #55)。
+/// `Env::build` を同じ resolver で組むので、`kei check_module_with_resolver` と
+/// 整合的な型情報の元で List メソッドを判定する。
+pub fn list_op_spans_with_resolver(
+    module: &ast::Module,
+    resolver: &dyn ModuleResolver,
+) -> std::collections::HashSet<(u32, u32)> {
     let file = "";
     let mut diags = Vec::new();
-    let (env, fn_sigs) = Env::build(file, module, &mut diags);
+    let (env, fn_sigs) = Env::build(file, module, &mut diags, resolver);
     let mut spans = HashSet::new();
     for (item, sig) in module.items.iter().zip(&fn_sigs) {
         if let (ast::Item::Func(f), Some(sig)) = (item, sig) {
@@ -141,7 +170,19 @@ pub fn check_module_report_with(
     module: &ast::Module,
     opts: CheckOptions,
 ) -> CheckReport {
-    let mut diagnostics = check_module_with(file, module, opts);
+    check_module_report_with_resolver(file, module, opts, &NoopResolver)
+}
+
+/// [`check_module_report_with`] にリゾルバを与えた版(M20 / #55)。
+/// 検査経路だけリゾルバを通し、契約レポート(`collect_contracts`)・PBT は
+/// 既存のままにする(契約自体は対象モジュール内のシグネチャから直接組む)。
+pub fn check_module_report_with_resolver(
+    file: &str,
+    module: &ast::Module,
+    opts: CheckOptions,
+    resolver: &dyn ModuleResolver,
+) -> CheckReport {
+    let mut diagnostics = check_module_with_resolver(file, module, opts, resolver);
     let mut contracts = collect_contracts(file, module);
 
     // 契約ベース PBT(M15 / #26)。静的検査がクリーンなときだけ走らせる(壊れた AST に
@@ -479,6 +520,7 @@ impl Env {
         file: &str,
         module: &ast::Module,
         diags: &mut Vec<Diagnostic>,
+        resolver: &dyn ModuleResolver,
     ) -> (Env, Vec<Option<FuncSig>>) {
         let mut env = Env {
             file: file.to_string(),
@@ -491,9 +533,19 @@ impl Env {
         };
         // 名前 → 最初の定義位置(重複メッセージと「最初の定義のみ有効」の判定)。
         let mut first: HashMap<String, SynSpan> = HashMap::new();
+        // M20: import で導入された名前を別途記録する。`env.kinds` の値は
+        // 解決の結果(Record / Enum / Alias / Import)で更新されるため、
+        // 名前の **出自**(import か local か)を kinds だけでは区別できない。
+        // IMPORT_CONFLICT vs DUPLICATE_DEF の判定に使う。
+        let mut imported_names: HashSet<String> = HashSet::new();
 
-        // 1) import 名の登録
+        // 1) import 名の登録(M20: resolver があれば対象モジュールの型定義を引いて
+        //    Record/Enum/Alias として持ち込み、無ければ従来通り opaque な Import に倒す)。
         for imp in &module.imports {
+            let path_strs: Vec<String> = imp.path.iter().map(|i| i.name.clone()).collect();
+            let resolved = resolver.resolve(&path_strs);
+            let is_namespace_alias = imp.alias.is_some();
+
             let mut names: Vec<&ast::Ident> = imp.names.iter().collect();
             if let Some(alias) = &imp.alias {
                 names.push(alias);
@@ -515,10 +567,48 @@ impl Env {
                         ident.span,
                         vec![direction("Remove or alias the duplicate import")],
                     );
-                } else {
-                    env.kinds.insert(ident.name.clone(), NameKind::Import);
-                    first.insert(ident.name.clone(), ident.span);
+                    continue;
                 }
+                // namespace alias(`import a.b as Database`)は単一型ではなく
+                // 名前空間。今回は従来通り opaque のまま据え置く(`Database.X` 経由の
+                // 型解決は将来拡張)。
+                let kind = if is_namespace_alias {
+                    NameKind::Import
+                } else if let Some(rm) = resolved.as_ref() {
+                    match rm.type_defs.get(&ident.name) {
+                        Some(ResolvedTypeDef::Record(fields)) => {
+                            env.records.insert(ident.name.clone(), fields.clone());
+                            NameKind::Record
+                        }
+                        Some(ResolvedTypeDef::Enum(variants)) => {
+                            let internal: Vec<(String, VariantDef)> = variants
+                                .iter()
+                                .map(|(n, v)| {
+                                    let def = match v {
+                                        ResolvedVariant::Unit => VariantDef::Unit,
+                                        ResolvedVariant::Tuple(ts) => VariantDef::Tuple(ts.clone()),
+                                        ResolvedVariant::Record(fs) => {
+                                            VariantDef::Record(fs.clone())
+                                        }
+                                    };
+                                    (n.clone(), def)
+                                })
+                                .collect();
+                            env.enums.insert(ident.name.clone(), internal);
+                            NameKind::Enum
+                        }
+                        Some(ResolvedTypeDef::Alias(ty)) => {
+                            env.aliases.insert(ident.name.clone(), ty.clone());
+                            NameKind::Alias
+                        }
+                        None => NameKind::Import,
+                    }
+                } else {
+                    NameKind::Import
+                };
+                env.kinds.insert(ident.name.clone(), kind);
+                imported_names.insert(ident.name.clone());
+                first.insert(ident.name.clone(), ident.span);
             }
         }
 
@@ -532,8 +622,12 @@ impl Env {
                 // extern はローカル名を導入しない(外部パスの署名のみ)。
                 ast::Item::Extern(_) => continue,
             };
-            match (env.kinds.get(&ident.name), first.get(&ident.name)) {
-                (Some(NameKind::Import), Some(_)) => {
+            match first.get(&ident.name) {
+                // M20: import で解決された名前(Record/Enum/Alias でも)とローカル
+                // 定義が衝突したら IMPORT_CONFLICT を出す。`env.kinds` の値だけで
+                // 判定すると、解決済み import が `NameKind::Record` 等になっているため
+                // DUPLICATE_DEF に流れ込んでしまう。`imported_names` 集合で出自を保つ。
+                Some(_) if imported_names.contains(&ident.name) => {
                     env.push(
                         diags,
                         codes::IMPORT_CONFLICT,
@@ -545,7 +639,7 @@ impl Env {
                         ))],
                     );
                 }
-                (Some(_), Some(prev)) => {
+                Some(prev) => {
                     let prev_line = prev.start.line;
                     env.push(
                         diags,
@@ -558,7 +652,7 @@ impl Env {
                         vec![direction("Rename one of the definitions")],
                     );
                 }
-                _ => {
+                None => {
                     env.kinds.insert(ident.name.clone(), kind);
                     first.insert(ident.name.clone(), ident.span);
                 }
