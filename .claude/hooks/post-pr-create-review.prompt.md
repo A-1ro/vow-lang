@@ -7,6 +7,8 @@ A `gh pr create` command just completed. Your job is to:
 2. Auto-apply any CONFIRMED correctness / invariants findings that are safe
    to fix mechanically, let the existing pre-commit CI verify the result,
    and push the fix to the PR branch.
+3. If the PR has zero outstanding issues (no PLAUSIBLE, no unapplied CONFIRMED),
+   queue an auto-merge via `gh pr merge --auto`.
 
 ## Steps
 
@@ -70,7 +72,28 @@ A `gh pr create` command just completed. Your job is to:
    - NEVER `--force`, NEVER `--force-with-lease`, NEVER `--no-verify`.
    - The branch already has upstream tracking (set when `gh pr create` ran).
 
-8. **Final reply.** ONE paragraph stating:
+8. **Auto-merge (if safe).** Compute eligibility from your tracking:
+   - `plausible_count` = total PLAUSIBLE findings returned by the review
+   - `unapplied_confirmed_count` = CONFIRMED findings that did NOT successfully land. Sum of:
+     - CONFIRMED filtered out at step 4 (excluded path OR angle ∉ {kei-invariants, correctness} OR abstract patch)
+     - CONFIRMED whose `Edit` failed at step 5
+     - CONFIRMED whose commit was reverted at step 6 (pre-commit-ci failed)
+
+   **Auto-merge IFF**: `plausible_count == 0 AND unapplied_confirmed_count == 0`.
+
+   When eligible, run:
+   `gh pr merge <N> --squash --delete-branch --auto`
+
+   - `--auto` queues the merge until all required status checks pass on GitHub.
+     If the repo requires no checks, GitHub merges immediately.
+   - If `gh pr merge` errors (e.g. auto-merge not enabled on the repo, or branch
+     protection blocks), capture the error verbatim and leave the PR open. Do
+     NOT retry without `--auto` and do NOT fall back to a synchronous merge.
+
+   When NOT eligible, leave the PR open for human review — the inline comments
+   already speak for the outstanding issues.
+
+9. **Final reply.** ONE paragraph stating:
    - PR number
    - Review outcome (e.g. "3 findings posted")
    - Auto-fix outcome, one of:
@@ -78,6 +101,10 @@ A `gh pr create` command just completed. Your job is to:
      - `auto-fix skipped: 0 eligible findings (review only)`
      - `auto-fix reverted: pre-commit-ci failed`
      - `aborted: <reason>` (any other unexpected failure)
+   - Auto-merge outcome, one of:
+     - `auto-merge: queued`
+     - `auto-merge: failed (<gh stderr>)`
+     - `auto-merge: skipped (P=<plausible_count>, U=<unapplied_confirmed_count>)`
 
    The user will NOT see this — it goes into the hook's transcript.
 
@@ -92,3 +119,8 @@ A `gh pr create` command just completed. Your job is to:
 - NEVER run `kei-code-review` at a level other than `high` (token budget control)
 - NEVER post a top-level summary PR comment — inline comments + the auto-fix
   commit speak for themselves.
+- NEVER `gh pr merge` with `--admin` (bypasses branch protection)
+- NEVER `gh pr merge` without `--auto` (a synchronous merge skips CI on the
+  just-pushed auto-fix commit)
+- NEVER `gh pr merge` a PR you did NOT just create via this hook (use the PR
+  number identified at step 1; do not loop over other open PRs)
