@@ -13,7 +13,7 @@
 | **M19** | `kei fmt` のコメント保持(lossless formatting) | #54 | high | ✅ 実装済み | kei_syntax / kei_fmt |
 | **M20** | import 境界の型定義解決(record/enum/tagged) | #55 | high | ✅ 実装済み | kei_check / kei_cli |
 | **M21** | 論理和 `\|\|` と剰余 `%` | #58 | medium | ✅ 実装済み | kei_syntax / kei_check / kei_fmt / kei_emit |
-| **M22** | List リテラル + tagged 明示構築 | #57 | medium | 未着手 | kei_syntax / kei_check / kei_emit |
+| **M22** | List リテラル + tagged 明示構築 | #57 | medium | ✅ 実装済み | kei_syntax / kei_check / kei_emit |
 | **M23** | List / record 引数の generative 検証 | #60 | medium | 未着手 | kei_check / kei_cli |
 | **M24** | 外部状態事後条件の再検証ケース拡充 | #56 | high | v0.3 実装済み・追試待ち | kei_emit / e2e |
 | **M25** | コンビネータ引数位置限定ラムダ | #59 | low | 設計待ち | kei_syntax / kei_check / kei_emit |

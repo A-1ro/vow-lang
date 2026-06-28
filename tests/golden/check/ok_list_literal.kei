@@ -1,0 +1,17 @@
+module ok.list_literal
+
+record Item {
+  qty: Int
+}
+
+func single() -> List<Int> {
+  return [1, 2, 3]
+}
+
+func empty() -> List<Int> {
+  return []
+}
+
+func records() -> List<Item> {
+  return [Item { qty: 1 }, Item { qty: 2 }]
+}

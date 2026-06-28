@@ -1,0 +1,12 @@
+module ok.tagged_constructor
+
+type ProductId = String tagged "ProductId"
+type Quantity = Int tagged "Quantity"
+
+func mkProduct() -> ProductId {
+  return ProductId("P-001")
+}
+
+func mkQty(n: Int) -> Quantity {
+  return Quantity(n)
+}

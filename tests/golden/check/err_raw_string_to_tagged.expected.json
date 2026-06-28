@@ -1,0 +1,24 @@
+[
+  {
+    "code": "KEI-E2005",
+    "fixes": [
+      {
+        "edits": [],
+        "title": "Construct a 'ProductId' value explicitly"
+      }
+    ],
+    "message": "expected 'ProductId', found 'String'; a tagged type does not mix with its base type",
+    "severity": "error",
+    "span": {
+      "end": {
+        "col": 17,
+        "line": 8
+      },
+      "file": "tests/golden/check/err_raw_string_to_tagged.kei",
+      "start": {
+        "col": 10,
+        "line": 8
+      }
+    }
+  }
+]

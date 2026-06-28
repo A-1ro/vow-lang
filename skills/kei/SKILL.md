@@ -112,7 +112,9 @@ enum FetchError {
 
 - 組み込み型は `Int`(i64)・`String`・`Bool`・`Result<T, E>`・`Option<T>` のみ。それ以外は同一ファイルの `record` / `enum` / `type` 宣言か `import` が要る。
 - ユーザー定義型は **型引数を取れない**(ジェネリクスは組み込みの `Result`(2)・`Option`(1)・`List`(1)だけ)。
-- **コレクション `List<T>` は v0.3 で利用可能。** 要素は不変・opaque。8 コンビネータ — `length`・`isEmpty()`・`get(i)`(→ `Option<T>`)・`map`・`filter`・`fold`・`all`・`any` — で反復・集計・絞り込みを書く。`map`/`filter`/`fold`/`all`/`any` の関数引数は **名前付き純粋関数の参照**(ラムダは無い)。契約では `length`・`isEmpty()`・`all`・`any`・`result.length` を参照できる。`List` リテラル構文はまだ無いので、`List` はパラメータや `map`/`filter` の戻りとして受け取る。配列リテラル・`Map` は未実装。詳細は `spec/kei-spec-v0.3-collections.md`、実例は `examples/collections/inventory.kei`。
+- **コレクション `List<T>` は v0.3 で利用可能。** 要素は不変・opaque。8 コンビネータ — `length`・`isEmpty()`・`get(i)`(→ `Option<T>`)・`map`・`filter`・`fold`・`all`・`any` — で反復・集計・絞り込みを書く。`map`/`filter`/`fold`/`all`/`any` の関数引数は **名前付き純粋関数の参照**(ラムダは無い)。契約では `length`・`isEmpty()`・`all`・`any`・`result.length` を参照できる。`Map` は未実装。詳細は `spec/kei-spec-v0.3-collections.md`、実例は `examples/collections/inventory.kei`。
+- **List リテラル `[a, b, c]`(v0.4 / M22)**: 要素は文脈推論で `List<T>` に型付く。空 `[]` は let や戻り型などの注釈と組み合わせて型が決まる(例: `func xs() -> List<Int> { return [] }`)。要素間の型不一致は `KEI-E2001`。
+- **tagged 型の明示コンストラクタ(v0.4 / M22)**: `ProductId("P-001")` のように **型名を関数のように呼ぶ** ことで base → tagged を明示できる。引数は underlying 型と互換であること必須(`ProductId(42)` は `KEI-E2001`)。素の base 値をそのまま渡す `return "P-001"` は引き続き `KEI-E2005`(構築点を明示する規律を保つ)。
 
 ```kei
 module collections.demo

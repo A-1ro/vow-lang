@@ -1,0 +1,7 @@
+module err.list_lit_mixed
+
+// 要素型の不一致: KEI-E2001 を **要素位置のみ** で報告し、
+// 戻り値型 List<Int> と List<unknown> の比較で二重には出さない(PR #75 review)。
+func bad() -> List<Int> {
+  return [1, "two", 3]
+}

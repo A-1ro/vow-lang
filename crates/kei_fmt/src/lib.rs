@@ -618,7 +618,8 @@ fn prec(expr: &Expr) -> u8 {
         | Expr::Str { .. }
         | Expr::Bool { .. }
         | Expr::Name { .. }
-        | Expr::Match { .. } => 7,
+        | Expr::Match { .. }
+        | Expr::ListLit { .. } => 7,
     }
 }
 
@@ -698,6 +699,13 @@ fn expr_text(expr: &Expr, min_prec: u8, no_struct: bool, level: usize) -> String
             s.push_str(&INDENT.repeat(level));
             s.push('}');
             s
+        }
+        Expr::ListLit { elements, .. } => {
+            let elems: Vec<String> = elements
+                .iter()
+                .map(|e| expr_text(e, 0, false, level))
+                .collect();
+            format!("[{}]", elems.join(", "))
         }
     }
 }

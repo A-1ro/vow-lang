@@ -1290,6 +1290,64 @@ impl Parser {
         }
     }
 
+    /// `[expr, expr, ...]` の List リテラル(M22)。改行を許容し、末尾カンマも可。
+    fn parse_list_lit(&mut self) -> Option<Expr> {
+        let open = self.bump(); // '['
+        let mut elements = Vec::new();
+        let end_span;
+        loop {
+            self.skip_newlines();
+            if self.at(T::RBracket) {
+                end_span = self.bump().span;
+                break;
+            }
+            if self.at(T::Eof) {
+                self.unclosed_delimiter("[", open.span, "]");
+                end_span = self.cur().span;
+                break;
+            }
+            let elem = match self.parse_expr(false) {
+                Some(e) => e,
+                None => {
+                    self.recover_in_brackets();
+                    self.eat(T::Comma);
+                    continue;
+                }
+            };
+            elements.push(elem);
+            self.skip_newlines();
+            if !self.eat(T::Comma) && !self.at(T::RBracket) && !self.at(T::Eof) {
+                let tok = self.cur().clone();
+                self.error(
+                    codes::UNEXPECTED_TOKEN,
+                    format!(
+                        "expected ',' or ']' in list literal, found {}",
+                        tok.found_label()
+                    ),
+                    tok.span,
+                    FixHint::replace("Insert ','", Span::point(tok.span.start), ","),
+                );
+                self.recover_in_brackets();
+            }
+        }
+        Some(Expr::ListLit {
+            elements,
+            span: open.span.to(end_span),
+        })
+    }
+
+    /// `[...]` の中での回復: `,` `]` 改行 EOF まで。
+    fn recover_in_brackets(&mut self) {
+        loop {
+            match self.cur().kind {
+                T::Eof | T::Newline | T::Comma | T::RBracket => return,
+                _ => {
+                    self.bump();
+                }
+            }
+        }
+    }
+
     fn parse_record_lit(&mut self, path: Vec<Ident>) -> Option<Expr> {
         let open = self.bump(); // '{'
         let start = path.first().expect("path is non-empty").span;
@@ -1516,6 +1574,8 @@ impl Parser {
                 self.expect(T::RParen);
                 Some(expr)
             }
+            // List リテラル `[a, b, c]`(M22 / #57)。空 `[]` も許す。
+            T::LBracket => self.parse_list_lit(),
             // 文を開始できない予約語は「識別子のつもり」とみなして回復する
             T::Type
             | T::Record
@@ -1564,7 +1624,16 @@ impl Parser {
 fn is_expr_start(kind: T) -> bool {
     matches!(
         kind,
-        T::Ident | T::Int | T::Str | T::True | T::False | T::LParen | T::Minus | T::Bang | T::Match
+        T::Ident
+            | T::Int
+            | T::Str
+            | T::True
+            | T::False
+            | T::LParen
+            | T::LBracket
+            | T::Minus
+            | T::Bang
+            | T::Match
     )
 }
 

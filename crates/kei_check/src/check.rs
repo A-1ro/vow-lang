@@ -1491,6 +1491,35 @@ impl FnChecker<'_> {
                 arms,
                 span,
             } => self.infer_match(scrutinee, arms, *span),
+            ast::Expr::ListLit { elements, span } => self.infer_list_lit(elements, *span),
+        }
+    }
+
+    /// List リテラル(M22 / #57)の要素を unify し、`Ty::List(T)` を返す。
+    /// 要素が空なら `Ty::List(Unknown)`(let の型注釈や引数位置で具体化される)。
+    /// 要素間の型不一致は KEI-E2001(最初の要素の型を期待値として後続要素にぶつける)。
+    ///
+    /// 要素間に不整合がある場合は要素型を `Unknown` に倒して返す。caller の
+    /// `check_assign(Ty::List(expected), Ty::List(found))` が **同じ根本原因で
+    /// 二重診断** を出すのを防ぐため(`Unknown` は全型と互換)。
+    fn infer_list_lit(&mut self, elements: &[ast::Expr], _span: SynSpan) -> Ty {
+        if elements.is_empty() {
+            return Ty::List(Box::new(Ty::Unknown));
+        }
+        let first = self.infer(&elements[0]);
+        let mut all_compatible = true;
+        for e in &elements[1..] {
+            let t = self.infer(e);
+            let before = self.diags.len();
+            self.check_assign(&first, &t, e.span());
+            if self.diags.len() > before {
+                all_compatible = false;
+            }
+        }
+        if all_compatible {
+            Ty::List(Box::new(first))
+        } else {
+            Ty::List(Box::new(Ty::Unknown))
         }
     }
 
@@ -2133,6 +2162,43 @@ impl FnChecker<'_> {
                 Ty::Enum(name.to_string())
             }
             Some(NameKind::Alias) => {
+                // Tagged 明示コンストラクタ(M22 / #57):
+                //   `let id = ProductId("P-001")` のような呼び出しを、
+                //   alias の underlying と互換な引数 1 個を渡したときだけ許可する。
+                //   非 tagged な alias や、underlying 不一致は従来通りエラー。
+                if let Some(Ty::Tagged {
+                    name: tag,
+                    underlying,
+                }) = self.env.aliases.get(name).cloned()
+                {
+                    let underlying = (*underlying).clone();
+                    if args.len() != 1 {
+                        for a in args {
+                            self.infer(a);
+                        }
+                        self.push(
+                            codes::TYPE_MISMATCH,
+                            format!(
+                                "tagged constructor '{name}' takes exactly 1 argument, found {}",
+                                args.len()
+                            ),
+                            span,
+                            vec![direction(format!(
+                                "Call '{name}(<{underlying}>)' with a single value"
+                            ))],
+                        );
+                        return Ty::Tagged {
+                            name: tag,
+                            underlying: Box::new(underlying),
+                        };
+                    }
+                    let arg_ty = self.infer(&args[0]);
+                    self.check_assign(&underlying, &arg_ty, args[0].span());
+                    return Ty::Tagged {
+                        name: tag,
+                        underlying: Box::new(underlying),
+                    };
+                }
                 for a in args {
                     self.infer(a);
                 }
@@ -3290,6 +3356,10 @@ pub fn contract_expr_text(e: &ast::Expr) -> String {
                 contract_expr_text(scrutinee),
                 arms.join(", ")
             )
+        }
+        ast::Expr::ListLit { elements, .. } => {
+            let elems: Vec<String> = elements.iter().map(contract_expr_text).collect();
+            format!("[{}]", elems.join(", "))
         }
     }
 }

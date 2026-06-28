@@ -44,3 +44,15 @@ func planAllReorders(products: List<Product>) -> List<ReorderPlan>
 func firstProduct(products: List<Product>) -> Option<Product> {
   return products.get(0)
 }
+
+func sampleProducts() -> List<Product> {
+  return [Product { id: "P-001", quantity: 10, unitPrice: 200, reorderLevel: 5 }, Product { id: "P-002", quantity: 2, unitPrice: 500, reorderLevel: 8 }, Product { id: "P-003", quantity: 0, unitPrice: 100, reorderLevel: 4 }]
+}
+
+func sampleStockValue() -> Int {
+  return totalStockValue(sampleProducts())
+}
+
+func sampleReorderPlans() -> List<ReorderPlan> {
+  return planAllReorders(sampleProducts())
+}

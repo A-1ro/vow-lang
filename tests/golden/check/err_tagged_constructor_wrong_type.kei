@@ -1,0 +1,9 @@
+module err.tagged_constructor_wrong_type
+
+type ProductId = String tagged "ProductId"
+
+// tagged コンストラクタの引数は underlying と互換でなければならない。
+// Int を渡すと KEI-E2001(underlying=String)。
+func bad() -> ProductId {
+  return ProductId(42)
+}

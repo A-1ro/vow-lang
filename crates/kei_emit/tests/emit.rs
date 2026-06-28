@@ -88,6 +88,37 @@ fn requires_emits_structured_violation() {
         .contains("import { KeiContractViolation } from \"@kei/runtime\";"));
 }
 
+/// M22 / #57 + PR #75 review: `ensures` 内の List リテラル要素に `old(...)` がある場合、
+/// `collect_old_exprs` が ListLit を走査しないと、キャプチャ宣言の枚数と
+/// 参照側の `old_counter` がずれて `kei$old$N` が未宣言のまま参照され、
+/// 生成 TS が実行時 `ReferenceError` を起こす。ListLit 内の `old` も適切に
+/// キャプチャされ、参照が解決することを固定する(List 同士の等値は不可なので
+/// `[...].length` 経由で Int を取り出してテストする)。
+#[test]
+fn old_inside_list_literal_in_ensures_is_captured() {
+    let out = emit(concat!(
+        "func wrap(a: Int) -> Int\n",
+        "  ensures result == [old(a)].length\n",
+        "{\n",
+        "  return 1\n",
+        "}\n",
+    ));
+    // 進入時キャプチャの宣言があること(ListLit 内の old(a) も走査対象)。
+    assert!(
+        out.ts.contains("const kei$old$0 = a;"),
+        "old(a) inside list literal must be captured:\n{}",
+        out.ts
+    );
+    // ensures チェックが kei$old$0 を **参照** していること
+    // (collect_old_exprs が ListLit を辿らないと kei$old$0 が未宣言のまま
+    // 参照され ReferenceError になる)。
+    assert!(
+        out.ts.contains("[kei$old$0].length"),
+        "ensures should reference captured old vars inside list literal:\n{}",
+        out.ts
+    );
+}
+
 #[test]
 fn ensures_wraps_body_and_captures_old() {
     let out = emit(concat!(

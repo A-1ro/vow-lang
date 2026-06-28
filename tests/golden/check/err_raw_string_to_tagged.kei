@@ -1,0 +1,9 @@
+module err.raw_string_to_tagged
+
+type ProductId = String tagged "ProductId"
+
+// 素の base 型から tagged への代入は KEI-E2005 で **引き続き** 弾く
+// (M22 で「コンストラクタ経由でだけ作れる」規律を保つ)。
+func bad() -> ProductId {
+  return "P-001"
+}
