@@ -169,6 +169,63 @@ fn unknown_import_remains_opaque() {
     assert!(diags.is_empty(), "NoopResolver should also stay opaque");
 }
 
+/// import で解決された型名と同名のローカル定義は KEI-E1004(IMPORT_CONFLICT)で
+/// 報告される(PR #74 review)。M20 以前は import が `NameKind::Import` だけだったが、
+/// 解決後は `Record/Enum/Alias` になるため、出自(import か local か)を保持しないと
+/// DUPLICATE_DEF に流れ込んでしまう。
+#[test]
+fn imported_name_conflicts_with_local_definition_as_import_conflict() {
+    let src = "module t.consumer\n\
+               import t.product { Product }\n\
+               record Product { id: Int }\n";
+    let module = parse(src);
+
+    let resolver = FakeResolver::new().insert(
+        &["t", "product"],
+        vec![(
+            "Product",
+            ResolvedTypeDef::Record(vec![("id".to_string(), Ty::Int)]),
+        )],
+    );
+    let diags = kei_check::check_module_with_resolver(
+        "consumer.kei",
+        &module,
+        kei_check::CheckOptions::default(),
+        &resolver,
+    );
+    let codes: Vec<&str> = diags.iter().map(|d| d.code.as_str()).collect();
+    assert!(
+        codes.contains(&"KEI-E1004"),
+        "expected KEI-E1004 (IMPORT_CONFLICT) when a local record shadows a resolved import; got {codes:?}"
+    );
+    assert!(
+        !codes.contains(&"KEI-E1003"),
+        "must not fall back to DUPLICATE_DEF for import-vs-local; got {codes:?}"
+    );
+}
+
+/// `module_type_defs` は循環 alias で **無限再帰せず** 終了する(PR #74 review)。
+/// `ty_of` 内の `aliases.contains_key(r)` 分岐で fresh `visiting` を作っていた
+/// 旧実装は `type A = B / type B = A` でスタックオーバーフローしていた。
+#[test]
+fn module_type_defs_handles_cyclic_aliases_without_overflow() {
+    let src = "module t.cyclic\n\
+               type A = B\n\
+               type B = A\n";
+    let module = parse(src);
+    // 終了することが第一目標(panic / stack overflow ではなく値を返すこと)。
+    let defs = kei_check::module_type_defs(&module);
+    // 循環は `Unknown` に倒される(`Alias(Ty::Unknown)` で抽出される)。
+    assert!(matches!(
+        defs.get("A"),
+        Some(ResolvedTypeDef::Alias(Ty::Unknown))
+    ));
+    assert!(matches!(
+        defs.get("B"),
+        Some(ResolvedTypeDef::Alias(Ty::Unknown))
+    ));
+}
+
 /// `module_type_defs` がローカル定義を一通り正しく抽出することを確認する。
 #[test]
 fn module_type_defs_extracts_records_enums_aliases() {

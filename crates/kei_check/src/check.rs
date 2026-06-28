@@ -120,10 +120,25 @@ pub fn check_module_with_resolver(
 /// emit はこの**権威的な型情報**だけを根拠に `get`/`fold`/`all`/`any`/`isEmpty` を配列メソッドへ
 /// 写す(構文だけでレシーバが List か判別すると、外部呼び出しの連鎖や同名フィールドを誤写する)。
 /// 検査器(型推論)そのものを使って収集するので、検査の再実装にはならない。
+///
+/// resolver なしの版(後方互換)。import 由来の型は opaque 扱いなので、
+/// import 先 record の `List` フィールドに対するメソッド呼び出しは
+/// 検出されない(emit が外部呼び出しとして写す)。M20 / #55 と整合的に
+/// 解決させたい場合は [`list_op_spans_with_resolver`] を使う。
 pub fn list_op_spans(module: &ast::Module) -> std::collections::HashSet<(u32, u32)> {
+    list_op_spans_with_resolver(module, &NoopResolver)
+}
+
+/// [`list_op_spans`] に import 解決リゾルバを与えた版(M20 / #55)。
+/// `Env::build` を同じ resolver で組むので、`kei check_module_with_resolver` と
+/// 整合的な型情報の元で List メソッドを判定する。
+pub fn list_op_spans_with_resolver(
+    module: &ast::Module,
+    resolver: &dyn ModuleResolver,
+) -> std::collections::HashSet<(u32, u32)> {
     let file = "";
     let mut diags = Vec::new();
-    let (env, fn_sigs) = Env::build(file, module, &mut diags, &NoopResolver);
+    let (env, fn_sigs) = Env::build(file, module, &mut diags, resolver);
     let mut spans = HashSet::new();
     for (item, sig) in module.items.iter().zip(&fn_sigs) {
         if let (ast::Item::Func(f), Some(sig)) = (item, sig) {
@@ -518,6 +533,11 @@ impl Env {
         };
         // 名前 → 最初の定義位置(重複メッセージと「最初の定義のみ有効」の判定)。
         let mut first: HashMap<String, SynSpan> = HashMap::new();
+        // M20: import で導入された名前を別途記録する。`env.kinds` の値は
+        // 解決の結果(Record / Enum / Alias / Import)で更新されるため、
+        // 名前の **出自**(import か local か)を kinds だけでは区別できない。
+        // IMPORT_CONFLICT vs DUPLICATE_DEF の判定に使う。
+        let mut imported_names: HashSet<String> = HashSet::new();
 
         // 1) import 名の登録(M20: resolver があれば対象モジュールの型定義を引いて
         //    Record/Enum/Alias として持ち込み、無ければ従来通り opaque な Import に倒す)。
@@ -587,6 +607,7 @@ impl Env {
                     NameKind::Import
                 };
                 env.kinds.insert(ident.name.clone(), kind);
+                imported_names.insert(ident.name.clone());
                 first.insert(ident.name.clone(), ident.span);
             }
         }
@@ -601,8 +622,12 @@ impl Env {
                 // extern はローカル名を導入しない(外部パスの署名のみ)。
                 ast::Item::Extern(_) => continue,
             };
-            match (env.kinds.get(&ident.name), first.get(&ident.name)) {
-                (Some(NameKind::Import), Some(_)) => {
+            match first.get(&ident.name) {
+                // M20: import で解決された名前(Record/Enum/Alias でも)とローカル
+                // 定義が衝突したら IMPORT_CONFLICT を出す。`env.kinds` の値だけで
+                // 判定すると、解決済み import が `NameKind::Record` 等になっているため
+                // DUPLICATE_DEF に流れ込んでしまう。`imported_names` 集合で出自を保つ。
+                Some(_) if imported_names.contains(&ident.name) => {
                     env.push(
                         diags,
                         codes::IMPORT_CONFLICT,
@@ -614,7 +639,7 @@ impl Env {
                         ))],
                     );
                 }
-                (Some(_), Some(prev)) => {
+                Some(prev) => {
                     let prev_line = prev.start.line;
                     env.push(
                         diags,
@@ -627,7 +652,7 @@ impl Env {
                         vec![direction("Rename one of the definitions")],
                     );
                 }
-                _ => {
+                None => {
                     env.kinds.insert(ident.name.clone(), kind);
                     first.insert(ident.name.clone(), ident.span);
                 }

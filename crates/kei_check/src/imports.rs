@@ -110,6 +110,7 @@ pub fn module_type_defs(module: &ast::Module) -> HashMap<String, ResolvedTypeDef
                     .fields
                     .iter()
                     .map(|f| {
+                        let mut visiting = Vec::new();
                         (
                             f.name.name.clone(),
                             ty_of(
@@ -118,6 +119,7 @@ pub fn module_type_defs(module: &ast::Module) -> HashMap<String, ResolvedTypeDef
                                 &local_enums,
                                 &local_aliases,
                                 &mut alias_tys,
+                                &mut visiting,
                             ),
                         )
                     })
@@ -135,12 +137,14 @@ pub fn module_type_defs(module: &ast::Module) -> HashMap<String, ResolvedTypeDef
                                 types
                                     .iter()
                                     .map(|t| {
+                                        let mut visiting = Vec::new();
                                         ty_of(
                                             t,
                                             &local_records,
                                             &local_enums,
                                             &local_aliases,
                                             &mut alias_tys,
+                                            &mut visiting,
                                         )
                                     })
                                     .collect(),
@@ -149,6 +153,7 @@ pub fn module_type_defs(module: &ast::Module) -> HashMap<String, ResolvedTypeDef
                                 fields
                                     .iter()
                                     .map(|f| {
+                                        let mut visiting = Vec::new();
                                         (
                                             f.name.name.clone(),
                                             ty_of(
@@ -157,6 +162,7 @@ pub fn module_type_defs(module: &ast::Module) -> HashMap<String, ResolvedTypeDef
                                                 &local_enums,
                                                 &local_aliases,
                                                 &mut alias_tys,
+                                                &mut visiting,
                                             ),
                                         )
                                     })
@@ -196,7 +202,7 @@ fn ty_of_alias(
         return Ty::Unknown;
     };
     visiting.push(name.to_string());
-    let base = ty_of(&a.ty, records, enums, aliases, alias_tys);
+    let base = ty_of(&a.ty, records, enums, aliases, alias_tys, visiting);
     let ty = match &a.tag {
         Some(tag) => Ty::Tagged {
             name: tag.clone(),
@@ -215,30 +221,37 @@ fn ty_of(
     enums: &[&str],
     aliases: &HashMap<&str, &ast::TypeAlias>,
     alias_tys: &mut HashMap<String, Ty>,
+    visiting: &mut Vec<String>,
 ) -> Ty {
-    let root = t.path[0].name.as_str();
-    if t.path.len() > 1 {
+    // 防御: path が空でも panic させない(エラー回復で起こりうる)。
+    if t.path.is_empty() || t.path.len() > 1 {
         return Ty::Unknown;
     }
+    let root = t.path[0].name.as_str();
     match root {
         "Int" if t.args.is_empty() => Ty::Int,
         "String" if t.args.is_empty() => Ty::Str,
         "Bool" if t.args.is_empty() => Ty::Bool,
         "Option" if t.args.len() == 1 => Ty::Option(Box::new(ty_of(
-            &t.args[0], records, enums, aliases, alias_tys,
+            &t.args[0], records, enums, aliases, alias_tys, visiting,
         ))),
         "List" if t.args.len() == 1 => Ty::List(Box::new(ty_of(
-            &t.args[0], records, enums, aliases, alias_tys,
+            &t.args[0], records, enums, aliases, alias_tys, visiting,
         ))),
         "Result" if t.args.len() == 2 => Ty::Result(
-            Box::new(ty_of(&t.args[0], records, enums, aliases, alias_tys)),
-            Box::new(ty_of(&t.args[1], records, enums, aliases, alias_tys)),
+            Box::new(ty_of(
+                &t.args[0], records, enums, aliases, alias_tys, visiting,
+            )),
+            Box::new(ty_of(
+                &t.args[1], records, enums, aliases, alias_tys, visiting,
+            )),
         ),
         r if records.contains(&r) => Ty::Record(r.to_string()),
         r if enums.contains(&r) => Ty::Enum(r.to_string()),
+        // **呼び出し側の `visiting` を共有** して循環 alias を断つ。fresh vec を
+        // 作っていた以前の実装は `type A = B / type B = A` で無限再帰した。
         r if aliases.contains_key(r) => {
-            let mut visiting = Vec::new();
-            ty_of_alias(r, records, enums, aliases, alias_tys, &mut visiting)
+            ty_of_alias(r, records, enums, aliases, alias_tys, visiting)
         }
         _ => Ty::Unknown,
     }
