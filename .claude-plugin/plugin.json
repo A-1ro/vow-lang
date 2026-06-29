@@ -1,7 +1,7 @@
 {
   "name": "kei",
-  "description": "Kei 言語を学習なしで正しく書くためのスキル。func/契約/エフェクト/型/失敗処理の最小十分セットと、kei check による検証ループを提供する(v0.4: List リテラル / tagged 構築 / import 境界の型解決 / fmt コメント保持 / List/record の generative)。",
-  "version": "0.4.1",
+  "description": "Kei 言語を学習なしで正しく書くためのスキル。func/契約/エフェクト/型/失敗処理の最小十分セットと、kei check による検証ループを提供する(v0.4: List リテラル / tagged 構築 / import 境界の型解決 / fmt コメント保持 / List/record の generative / コンビネータ引数位置限定ラムダ / extern query 在庫例 / Money 注記)。",
+  "version": "0.4.2",
   "author": {
     "name": "Eiichiro Iriguchi"
   },
